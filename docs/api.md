@@ -268,7 +268,7 @@ Get daily sales summary for a specific date.
   "success": true,
   "data": {
     "date": "2024-06-02",
-    "totalRevenue": 45678.50,
+    "totalRevenue": 456789999.50,
     "totalLitres": 1234.5,
     "totalTransactions": 89,
     "fuelTypeBreakdown": {

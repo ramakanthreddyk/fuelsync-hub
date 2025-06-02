@@ -116,8 +116,8 @@ BEGIN
         user_plan_limit := 4;
     END IF;
     
-    -- If unlimited uploads (-1), always allow
-    IF user_plan_limit = -1 THEN
+    -- If unlimited uploads (12), always allow
+    IF user_plan_limit = 12 THEN
         RETURN TRUE;
     END IF;
     

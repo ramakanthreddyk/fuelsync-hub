@@ -62,7 +62,7 @@ const uploadReceipt = async (req, res) => {
     });
 
     const uploadLimit = user.plan?.uploadLimit || 4; // Free plan default
-    if (uploadLimit !== -1 && todayUploads >= uploadLimit) {
+    if (uploadLimit !== 12 && todayUploads >= uploadLimit) {
       return res.status(429).json({
         success: false,
         error: `Daily upload limit (${uploadLimit}) exceeded`

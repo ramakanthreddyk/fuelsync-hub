@@ -105,7 +105,7 @@ class ApiService {
     return response;
   }
 
-  async logout(): Promise<ApiResponse<any>> {
+  async logout(): Promise<ApiResponse<unknown>> {
     const response = await this.request('/auth/logout', {
       method: 'POST',
     });
@@ -151,7 +151,7 @@ class ApiService {
     }
   }
 
-  async updateOcrData(uploadId: string, ocrData: any): Promise<ApiResponse<Upload>> {
+  async updateOcrData(uploadId: string, ocrData: Record<string, unknown>): Promise<ApiResponse<Upload>> {
     console.log('API: Updating OCR data', uploadId, ocrData);
     return this.request<Upload>(`/uploads/${uploadId}`, {
       method: 'PUT',
@@ -159,7 +159,7 @@ class ApiService {
     });
   }
 
-  async deleteUpload(uploadId: string): Promise<ApiResponse<any>> {
+  async deleteUpload(uploadId: string): Promise<ApiResponse<unknown>> {
     console.log('API: Deleting upload', uploadId);
     return this.request(`/uploads/${uploadId}`, {
       method: 'DELETE',
@@ -212,7 +212,7 @@ class ApiService {
     });
   }
 
-  async updateNozzleFuelType(nozzleId: string, fuelType: string): Promise<ApiResponse<any>> {
+  async updateNozzleFuelType(nozzleId: string, fuelType: string): Promise<ApiResponse<unknown>> {
     console.log('API: Updating nozzle fuel type', nozzleId, fuelType);
     return this.request(`/pumps/nozzles/${nozzleId}/fuel-type`, {
       method: 'PUT',
@@ -221,7 +221,7 @@ class ApiService {
   }
 
   // Report endpoints
-  async generateReport(type: string, startDate: string, endDate: string): Promise<ApiResponse<any>> {
+  async generateReport(type: string, startDate: string, endDate: string): Promise<ApiResponse<unknown>> {
     console.log('API: Generating report', type, startDate, endDate);
     return this.request('/reports/generate', {
       method: 'POST',
@@ -230,7 +230,7 @@ class ApiService {
   }
 
   // Health check
-  async healthCheck(): Promise<ApiResponse<any>> {
+  async healthCheck(): Promise<ApiResponse<unknown>> {
     return this.request('/health');
   }
 }

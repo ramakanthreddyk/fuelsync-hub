@@ -1,22 +1,22 @@
-
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
 const Plan = sequelize.define('Plan', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: DataTypes.UUIDV4, // Sequelize will use `gen_random_uuid()` under the hood in Postgres
     primaryKey: true
   },
   name: {
-    type: DataTypes.ENUM('Free', 'Basic', 'Premium'),
+    type: DataTypes.STRING,
     allowNull: false,
     unique: true
   },
   uploadLimit: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    comment: 'Daily upload limit (-1 for unlimited)'
+    defaultValue: 12, // This is important! Prevents NOT NULL errors on existing rows
+    comment: 'Daily upload limit (12 for unlimited)' // 12 in comment before might be a typo
   },
   features: {
     type: DataTypes.JSONB,

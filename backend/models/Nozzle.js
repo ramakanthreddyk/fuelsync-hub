@@ -1,4 +1,3 @@
-
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
@@ -8,7 +7,7 @@ const Nozzle = sequelize.define('Nozzle', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  pumpId: {
+  pump_id: {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
@@ -24,7 +23,7 @@ const Nozzle = sequelize.define('Nozzle', {
       max: 10
     }
   },
-  fuelType: {
+  fuel_type: {  // Match DB column name (optional, for clarity)
     type: DataTypes.ENUM('Petrol', 'Diesel'),
     allowNull: false
   },
@@ -36,10 +35,11 @@ const Nozzle = sequelize.define('Nozzle', {
 }, {
   tableName: 'nozzles',
   timestamps: true,
+  underscored: true,
   indexes: [
     {
       unique: true,
-      fields: ['pumpId', 'number']
+      fields: ['pump_id', 'number']  // ✅ This is the correct field name
     }
   ]
 });

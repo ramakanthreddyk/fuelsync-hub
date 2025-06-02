@@ -178,3 +178,49 @@ MIT License – see `LICENSE` file.
 * Community: [Discord](https://discord.gg/fuelsync)
 
 ---
+
+code structure
+
+
+fuelsync/
+├── backend/                    # Node.js + Express API backend
+│   ├── config/                 # DB configs, environment variables
+│   ├── controllers/            # API route handlers / business logic
+│   ├── middleware/             # Auth, validation, error handlers
+│   ├── models/                 # Sequelize/Postgres models
+│   ├── routes/                 # API route definitions
+│   ├── scripts/                # Migrations, seeds, CLI scripts
+│   ├── services/               # Business logic, Azure clients, helpers
+│   ├── utils/                  # Utility functions
+│   ├── app.js                  # Express app setup (middleware, routes)
+│   ├── server.js               # Server entry point
+│   └── ...                     # Other backend files (e.g., tests)
+│
+├── src/                        # Frontend (React + TypeScript + Tailwind)
+│   ├── components/             # Reusable UI components (Shadcn/ui, custom)
+│   ├── hooks/                  # Custom React hooks (e.g., useAuth, useFetch)
+│   ├── lib/                    # API clients, utilities (e.g., fetcher.ts)
+│   ├── pages/                  # Next.js-style page components (Dashboard, Upload)
+│   ├── services/               # Frontend API services (fetchPumpSnos, etc.)
+│   ├── types/                  # Global TypeScript type definitions
+│   └── styles/                 # Tailwind + custom CSS (optional)
+│
+├── docs/                       # Documentation (API, guides, architecture)
+│   ├── api.md                  # API endpoint documentation
+│   ├── user-guide.md           # User-facing guide
+│   └── contributing.md         # Contribution guidelines
+│
+├── sql/                        # SQL migrations and seed scripts
+│   ├── 001_initial_schema.sql
+│   ├── 002_user_roles.sql
+│   └── ...
+│
+├── public/                     # Static assets (favicon, robots.txt, etc.)
+│
+├── .gitignore
+├── package.json
+├── tailwind.config.ts
+├── tsconfig.json
+├── vite.config.ts
+├── README.md
+└── ...                         # Other meta files (LICENSE, env.example, etc.)

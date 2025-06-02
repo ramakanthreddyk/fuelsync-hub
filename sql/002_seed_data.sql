@@ -5,8 +5,8 @@
 -- Insert plans
 INSERT INTO plans (name, upload_limit, features, price) VALUES
 ('Free', 4, '{"salesTracking": true, "notifications": true}', 0),
-('Basic', 10, '{"salesTracking": true, "notifications": true, "analytics": true, "priceManagement": true, "reports": true}', 299),
-('Premium', -1, '{"salesTracking": true, "notifications": true, "analytics": true, "priceManagement": true, "reports": true, "multiStation": true, "adminFeatures": true}', 999);
+('Basic', 8, '{"salesTracking": true, "notifications": true, "analytics": true, "priceManagement": true, "reports": true}', 299),
+('Premium', 12, '{"salesTracking": true, "notifications": true, "analytics": true, "priceManagement": true, "reports": true, "multiStation": true, "adminFeatures": true}', 999);
 
 -- Insert sample admin user (password: admin123)
 INSERT INTO users (name, email, password, role, plan_id) 
