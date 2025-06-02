@@ -1,3 +1,4 @@
+
 import { 
   User, 
   Upload, 
@@ -8,260 +9,229 @@ import {
   ApiResponse 
 } from '@/types/api';
 
-// Mock data
-const mockUser: User = {
-  id: '1',
-  name: 'John Doe',
-  email: 'john@fuelstation.com',
-  role: 'Pump Owner',
-  plan: 'Basic',
-  stationId: 'station-1'
-};
-
-const mockUploads: Upload[] = [
-  {
-    id: '1',
-    userId: '1',
-    filename: 'receipt-001.jpg',
-    status: 'success',
-    amount: 2450,
-    litres: 45.6,
-    fuelType: 'Petrol',
-    uploadedAt: '2024-06-02T10:30:00Z',
-    processedAt: '2024-06-02T10:31:00Z',
-    ocrData: {
-      amount: 2450,
-      litres: 45.6,
-      fuelType: 'Petrol',
-      pumpId: 'pump-1',
-      timestamp: '2024-06-02T10:25:00Z'
-    }
-  },
-  {
-    id: '2',
-    userId: '1',
-    filename: 'receipt-002.jpg',
-    status: 'processing',
-    amount: 1890,
-    litres: 35.2,
-    fuelType: 'Diesel',
-    uploadedAt: '2024-06-02T09:15:00Z'
-  },
-  {
-    id: '3',
-    userId: '1',
-    filename: 'receipt-003.jpg',
-    status: 'success',
-    amount: 3210,
-    litres: 59.8,
-    fuelType: 'Petrol',
-    uploadedAt: '2024-06-02T08:45:00Z',
-    processedAt: '2024-06-02T08:46:00Z'
-  }
-];
-
-const mockSales: Sale[] = [
-  {
-    id: '1',
-    pumpId: 'pump-1',
-    fuelType: 'Petrol',
-    litres: 45.6,
-    pricePerLitre: 105.50,
-    totalAmount: 4810.80,
-    timestamp: '2024-06-02T10:25:00Z',
-    shift: 'morning'
-  },
-  {
-    id: '2',
-    pumpId: 'pump-2',
-    fuelType: 'Diesel',
-    litres: 35.2,
-    pricePerLitre: 98.75,
-    totalAmount: 3476.00,
-    timestamp: '2024-06-02T09:15:00Z',
-    shift: 'morning'
-  }
-];
-
-const mockFuelPrices: FuelPrice[] = [
-  {
-    id: '1',
-    fuelType: 'Petrol',
-    price: 105.50,
-    updatedAt: '2024-06-01T08:00:00Z',
-    updatedBy: 'John Doe'
-  },
-  {
-    id: '2',
-    fuelType: 'Diesel',
-    price: 98.75,
-    updatedAt: '2024-06-01T08:00:00Z',
-    updatedBy: 'John Doe'
-  }
-];
-
-const mockPumps: Pump[] = [
-  {
-    id: 'pump-1',
-    name: 'Pump 1',
-    status: 'active',
-    nozzles: [
-      { id: 'nozzle-1', pumpId: 'pump-1', number: 1, fuelType: 'Petrol', status: 'active' },
-      { id: 'nozzle-2', pumpId: 'pump-1', number: 2, fuelType: 'Petrol', status: 'active' },
-      { id: 'nozzle-3', pumpId: 'pump-1', number: 3, fuelType: 'Diesel', status: 'active' },
-      { id: 'nozzle-4', pumpId: 'pump-1', number: 4, fuelType: 'Diesel', status: 'inactive' }
-    ],
-    lastMaintenanceDate: '2024-05-15',
-    totalSalesToday: 12500
-  },
-  {
-    id: 'pump-2',
-    name: 'Pump 2',
-    status: 'active',
-    nozzles: [
-      { id: 'nozzle-5', pumpId: 'pump-2', number: 1, fuelType: 'Petrol', status: 'active' },
-      { id: 'nozzle-6', pumpId: 'pump-2', number: 2, fuelType: 'Petrol', status: 'active' },
-      { id: 'nozzle-7', pumpId: 'pump-2', number: 3, fuelType: 'Diesel', status: 'active' },
-      { id: 'nozzle-8', pumpId: 'pump-2', number: 4, fuelType: 'Diesel', status: 'active' }
-    ],
-    lastMaintenanceDate: '2024-05-20',
-    totalSalesToday: 18750
-  }
-];
-
-// Simulate API delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 // API Service Class
 class ApiService {
   private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+  private token: string | null = null;
 
-  // Simulate HTTP requests with mock data
-  private async mockRequest<T>(data: T, delayMs = 500): Promise<ApiResponse<T>> {
-    await delay(delayMs);
-    return {
-      success: true,
-      data
-    };
+  constructor() {
+    // Get token from localStorage on initialization
+    this.token = localStorage.getItem('fuelsync_token');
   }
 
-  // Auth
+  // Helper method to set authorization headers
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    return headers;
+  }
+
+  // Helper method for API requests
+  private async request<T>(
+    endpoint: string, 
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers: {
+          ...this.getHeaders(),
+          ...options.headers,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('API request error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  // Set token for authenticated requests
+  setToken(token: string) {
+    this.token = token;
+    localStorage.setItem('fuelsync_token', token);
+  }
+
+  // Clear token
+  clearToken() {
+    this.token = null;
+    localStorage.removeItem('fuelsync_token');
+  }
+
+  // Auth endpoints
   async login(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
     console.log('API: Login attempt', { email });
-    return this.mockRequest({
-      user: mockUser,
-      token: 'mock-jwt-token-' + Date.now()
+    const response = await this.request<{ user: User; token: string }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
     });
+
+    if (response.success && response.data?.token) {
+      this.setToken(response.data.token);
+    }
+
+    return response;
   }
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.mockRequest(mockUser);
+    return this.request<User>('/auth/me');
   }
 
-  // Uploads
-  async getUploads(): Promise<ApiResponse<Upload[]>> {
+  async refreshToken(): Promise<ApiResponse<{ token: string }>> {
+    const response = await this.request<{ token: string }>('/auth/refresh', {
+      method: 'POST',
+    });
+
+    if (response.success && response.data?.token) {
+      this.setToken(response.data.token);
+    }
+
+    return response;
+  }
+
+  async logout(): Promise<ApiResponse<any>> {
+    const response = await this.request('/auth/logout', {
+      method: 'POST',
+    });
+
+    this.clearToken();
+    return response;
+  }
+
+  // Upload endpoints
+  async getUploads(page = 1, limit = 20): Promise<ApiResponse<Upload[]>> {
     console.log('API: Fetching uploads');
-    return this.mockRequest(mockUploads);
+    return this.request<Upload[]>(`/uploads?page=${page}&limit=${limit}`);
   }
 
   async uploadReceipt(file: File): Promise<ApiResponse<Upload>> {
     console.log('API: Uploading receipt', file.name);
-    const newUpload: Upload = {
-      id: Date.now().toString(),
-      userId: mockUser.id,
-      filename: file.name,
-      status: 'processing',
-      amount: 0,
-      litres: 0,
-      fuelType: 'Petrol',
-      uploadedAt: new Date().toISOString()
-    };
-    return this.mockRequest(newUpload, 1000);
+    
+    const formData = new FormData();
+    formData.append('receipt', file);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/uploads`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Upload error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Upload failed'
+      };
+    }
   }
 
   async updateOcrData(uploadId: string, ocrData: any): Promise<ApiResponse<Upload>> {
     console.log('API: Updating OCR data', uploadId, ocrData);
-    const upload = mockUploads.find(u => u.id === uploadId);
-    if (upload) {
-      upload.ocrData = ocrData;
-      upload.amount = ocrData.amount;
-      upload.litres = ocrData.litres;
-    }
-    return this.mockRequest(upload!);
+    return this.request<Upload>(`/uploads/${uploadId}`, {
+      method: 'PUT',
+      body: JSON.stringify(ocrData),
+    });
   }
 
-  // Sales
-  async getSales(startDate?: string, endDate?: string): Promise<ApiResponse<Sale[]>> {
+  async deleteUpload(uploadId: string): Promise<ApiResponse<any>> {
+    console.log('API: Deleting upload', uploadId);
+    return this.request(`/uploads/${uploadId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Sales endpoints
+  async getSales(startDate?: string, endDate?: string, page = 1, limit = 20): Promise<ApiResponse<Sale[]>> {
     console.log('API: Fetching sales', { startDate, endDate });
-    return this.mockRequest(mockSales);
+    
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+
+    return this.request<Sale[]>(`/sales?${params.toString()}`);
   }
 
   async getDailySummary(date: string): Promise<ApiResponse<DailySummary>> {
     console.log('API: Fetching daily summary', date);
-    const summary: DailySummary = {
-      date,
-      totalRevenue: 45678,
-      totalLitres: 1234,
-      totalTransactions: 89,
-      fuelTypeBreakdown: {
-        petrol: { litres: 734, revenue: 27890, transactions: 52 },
-        diesel: { litres: 500, revenue: 17788, transactions: 37 }
-      }
-    };
-    return this.mockRequest(summary);
+    return this.request<DailySummary>(`/sales/daily/${date}`);
   }
 
-  // Fuel Prices
+  // Fuel price endpoints
   async getFuelPrices(): Promise<ApiResponse<FuelPrice[]>> {
     console.log('API: Fetching fuel prices');
-    return this.mockRequest(mockFuelPrices);
+    return this.request<FuelPrice[]>('/prices');
   }
 
   async updateFuelPrice(fuelType: string, price: number): Promise<ApiResponse<FuelPrice>> {
     console.log('API: Updating fuel price', fuelType, price);
-    const updatedPrice: FuelPrice = {
-      id: Date.now().toString(),
-      fuelType: fuelType as 'Petrol' | 'Diesel',
-      price,
-      updatedAt: new Date().toISOString(),
-      updatedBy: mockUser.name
-    };
-    return this.mockRequest(updatedPrice);
+    return this.request<FuelPrice>('/prices', {
+      method: 'PUT',
+      body: JSON.stringify({ fuelType, price }),
+    });
   }
 
-  // Pumps
+  // Pump endpoints
   async getPumps(): Promise<ApiResponse<Pump[]>> {
     console.log('API: Fetching pumps');
-    return this.mockRequest(mockPumps);
+    return this.request<Pump[]>('/pumps');
   }
 
   async updatePumpStatus(pumpId: string, status: string): Promise<ApiResponse<Pump>> {
     console.log('API: Updating pump status', pumpId, status);
-    const pump = mockPumps.find(p => p.id === pumpId);
-    if (pump) {
-      pump.status = status as 'active' | 'inactive' | 'maintenance';
-    }
-    return this.mockRequest(pump!);
+    return this.request<Pump>(`/pumps/${pumpId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
   }
 
   async updateNozzleFuelType(nozzleId: string, fuelType: string): Promise<ApiResponse<any>> {
     console.log('API: Updating nozzle fuel type', nozzleId, fuelType);
-    return this.mockRequest({ success: true });
+    return this.request(`/pumps/nozzles/${nozzleId}/fuel-type`, {
+      method: 'PUT',
+      body: JSON.stringify({ fuelType }),
+    });
   }
 
-  // Reports
+  // Report endpoints
   async generateReport(type: string, startDate: string, endDate: string): Promise<ApiResponse<any>> {
     console.log('API: Generating report', type, startDate, endDate);
-    const reportData = {
-      type,
-      startDate,
-      endDate,
-      totalRevenue: 156789,
-      totalLitres: 4567,
-      totalTransactions: 234,
-      downloadUrl: '/api/reports/download/mock-report-' + Date.now() + '.pdf'
-    };
-    return this.mockRequest(reportData, 2000);
+    return this.request('/reports/generate', {
+      method: 'POST',
+      body: JSON.stringify({ type, startDate, endDate }),
+    });
+  }
+
+  // Health check
+  async healthCheck(): Promise<ApiResponse<any>> {
+    return this.request('/health');
   }
 }
 
