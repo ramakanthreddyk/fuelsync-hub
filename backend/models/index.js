@@ -1,12 +1,12 @@
 
 const { sequelize } = require('../config/database');
-const User = require('./User');
 const Upload = require('./Upload');
 const Sale = require('./Sale');
 const Pump = require('./Pump');
 const Nozzle = require('./Nozzle');
 const FuelPrice = require('./FuelPrice');
-const Plan = require('./Plan');
+const User = require('./user');
+const Plan = require('./plan');
 
 // Define associations
 User.hasMany(Upload, { foreignKey: 'userId', as: 'uploads' });

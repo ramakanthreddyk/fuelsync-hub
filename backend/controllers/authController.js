@@ -1,12 +1,9 @@
-
 const jwt = require('jsonwebtoken');
 const { User, Plan } = require('../models');
-const { validateLogin, validateRegistration } = require('../utils/validation');
+const { validateLogin } = require('../utils/validation');
 
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRATION || '1h'
-  });
+const generateToken = (userId, role) => {
+  return jwt.sign({ userId, role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRATION || '1h' });
 };
 
 const login = async (req, res) => {
@@ -37,7 +34,7 @@ const login = async (req, res) => {
     // Update last login
     await user.update({ lastLoginAt: new Date() });
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.role);
 
     res.json({
       success: true,
@@ -117,7 +114,7 @@ const refreshToken = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Internal server error'
-    });
+      });
   }
 };
 

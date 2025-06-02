@@ -1,5 +1,3 @@
-// backend/config/sequelize.js
-
 const { Sequelize } = require('sequelize');
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -11,12 +9,14 @@ const sequelize = new Sequelize({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
   dialect: 'postgres',
-  
+  define: {
+    underscored: true, // snake_case in DB
+  },
   dialectOptions: {
     ssl: {
-      require: true, // Always enforce SSL, even in development (especially for Azure)
-      rejectUnauthorized: false, // Accept self-signed certs in dev and Azure's cert in prod
-    }
+      require: true,
+      rejectUnauthorized: false,
+    },
   },
   logging: process.env.DB_LOGGING === 'true' || isProduction ? false : console.log,
   pool: {
@@ -34,6 +34,6 @@ sequelize
   })
   .catch((err) => {
     console.error('❌ Unable to connect to the database:', err);
-  });
+});
 
 module.exports = { sequelize };

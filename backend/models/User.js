@@ -1,4 +1,3 @@
-
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const bcrypt = require('bcryptjs');
@@ -9,54 +8,17 @@ const User = sequelize.define('User', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      notEmpty: true,
-      len: [2, 100]
-    }
-  },
-  email: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-    validate: {
-      isEmail: true
-    }
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      len: [6, 255]
-    }
-  },
+  name: { type: DataTypes.STRING, allowNull: false },
+  email: { type: DataTypes.STRING, allowNull: false, unique: true },
+  password: { type: DataTypes.STRING, allowNull: false },
   role: {
     type: DataTypes.ENUM('Super Admin', 'Pump Owner', 'Manager', 'Employee'),
-    allowNull: false,
     defaultValue: 'Employee'
   },
-  stationId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    field: 'station_id'
-  },
-  planId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    field: 'plan_id'
-  },
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true,
-    field: 'is_active'
-  },
-  lastLoginAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    field: 'last_login_at'
-  }
+  stationId: { type: DataTypes.UUID, field: 'station_id' },
+  planId: { type: DataTypes.UUID, field: 'plan_id' },
+  isActive: { type: DataTypes.BOOLEAN, defaultValue: true, field: 'is_active' },
+  lastLoginAt: { type: DataTypes.DATE, field: 'last_login_at' }
 }, {
   tableName: 'users',
   timestamps: true,
@@ -64,19 +26,15 @@ const User = sequelize.define('User', {
   updatedAt: 'updated_at',
   hooks: {
     beforeCreate: async (user) => {
-      if (user.password) {
-        user.password = await bcrypt.hash(user.password, 12);
-      }
+      if (user.password) user.password = await bcrypt.hash(user.password, 12);
     },
     beforeUpdate: async (user) => {
-      if (user.changed('password')) {
-        user.password = await bcrypt.hash(user.password, 12);
-      }
+      if (user.changed('password')) user.password = await bcrypt.hash(user.password, 12);
     }
   }
 });
 
-// Instance method to check password
+// Password check
 User.prototype.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };

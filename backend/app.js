@@ -22,9 +22,10 @@ const app = express();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
+  origin: ['http://localhost:5173', 'http://localhost:8080'], // Allow both Vite dev servers
+  credentials: true, // If using cookies
 }));
+
 
 // Rate limiting
 app.use('/api/', rateLimiter);
