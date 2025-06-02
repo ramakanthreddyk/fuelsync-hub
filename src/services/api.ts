@@ -1,4 +1,3 @@
-
 import { 
   User, 
   Upload, 
@@ -135,7 +134,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // API Service Class
 class ApiService {
-  private baseUrl = process.env.VITE_API_URL || 'http://localhost:3000/api';
+  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
   // Simulate HTTP requests with mock data
   private async mockRequest<T>(data: T, delayMs = 500): Promise<ApiResponse<T>> {
