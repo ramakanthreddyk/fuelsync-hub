@@ -2,7 +2,7 @@
 const app = require('./app');
 const { sequelize } = require('./config/database');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Database connection and server start
 const startServer = async () => {
@@ -20,7 +20,8 @@ const startServer = async () => {
     // Start server
     app.listen(PORT, () => {
       console.log(`🚀 FuelSync API Server running on port ${PORT}`);
-      console.log(`📖 API Documentation: http://localhost:${PORT}/api/docs`);
+      console.log(`📖 API Documentation: http://localhost:${PORT}/api/v1/docs`);
+      console.log(`🔍 Health Check: http://localhost:${PORT}/api/v1/health`);
     });
     
   } catch (error) {

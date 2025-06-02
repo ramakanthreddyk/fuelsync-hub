@@ -124,6 +124,7 @@ const refreshToken = async (req, res) => {
 const logout = async (req, res) => {
   try {
     // In a production app, you might want to blacklist the token
+    // For now, we'll rely on frontend to clear the token
     res.json({
       success: true,
       message: 'Logged out successfully'

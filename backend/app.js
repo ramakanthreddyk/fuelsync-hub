@@ -36,16 +36,16 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/uploads', uploadRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/pumps', pumpRoutes);
-app.use('/api/prices', priceRoutes);
-app.use('/api/reports', reportRoutes);
+// API routes with v1 prefix
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/uploads', uploadRoutes);
+app.use('/api/v1/sales', salesRoutes);
+app.use('/api/v1/pumps', pumpRoutes);
+app.use('/api/v1/prices', priceRoutes);
+app.use('/api/v1/reports', reportRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/v1/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -55,17 +55,17 @@ app.get('/api/health', (req, res) => {
 });
 
 // API documentation endpoint
-app.get('/api/docs', (req, res) => {
+app.get('/api/v1/docs', (req, res) => {
   res.json({
     message: 'FuelSync API Documentation',
     version: '1.0.0',
     endpoints: {
-      auth: '/api/auth/*',
-      uploads: '/api/uploads/*',
-      sales: '/api/sales/*',
-      pumps: '/api/pumps/*',
-      prices: '/api/prices/*',
-      reports: '/api/reports/*'
+      auth: '/api/v1/auth/*',
+      uploads: '/api/v1/uploads/*',
+      sales: '/api/v1/sales/*',
+      pumps: '/api/v1/pumps/*',
+      prices: '/api/v1/prices/*',
+      reports: '/api/v1/reports/*'
     },
     documentation: 'See docs/api.md for detailed API documentation'
   });

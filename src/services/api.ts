@@ -11,7 +11,7 @@ import {
 
 // API Service Class
 class ApiService {
-  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
   private token: string | null = null;
 
   constructor() {
@@ -48,6 +48,16 @@ class ApiService {
 
       const data = await response.json();
 
+      // Handle 401 errors by logging out the user
+      if (response.status === 401) {
+        this.clearToken();
+        window.location.href = '/login';
+        return {
+          success: false,
+          error: 'Session expired. Please login again.'
+        };
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Request failed');
       }
@@ -72,6 +82,11 @@ class ApiService {
   clearToken() {
     this.token = null;
     localStorage.removeItem('fuelsync_token');
+  }
+
+  // Check if user is authenticated
+  isAuthenticated(): boolean {
+    return !!this.token;
   }
 
   // Auth endpoints
@@ -136,6 +151,15 @@ class ApiService {
       });
 
       const data = await response.json();
+
+      if (response.status === 401) {
+        this.clearToken();
+        window.location.href = '/login';
+        return {
+          success: false,
+          error: 'Session expired. Please login again.'
+        };
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Upload failed');
