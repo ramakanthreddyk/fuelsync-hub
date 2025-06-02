@@ -1,73 +1,298 @@
-# Welcome to your Lovable project
 
-## Project info
+# 🚀 FuelSync - Smart Fuel Station Management System
 
-**URL**: https://lovable.dev/projects/c8ec55a6-99df-451b-83e8-10b0afe35a6a
+[![React](https://img.shields.io/badge/React-18.3.1-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-blue.svg)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-5.0-646CFF.svg)](https://vitejs.dev/)
 
-## How can I edit this code?
+FuelSync is a modern, mobile-first fuel station management system designed to streamline operations through intelligent OCR receipt processing, real-time sales tracking, and comprehensive pump monitoring.
 
-There are several ways of editing your application.
+## ✨ Features
 
-**Use Lovable**
+### 🎯 Core Functionality
+- **📄 OCR Receipt Processing** - Upload and automatically process fuel receipts using Azure Computer Vision
+- **💰 Sales Tracking** - Real-time monitoring of daily/shift sales, revenue, and transactions
+- **⛽ Fuel Price Management** - Dynamic pricing system for different fuel types
+- **🏭 Pump Overview** - Comprehensive pump and nozzle status monitoring
+- **📊 Analytics Dashboard** - Beautiful charts and metrics for business insights
+- **📈 Reports** - Detailed sales reports with PDF/Excel export capabilities
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c8ec55a6-99df-451b-83e8-10b0afe35a6a) and start prompting.
+### 👥 Role-Based Access Control
+- **Super Admin** - Full system access and multi-station management
+- **Pump Owner/Manager** - Station operations and employee management
+- **Employee** - Receipt uploads and basic sales viewing
 
-Changes made via Lovable will be committed automatically to this repo.
+### 📱 Plan-Based Features
+| Feature | Free | Basic | Premium |
+|---------|------|-------|---------|
+| OCR Uploads | 4/day | 10/day | Unlimited |
+| Sales Tracking | ✅ | ✅ | ✅ |
+| Analytics & Charts | ❌ | ✅ | ✅ |
+| Price Management | ❌ | ✅ | ✅ |
+| Reports Export | ❌ | ✅ | ✅ |
+| Multi-Station | ❌ | ❌ | ✅ |
 
-**Use your preferred IDE**
+## 🛠️ Technology Stack
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Frontend
+- **React 18** with TypeScript for type-safe development
+- **Vite** for lightning-fast development and building
+- **Tailwind CSS** for utility-first styling
+- **Shadcn/ui** for consistent, accessible UI components
+- **React Router DOM** for client-side routing
+- **TanStack Query** for server state management
+- **Recharts** for beautiful data visualizations
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Backend Integration
+- **Azure Computer Vision** for OCR processing
+- **Azure Blob Storage** for file management
+- **RESTful API** architecture
+- **JWT Authentication** for secure access
+- **Role-based permissions** system
 
-Follow these steps:
+### Mobile-First Design
+- Responsive design with mobile-first approach
+- Touch-friendly interfaces with large tap targets
+- Sidebar navigation with hamburger menu
+- Progressive Web App (PWA) capabilities
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🚀 Quick Start
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Prerequisites
+- Node.js 18+ and npm
+- Modern web browser
+- Azure account (for OCR and storage services)
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Installation
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd fuelsync
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Setup**
+   Create a `.env` file in the root directory:
+   ```env
+   # Database Configuration
+   DB_USER=your_db_user
+   DB_PASSWORD=your_db_password
+   DB_NAME=fuelsync_db
+   
+   # JWT Configuration
+   JWT_SECRET=your_super_secret_jwt_key
+   JWT_EXPIRATION=1h
+   
+   # Azure Services
+   AZURE_STORAGE_CONNECTION_STRING=your_azure_storage_connection
+   AZURE_VISION_ENDPOINT=your_azure_vision_endpoint
+   AZURE_VISION_KEY=your_azure_vision_key
+   ```
+
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Build for production**
+   ```bash
+   npm run build
+   ```
+
+## 📁 Project Structure
+
+```
+fuelsync/
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── ui/             # Shadcn UI components
+│   │   ├── AppLayout.tsx   # Main layout wrapper
+│   │   ├── AppSidebar.tsx  # Navigation sidebar
+│   │   ├── FuelSyncLogo.tsx # Brand logo component
+│   │   └── MetricCard.tsx  # Dashboard metric cards
+│   ├── pages/              # Page components
+│   │   ├── Dashboard.tsx   # Main dashboard
+│   │   ├── Upload.tsx      # OCR upload page
+│   │   ├── Sales.tsx       # Sales tracking
+│   │   ├── Prices.tsx      # Fuel price management
+│   │   ├── Pumps.tsx       # Pump overview
+│   │   ├── Reports.tsx     # Reports & analytics
+│   │   └── Settings.tsx    # User settings
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Utility functions
+│   ├── types/              # TypeScript type definitions
+│   └── services/           # API service layer
+├── docs/                   # Documentation
+│   ├── api.md             # API documentation
+│   ├── user-guide.md      # User manual
+│   └── deployment.md      # Deployment guide
+└── sql/                    # Database migrations
+    ├── 001_initial_schema.sql
+    ├── 002_user_roles.sql
+    └── 003_plans_features.sql
 ```
 
-**Edit a file directly in GitHub**
+## 🎨 Design System
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Color Palette
+- **Primary Blue**: `#1e3a8a` (Deep, trustworthy blue)
+- **Primary Orange**: `#ff6b35` (Energetic, fuel-themed orange)
+- **Success Green**: `#10b981`
+- **Warning Yellow**: `#f59e0b`
+- **Error Red**: `#ef4444`
 
-**Use GitHub Codespaces**
+### Typography
+- **Font Family**: Inter (Google Fonts)
+- **Weights**: 300, 400, 500, 600, 700, 800
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Component Guidelines
+- **Cards**: Subtle shadows with rounded corners (12px)
+- **Buttons**: Medium padding with smooth hover transitions
+- **Forms**: Clean inputs with focus states
+- **Navigation**: Consistent iconography with emojis
 
-## What technologies are used for this project?
+## 📊 API Documentation
 
-This project is built with:
+### Authentication Endpoints
+```
+POST /api/auth/login          # User login
+POST /api/auth/logout         # User logout
+POST /api/auth/refresh        # Refresh JWT token
+GET  /api/auth/me            # Get current user
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### OCR & Upload Endpoints
+```
+POST /api/uploads             # Upload receipt for OCR
+GET  /api/uploads             # Get user uploads
+PUT  /api/uploads/:id         # Edit OCR data
+DELETE /api/uploads/:id       # Delete upload
+```
 
-## How can I deploy this project?
+### Sales & Analytics
+```
+GET  /api/sales/daily         # Daily sales summary
+GET  /api/sales/trends        # Sales trends data
+GET  /api/reports/export      # Export reports
+```
 
-Simply open [Lovable](https://lovable.dev/projects/c8ec55a6-99df-451b-83e8-10b0afe35a6a) and click on Share -> Publish.
+### Pump Management
+```
+GET  /api/pumps               # Get all pumps
+PUT  /api/pumps/:id           # Update pump config
+GET  /api/pumps/:id/status    # Get pump status
+```
 
-## Can I connect a custom domain to my Lovable project?
+### Fuel Prices
+```
+GET  /api/prices              # Get current prices
+PUT  /api/prices              # Update fuel prices
+```
 
-Yes, you can!
+## 📱 Mobile Features
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Progressive Web App
+- Installable on mobile devices
+- Offline capability for basic functions
+- Push notifications for OCR status updates
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### Touch Interactions
+- Swipe-to-refresh on dashboard
+- Long-press for context menus
+- Gesture-friendly navigation
+
+### Performance Optimizations
+- Lazy loading for images and components
+- Virtual scrolling for large lists
+- Optimistic UI updates
+- Efficient caching strategies
+
+## 🔒 Security Features
+
+### Authentication & Authorization
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Session management with auto-refresh
+- Secure password requirements
+
+### Data Protection
+- Input sanitization and validation
+- SQL injection prevention
+- XSS protection
+- CORS configuration
+- Rate limiting on API endpoints
+
+### File Upload Security
+- File type validation
+- Size limitations per plan
+- Virus scanning integration
+- Secure file storage with Azure
+
+## 📈 Analytics & Monitoring
+
+### Business Metrics
+- Daily/weekly/monthly sales trends
+- Pump efficiency tracking
+- OCR processing success rates
+- User engagement analytics
+
+### System Monitoring
+- API response times
+- Error tracking and logging
+- Database performance metrics
+- Azure service health status
+
+## 🚀 Deployment
+
+### Production Deployment
+1. Build the application: `npm run build`
+2. Deploy to your preferred hosting platform
+3. Configure environment variables
+4. Set up SSL certificates
+5. Configure CDN for static assets
+
+### Recommended Platforms
+- **Vercel** - Automatic deployments from Git
+- **Netlify** - JAMstack optimized hosting
+- **AWS Amplify** - Full-stack deployment
+- **Azure Static Web Apps** - Integrated with Azure services
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Workflow
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- 📧 Email: support@fuelsync.app
+- 📞 Phone: +1 (555) 123-4567
+- 💬 Discord: [FuelSync Community](https://discord.gg/fuelsync)
+- 📖 Documentation: [docs.fuelsync.app](https://docs.fuelsync.app)
+
+## 🙏 Acknowledgments
+
+- **Azure Computer Vision** for OCR capabilities
+- **Shadcn/ui** for beautiful component library
+- **Tailwind CSS** for styling framework
+- **React community** for amazing ecosystem
+
+---
+
+Made with ❤️ by the FuelSync Team
+```
