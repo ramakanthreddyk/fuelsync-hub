@@ -39,23 +39,29 @@ const User = sequelize.define('User', {
   },
   stationId: {
     type: DataTypes.UUID,
-    allowNull: true
+    allowNull: true,
+    field: 'station_id'
   },
   planId: {
     type: DataTypes.UUID,
-    allowNull: true
+    allowNull: true,
+    field: 'plan_id'
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true
+    defaultValue: true,
+    field: 'is_active'
   },
   lastLoginAt: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
+    field: 'last_login_at'
   }
 }, {
   tableName: 'users',
   timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
   hooks: {
     beforeCreate: async (user) => {
       if (user.password) {

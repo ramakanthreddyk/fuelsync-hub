@@ -9,19 +9,25 @@ INSERT INTO plans (name, upload_limit, features, price) VALUES
 ('Premium', 12, '{"salesTracking": true, "notifications": true, "analytics": true, "priceManagement": true, "reports": true, "multiStation": true, "adminFeatures": true}', 999);
 
 -- Insert sample admin user (password: admin123)
+-- Hash generated using bcrypt with salt rounds 12
 INSERT INTO users (name, email, password, role, plan_id) 
-SELECT 'System Admin', 'admin@fuelsync.com', '$2b$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Super Admin', id 
+SELECT 'System Admin', 'admin@fuelsync.com', '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Super Admin', id 
 FROM plans WHERE name = 'Premium';
 
 -- Insert sample pump owner (password: owner123)
 INSERT INTO users (name, email, password, role, plan_id) 
-SELECT 'Pump Owner', 'owner@fuelsync.com', '$2b$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Pump Owner', id 
+SELECT 'Pump Owner', 'owner@fuelsync.com', '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Pump Owner', id 
 FROM plans WHERE name = 'Basic';
 
 -- Insert sample employee (password: employee123)
 INSERT INTO users (name, email, password, role, plan_id) 
-SELECT 'John Employee', 'employee@fuelsync.com', '$2b$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Employee', id 
+SELECT 'John Employee', 'employee@fuelsync.com', '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Employee', id 
 FROM plans WHERE name = 'Free';
+
+-- Insert additional test users for demo
+INSERT INTO users (name, email, password, role, plan_id) 
+SELECT 'Sarah Manager', 'manager@fuelsync.com', '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'Manager', id 
+FROM plans WHERE name = 'Basic';
 
 -- Insert sample pumps
 INSERT INTO pumps (name, status, last_maintenance_date) VALUES
@@ -98,3 +104,21 @@ SELECT
     shift,
     sale_date + (random() * INTERVAL '24 hours') as created_at
 FROM sample_sales;
+
+-- Insert sample uploads for testing
+INSERT INTO uploads (user_id, filename, original_name, file_size, mime_type, status, amount, litres, fuel_type, processed_at, ocr_data)
+SELECT 
+    u.id,
+    'receipt_' || generate_random_uuid() || '.jpg',
+    'receipt_' || row_number() OVER() || '.jpg',
+    floor(random() * 1000000 + 100000)::integer,
+    'image/jpeg',
+    (ARRAY['success', 'processing', 'failed'])[floor(random() * 3 + 1)],
+    (random() * 5000 + 500)::decimal(10,2),
+    (random() * 50 + 5)::decimal(8,3),
+    (ARRAY['Petrol', 'Diesel'])[floor(random() * 2 + 1)],
+    CURRENT_TIMESTAMP - (random() * INTERVAL '30 days'),
+    '{"amount": 1250.50, "litres": 12.5, "fuelType": "Petrol", "confidence": 0.95}'::jsonb
+FROM users u
+WHERE u.role IN ('Employee', 'Manager', 'Pump Owner')
+LIMIT 50;

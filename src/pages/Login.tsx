@@ -64,7 +64,7 @@ const Login = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@fuelstation.com"
+                placeholder="admin@fuelsync.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -94,8 +94,11 @@ const Login = () => {
           
           <div className="mt-6 p-3 bg-gray-50 rounded-lg">
             <p className="text-sm text-gray-600 mb-2">Demo Credentials:</p>
-            <p className="text-xs text-gray-500">Email: admin@fuelstation.com</p>
+            <p className="text-xs text-gray-500">Email: admin@fuelsync.com</p>
             <p className="text-xs text-gray-500">Password: admin123</p>
+            <hr className="my-2" />
+            <p className="text-xs text-gray-500">Owner: owner@fuelsync.com / owner123</p>
+            <p className="text-xs text-gray-500">Employee: employee@fuelsync.com / employee123</p>
           </div>
         </CardContent>
       </Card>
