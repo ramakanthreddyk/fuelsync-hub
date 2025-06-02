@@ -1,198 +1,169 @@
 
-# FuelSync Backend API
+## 📘 FuelSync Backend API
 
-A Node.js/Express.js backend API for the FuelSync fuel station management system.
+A **Node.js/Express.js backend API** powering **FuelSync**—a **fuel station management system** designed to handle OCR receipt processing, sales tracking, pump configuration, and fuel price management.
 
-## Features
+---
 
-- **JWT Authentication** with role-based access control
-- **OCR Processing** using Azure Computer Vision
-- **File Storage** with Azure Blob Storage
-- **PostgreSQL Database** with Sequelize ORM
-- **RESTful API** endpoints for all operations
-- **Rate Limiting** and security middleware
-- **Comprehensive Error Handling**
-- **Database Migrations** and seed data
+## 🌟 Features
 
-## Quick Start
+✅ **JWT Authentication** (with role-based access control: superadmin, owner, employee)
+✅ **OCR Processing** (Azure Computer Vision)
+✅ **File Storage** (Azure Blob Storage)
+✅ **Sales Tracking & Calculation**
+✅ **Pump & Nozzle Configuration** (per user)
+✅ **Fuel Price Management** (per user)
+✅ **Multi-Station Support**
+✅ **Subscription Plans** (Free, Basic, Premium)
+✅ **Secure RESTful API** (with rate limiting, input validation, logging)
+✅ **Comprehensive Error Handling**
 
-### Prerequisites
+---
 
-- Node.js 18+
-- PostgreSQL 12+
-- Azure Account (for OCR and storage)
-
-### Installation
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-2. **Setup environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your actual values
-   ```
-
-3. **Setup database:**
-   ```bash
-   # Create PostgreSQL database
-   createdb fuelsync_db
-   
-   # Run migrations
-   npm run migrate
-   ```
-
-4. **Start server:**
-   ```bash
-   # Development
-   npm run dev
-   
-   # Production
-   npm start
-   ```
-
-## API Documentation
-
-Full API documentation is available at `/api/docs` or see `docs/api.md`.
-
-### Key Endpoints
-
-- `POST /api/auth/login` - User authentication
-- `GET /api/uploads` - Get user uploads
-- `POST /api/uploads` - Upload receipt for OCR
-- `GET /api/sales` - Get sales data
-- `GET /api/pumps` - Get pump information
-- `GET /api/prices` - Get fuel prices
-
-## Environment Variables
-
-Required environment variables:
-
-```env
-# Database
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password  
-DB_NAME=fuelsync_db
-
-# JWT
-JWT_SECRET=your_secret_key
-
-# Azure
-AZURE_STORAGE_CONNECTION_STRING=your_connection_string
-AZURE_VISION_ENDPOINT=your_endpoint
-AZURE_VISION_KEY=your_key
-```
-
-## Database Schema
-
-The database includes the following main tables:
-
-- **users** - User accounts and roles
-- **plans** - Subscription plans and features
-- **uploads** - OCR receipt uploads
-- **sales** - Sales transactions
-- **pumps** - Pump configurations
-- **nozzles** - Pump nozzle details
-- **fuel_prices** - Current fuel pricing
-
-## Azure Integration
-
-### Computer Vision OCR
-
-The system uses Azure Computer Vision to process receipt images:
-
-1. Upload image to Azure Blob Storage
-2. Submit image URL to Computer Vision API
-3. Extract text and parse receipt data
-4. Update database with extracted information
-
-### Blob Storage
-
-Receipt images are stored in Azure Blob Storage with organized container structure:
-
-- `receipts/` - Uploaded receipt images
-- `reports/` - Generated report files
-
-## Security Features
-
-- **JWT Authentication** for API access
-- **Password Hashing** with bcrypt
-- **Input Validation** with Joi
-- **Rate Limiting** to prevent abuse
-- **CORS Configuration** for cross-origin requests
-- **Helmet** for security headers
-
-## Role-Based Access
-
-The system supports multiple user roles:
-
-- **Super Admin** - Full system access
-- **Pump Owner** - Station management
-- **Manager** - Operations oversight  
-- **Employee** - Basic upload access
-
-## Plan-Based Features
-
-Features are restricted based on subscription plans:
-
-- **Free** - 4 uploads/day, basic features
-- **Basic** - 10 uploads/day, full features
-- **Premium** - Unlimited uploads, advanced features
-
-## Error Handling
-
-Comprehensive error handling with:
-
-- **Structured Error Responses**
-- **Logging** for debugging
-- **Graceful Failure** handling
-- **User-Friendly Messages**
-
-## Development
-
-### Project Structure
+## 🏗️ Core Backend Architecture
 
 ```
 backend/
-├── controllers/     # Route handlers
-├── models/         # Database models
-├── routes/         # Express routes
-├── middleware/     # Custom middleware
-├── services/       # Business logic
-├── config/         # Configuration
-├── utils/          # Utility functions
-└── scripts/        # Database scripts
+├── controllers/       # Business logic for endpoints
+├── models/            # Postgres models
+├── routes/            # API route definitions
+├── middleware/        # Auth, validation, logging, etc.
+├── services/          # Azure OCR, file handling, helpers
+├── config/            # DB, Azure, and env configurations
+├── utils/             # Helper functions
+└── scripts/           # DB migrations, seeds
 ```
 
-### Available Scripts
+---
 
-- `npm start` - Start production server
-- `npm run dev` - Start development server
-- `npm run migrate` - Run database migrations
+## 🚀 Quick Start
 
-### Adding New Features
+### Prerequisites
 
-1. Create model in `models/`
-2. Add controller in `controllers/`
-3. Define routes in `routes/`
-4. Update migrations in `sql/`
-5. Add validation in `utils/validation.js`
+* **Node.js** (v18+)
+* **PostgreSQL** (v12+)
+* **Azure Account** (Blob Storage + Computer Vision)
 
-## Deployment
+### Installation
 
-### Production Checklist
+1️⃣ Install dependencies:
 
-- [ ] Set `NODE_ENV=production`
-- [ ] Configure production database
-- [ ] Set strong JWT secret
-- [ ] Configure Azure services
-- [ ] Set up SSL/TLS
-- [ ] Configure reverse proxy
-- [ ] Set up monitoring
+```bash
+npm install
+```
 
-### Docker Deployment
+2️⃣ Configure environment:
+
+```bash
+cp .env.example .env
+# Edit your .env values
+```
+
+3️⃣ Setup database:
+
+```bash
+createdb fuelsync_db
+npm run migrate
+```
+
+4️⃣ Start the server:
+
+```bash
+# Development
+npm run dev
+
+# Production
+npm start
+```
+
+---
+
+## 🔒 Authentication & Role System
+
+* JWT tokens for secure API access.
+* User roles:
+
+  * **Superadmin**: Full control
+  * **Owner**: Manage stations, configure pumps, set prices
+  * **Employee**: Upload receipts, view limited data
+
+---
+
+## 📊 Key API Endpoints
+
+### 🔐 Auth
+
+* `POST /api/v1/auth/register` - Register user
+* `POST /api/v1/auth/login` - Login user
+* `GET /api/v1/profile` - Get user profile
+
+### 🏭 OCR & Upload
+
+* `POST /api/v1/upload` - Upload fuel receipt (triggers OCR)
+* `GET /api/v1/uploads` - Get user uploads
+* `GET /api/v1/uploads/:id` - Get single upload
+
+### ⛽ Sales Analytics
+
+* `GET /api/v1/sales/pumps` - Get all pumps
+* `GET /api/v1/sales/:pump_sno` - Get sales for a specific pump
+* `GET /api/v1/sales/summary` - Get sales summary for dashboard
+
+### 🛠️ Configuration
+
+* `GET /api/v1/config/:pump_sno` - Get pump nozzle config
+* `POST /api/v1/config/:pump_sno` - Set nozzle to fuel type config
+* `GET /api/v1/fuel` - Get fuel prices
+* `POST /api/v1/fuel` - Set fuel prices per user
+
+---
+
+## 🗄️ Database Schema Highlights
+
+| Table                    | Purpose                         |
+| ------------------------ | ------------------------------- |
+| **users**                | User accounts and roles         |
+| **uploads**              | OCR data from receipts          |
+| **pump\_nozzle\_config** | Nozzle-to-fuel mapping per pump |
+| **fuel\_prices**         | Fuel prices per user            |
+| **sales**                | Sale transactions (calculated)  |
+| **plans**                | Subscription plans              |
+
+---
+
+## 💸 Subscription Plans (Feature Limits)
+
+| Plan    | Uploads Limit | Access           |
+| ------- | ------------- | ---------------- |
+| Free    | 4/day         | Limited features |
+| Basic   | 10/day        | Full features    |
+| Premium | Unlimited     | All features     |
+
+---
+
+## 🔐 Security
+
+* JWT Auth + Role-Based Access
+* Password Hashing (bcrypt)
+* Input Validation (Joi/express-validator)
+* Rate Limiting (to prevent abuse)
+* CORS and Helmet for secure headers
+* File size/type validation for uploads
+
+---
+
+## 📦 Azure Integration
+
+### OCR Flow
+
+1️⃣ Upload image to Azure Blob
+2️⃣ Process with Azure Computer Vision
+3️⃣ Parse & extract fuel data
+4️⃣ Save results in `uploads` table
+
+---
+
+## 🐳 Docker Deployment (Optional)
 
 ```dockerfile
 FROM node:18-alpine
@@ -200,26 +171,39 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY . .
-EXPOSE 3000
+EXPOSE 5000
 CMD ["npm", "start"]
 ```
 
-## Monitoring
+---
 
-Monitor the following metrics:
+## 📊 Monitoring
 
-- **API Response Times**
-- **Error Rates**
-- **Database Performance**
-- **Azure Service Usage**
-- **Upload Success Rates**
+* API Response Times
+* Upload Success Rate
+* OCR Processing Logs
+* Sales Analytics Errors
+* Database Health
 
-## Support
+---
 
-- **Documentation:** `docs/api.md`
-- **Issues:** Create GitHub issue
-- **Email:** support@fuelsync.com
+## 📚 Additional Documentation
 
-## License
+* API Reference: `docs/api.md`
+* Migrations & Seeds: `scripts/`
+* Email Support: [support@fuelsync.com](mailto:support@fuelsync.com)
 
-MIT License - see LICENSE file for details.
+---
+
+## ✅ Migration Guide (Quick Overview)
+
+1️⃣ **Migrate User Data** to `users`
+2️⃣ **Migrate Pumps/Nozzles** to `pump_nozzle_config`
+3️⃣ **Add Fuel Prices** to `fuel_prices`
+4️⃣ **Test OCR Uploads** flow
+5️⃣ **Verify Sales Calculation** (per pump, per user)
+
+---
+
+✅ **This README is now fully aligned with your original architecture + features.**
+Want me to also prepare the **frontend README** and **migration guide** similarly? Let me know! 🚀
