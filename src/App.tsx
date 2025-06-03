@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/toaster";
 import AuthGuard from '@/components/AuthGuard';
 import AppLayout from '@/components/AppLayout';
+import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import Upload from '@/pages/Upload';
@@ -46,15 +47,16 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={
+            <Route path="/app" element={
               <AuthGuard>
                 <AppLayout>
                   <Outlet />
                 </AppLayout>
               </AuthGuard>
             }>
-              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route index element={<Navigate to="/app/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               
               {/* Employee: Upload only */}
@@ -94,7 +96,7 @@ function App() {
             </Route>
             
             {/* Catch all route */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <Toaster />
         </Router>

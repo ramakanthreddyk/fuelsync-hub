@@ -1,3 +1,4 @@
+
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const bcrypt = require('bcryptjs');
@@ -17,6 +18,7 @@ const User = sequelize.define('User', {
   },
   stationId: { type: DataTypes.UUID, field: 'station_id' },
   planId: { type: DataTypes.UUID, field: 'plan_id' },
+  customLimits: { type: DataTypes.JSONB, field: 'custom_limits' }, // Super Admin can override plan limits
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true, field: 'is_active' },
   lastLoginAt: { type: DataTypes.DATE, field: 'last_login_at' }
 }, {

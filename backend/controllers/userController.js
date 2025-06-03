@@ -1,6 +1,6 @@
 
 const { User, Plan } = require('../models');
-const { PLAN_LIMITS } = require('../middleware/planLimits');
+const { PLAN_LIMITS, getEffectiveLimits } = require('../middleware/planLimits');
 
 // Get all users (Super Admin only)
 exports.getAllUsers = async (req, res) => {
@@ -17,9 +17,15 @@ exports.getAllUsers = async (req, res) => {
       attributes: { exclude: ['password'] }
     });
 
+    // Add effective limits to each user
+    const usersWithLimits = users.map(user => ({
+      ...user.toJSON(),
+      effectiveLimits: getEffectiveLimits(user)
+    }));
+
     res.json({
       success: true,
-      data: users
+      data: usersWithLimits
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -42,16 +48,16 @@ exports.createEmployee = async (req, res) => {
 
     const { name, email, password } = req.body;
 
-    // Check plan limits
+    // Check plan limits using effective limits
     const currentEmployees = await User.count({
       where: { stationId: req.user.stationId, role: 'Employee' }
     });
 
-    const planLimits = PLAN_LIMITS[req.user.plan?.name];
-    if (planLimits && planLimits.maxEmployees !== -1 && currentEmployees >= planLimits.maxEmployees) {
+    const effectiveLimits = getEffectiveLimits(req.user);
+    if (effectiveLimits.maxEmployees !== -1 && currentEmployees >= effectiveLimits.maxEmployees) {
       return res.status(400).json({
         success: false,
-        error: `Plan limit exceeded. Maximum ${planLimits.maxEmployees} employees allowed.`
+        error: `Plan limit exceeded. Maximum ${effectiveLimits.maxEmployees} employees allowed.`
       });
     }
 
@@ -121,6 +127,54 @@ exports.updateUserPlan = async (req, res) => {
   }
 };
 
+// Set custom limits for user (Super Admin only)
+exports.setCustomLimits = async (req, res) => {
+  try {
+    if (req.user.role !== 'Super Admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied. Super Admin only.'
+      });
+    }
+
+    const { userId } = req.params;
+    const { maxUploadsPerDay, maxEmployees, maxPumps, maxStations } = req.body;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Build custom limits object (only include provided values)
+    const customLimits = {};
+    if (maxUploadsPerDay !== undefined) customLimits.maxUploadsPerDay = maxUploadsPerDay;
+    if (maxEmployees !== undefined) customLimits.maxEmployees = maxEmployees;
+    if (maxPumps !== undefined) customLimits.maxPumps = maxPumps;
+    if (maxStations !== undefined) customLimits.maxStations = maxStations;
+
+    await user.update({ customLimits });
+
+    res.json({
+      success: true,
+      message: 'Custom limits updated successfully',
+      data: {
+        userId,
+        customLimits,
+        effectiveLimits: getEffectiveLimits(user)
+      }
+    });
+  } catch (error) {
+    console.error('Error setting custom limits:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to set custom limits'
+    });
+  }
+};
+
 // Delete user (Super Admin only, with confirmation)
 exports.deleteUser = async (req, res) => {
   try {
@@ -169,5 +223,6 @@ module.exports = {
   getAllUsers: exports.getAllUsers,
   createEmployee: exports.createEmployee,
   updateUserPlan: exports.updateUserPlan,
+  setCustomLimits: exports.setCustomLimits,
   deleteUser: exports.deleteUser
 };

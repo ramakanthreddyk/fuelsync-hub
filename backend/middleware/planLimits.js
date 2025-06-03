@@ -1,19 +1,19 @@
 
 const { User, Plan } = require('../models');
 
-// Plan limits configuration
+// Plan limits configuration - Updated with new values
 const PLAN_LIMITS = {
   Basic: {
     maxEmployees: 2,
     maxPumps: 3,
     maxStations: 1,
-    maxUploadsPerDay: 10
+    maxUploadsPerDay: 5  // Updated from 10 to 5
   },
   Premium: {
     maxEmployees: 5,
     maxPumps: 5,
     maxStations: 1,
-    maxUploadsPerDay: 50
+    maxUploadsPerDay: 10  // Updated from 50 to 10
   },
   Enterprise: {
     maxEmployees: -1, // Unlimited
@@ -21,6 +21,18 @@ const PLAN_LIMITS = {
     maxStations: -1, // Unlimited
     maxUploadsPerDay: -1 // Unlimited
   }
+};
+
+// Get effective limits for a user (considering custom overrides)
+const getEffectiveLimits = (user) => {
+  const planLimits = PLAN_LIMITS[user.plan?.name] || {};
+  
+  // If user has custom limits set by Super Admin, merge them
+  if (user.customLimits) {
+    return { ...planLimits, ...user.customLimits };
+  }
+  
+  return planLimits;
 };
 
 const checkPlanLimits = (limitType) => {
@@ -37,23 +49,11 @@ const checkPlanLimits = (limitType) => {
         });
       }
 
-      const planName = user.plan.name;
-      const limits = PLAN_LIMITS[planName];
+      const effectiveLimits = getEffectiveLimits(user);
+      const limit = effectiveLimits[limitType];
 
-      if (!limits) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid plan configuration'
-        });
-      }
-
-      // Enterprise has unlimited access
-      if (planName === 'Enterprise') {
-        return next();
-      }
-
-      const limit = limits[limitType];
-      if (limit === -1) {
+      // Enterprise or unlimited access
+      if (user.plan.name === 'Enterprise' || limit === -1) {
         return next();
       }
 
@@ -61,7 +61,8 @@ const checkPlanLimits = (limitType) => {
       req.planLimit = {
         type: limitType,
         limit: limit,
-        planName: planName
+        planName: user.plan.name,
+        isCustom: !!user.customLimits && user.customLimits.hasOwnProperty(limitType)
       };
 
       next();
@@ -77,5 +78,6 @@ const checkPlanLimits = (limitType) => {
 
 module.exports = {
   checkPlanLimits,
+  getEffectiveLimits,
   PLAN_LIMITS
 };

@@ -8,8 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/hooks/useAuth';
 
 const Settings = () => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState({
     notifications: {
       ocrUpdates: true,
@@ -59,6 +61,22 @@ const Settings = () => {
     }));
   };
 
+  // Get plan limits based on user's role and plan
+  const getPlanLimits = () => {
+    if (!user) return null;
+    
+    // Default plan limits
+    const planLimits = {
+      Basic: { maxEmployees: 2, maxPumps: 3, maxStations: 1, maxUploadsPerDay: 5 },
+      Premium: { maxEmployees: 5, maxPumps: 5, maxStations: 1, maxUploadsPerDay: 10 },
+      Enterprise: { maxEmployees: 'Unlimited', maxPumps: 'Unlimited', maxStations: 'Unlimited', maxUploadsPerDay: 'Unlimited' }
+    };
+
+    return planLimits[user.plan as keyof typeof planLimits] || planLimits.Basic;
+  };
+
+  const currentLimits = getPlanLimits();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -93,12 +111,12 @@ const Settings = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue="John Doe" />
+                  <Input id="name" defaultValue={user?.name || "Loading..."} />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" defaultValue="john@fuelstation.com" />
+                  <Input id="email" type="email" defaultValue={user?.email || "Loading..."} />
                 </div>
                 
                 <div className="space-y-2">
@@ -108,7 +126,7 @@ const Settings = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue="Pump Owner" disabled />
+                  <Input id="role" defaultValue={user?.role || "Loading..."} disabled />
                 </div>
               </div>
               
@@ -137,7 +155,7 @@ const Settings = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="station-id">Station ID</Label>
-                  <Input id="station-id" defaultValue="STATION-001" disabled />
+                  <Input id="station-id" defaultValue={user?.stationId || "N/A"} disabled />
                 </div>
                 
                 <div className="space-y-2 md:col-span-2">
@@ -285,53 +303,84 @@ const Settings = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span>💳</span>
-                Current Plan
+                Current Plan & Limits
               </CardTitle>
               <CardDescription>
-                Manage your subscription and billing information
+                Manage your subscription and view your current limits
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-4 border border-primary/20 rounded-lg bg-primary/5">
                 <div>
-                  <h3 className="font-semibold text-lg">Basic Plan</h3>
-                  <p className="text-sm text-muted-foreground">10 OCR uploads per day, Analytics, Reports</p>
+                  <h3 className="font-semibold text-lg">{user?.plan || 'Basic'} Plan</h3>
+                  <p className="text-sm text-muted-foreground">Your current subscription plan</p>
                 </div>
                 <Badge variant="secondary" className="px-3 py-1">
                   Active
                 </Badge>
               </div>
+
+              {/* Current Limits */}
+              {currentLimits && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-3">Your Current Limits</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Max Employees:</span>
+                      <span className="ml-2 font-medium">{currentLimits.maxEmployees}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Max Pumps:</span>
+                      <span className="ml-2 font-medium">{currentLimits.maxPumps}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Max Stations:</span>
+                      <span className="ml-2 font-medium">{currentLimits.maxStations}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Daily Uploads:</span>
+                      <span className="ml-2 font-medium">{currentLimits.maxUploadsPerDay}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="p-4">
-                  <h4 className="font-medium mb-2">Free Plan</h4>
-                  <p className="text-2xl font-bold mb-2">₹0<span className="text-sm font-normal">/month</span></p>
+                  <h4 className="font-medium mb-2">Basic Plan</h4>
+                  <p className="text-2xl font-bold mb-2">₹999<span className="text-sm font-normal">/month</span></p>
+                  <p className="text-xs text-orange-600 mb-3">3-month free trial</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• 4 uploads/day</li>
-                    <li>• Basic sales tracking</li>
-                    <li>• In-app notifications</li>
+                    <li>• 2 employees max</li>
+                    <li>• 3 pumps max</li>
+                    <li>• 5 uploads/day</li>
+                    <li>• Basic analytics</li>
                   </ul>
                 </Card>
                 
                 <Card className="p-4 border-primary shadow-lg">
-                  <h4 className="font-medium mb-2">Basic Plan</h4>
-                  <p className="text-2xl font-bold mb-2">₹999<span className="text-sm font-normal">/month</span></p>
+                  <h4 className="font-medium mb-2">Premium Plan</h4>
+                  <p className="text-2xl font-bold mb-2">₹2,499<span className="text-sm font-normal">/month</span></p>
+                  <p className="text-xs text-orange-600 mb-3">14-day free trial</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• 5 employees max</li>
+                    <li>• 5 pumps max</li>
                     <li>• 10 uploads/day</li>
-                    <li>• Analytics & Charts</li>
+                    <li>• Advanced analytics</li>
                     <li>• Export reports</li>
-                    <li>• Price management</li>
                   </ul>
                 </Card>
                 
                 <Card className="p-4">
-                  <h4 className="font-medium mb-2">Premium Plan</h4>
-                  <p className="text-2xl font-bold mb-2">₹2499<span className="text-sm font-normal">/month</span></p>
+                  <h4 className="font-medium mb-2">Enterprise Plan</h4>
+                  <p className="text-2xl font-bold mb-2">Custom<span className="text-sm font-normal"> pricing</span></p>
+                  <p className="text-xs text-orange-600 mb-3">Arrange a call</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Unlimited employees</li>
+                    <li>• Unlimited pumps</li>
                     <li>• Unlimited uploads</li>
                     <li>• Multi-station support</li>
-                    <li>• Admin features</li>
-                    <li>• Priority support</li>
+                    <li>• Custom integrations</li>
                   </ul>
                 </Card>
               </div>

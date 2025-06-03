@@ -1,6 +1,6 @@
 
 const { Upload, User, Plan } = require('../models');
-const { PLAN_LIMITS } = require('../middleware/planLimits');
+const { getEffectiveLimits } = require('../middleware/planLimits');
 
 const getUploads = async (req, res) => {
   try {
@@ -58,7 +58,7 @@ const uploadReceipt = async (req, res) => {
       });
     }
 
-    // Check daily upload limit
+    // Check daily upload limit using effective limits
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -75,11 +75,12 @@ const uploadReceipt = async (req, res) => {
       include: [{ model: Plan, as: 'plan' }]
     });
 
-    const planLimits = PLAN_LIMITS[user.plan?.name];
-    if (planLimits && planLimits.maxUploadsPerDay !== -1 && todayUploads >= planLimits.maxUploadsPerDay) {
+    const effectiveLimits = getEffectiveLimits(user);
+    if (effectiveLimits.maxUploadsPerDay !== -1 && todayUploads >= effectiveLimits.maxUploadsPerDay) {
       return res.status(429).json({
         success: false,
-        error: `Daily upload limit (${planLimits.maxUploadsPerDay}) exceeded`
+        error: `Daily upload limit (${effectiveLimits.maxUploadsPerDay}) exceeded`,
+        isCustomLimit: !!user.customLimits && user.customLimits.hasOwnProperty('maxUploadsPerDay')
       });
     }
 
