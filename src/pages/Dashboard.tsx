@@ -8,14 +8,21 @@ import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { apiService } from '@/services/api';
 import { Upload as UploadType } from '@/types/api';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+
   // Fetch dashboard data from API
   const { data: summaryData } = useQuery({
     queryKey: ['daily-summary', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
       const response = await apiService.getDailySummary(new Date().toISOString().split('T')[0]);
-      return response.data;
+      return response.data || {
+        totalRevenue: 0,
+        totalLitres: 0,
+        totalTransactions: 0
+      };
     }
   });
 
@@ -35,7 +42,7 @@ const Dashboard = () => {
     }
   });
 
-  // Calculate metrics from API data
+  // Calculate metrics from API data with safe defaults
   const metrics = {
     todaySales: {
       revenue: summaryData ? `₹${summaryData.totalRevenue.toLocaleString()}` : "₹0",
@@ -46,15 +53,15 @@ const Dashboard = () => {
       today: uploadsData?.filter(upload => 
         new Date(upload.uploadedAt).toDateString() === new Date().toDateString()
       ).length || 0,
-      limit: 10, // This should come from user plan
-      remaining: 10 - (uploadsData?.filter(upload => 
+      limit: 5, // This should come from user plan
+      remaining: 5 - (uploadsData?.filter(upload => 
         new Date(upload.uploadedAt).toDateString() === new Date().toDateString()
       ).length || 0)
     },
     pumps: {
       active: pumpsData?.filter(pump => pump.status === 'active').length || 0,
       total: pumpsData?.length || 0,
-      efficiency: 94.5 // This should be calculated from pump data
+      efficiency: pumpsData?.length > 0 ? 94.5 : 0 // Calculate from real data when available
     }
   };
 
@@ -85,7 +92,10 @@ const Dashboard = () => {
           <Badge variant="outline" className="px-3 py-1 text-fuel-blue border-fuel-blue/20 bg-fuel-blue/5">
             Basic Plan
           </Badge>
-          <Button className="bg-fuel-orange hover:bg-fuel-orange/90 text-white">
+          <Button 
+            className="bg-fuel-orange hover:bg-fuel-orange/90 text-white"
+            onClick={() => navigate('/app/upload')}
+          >
             Upload Receipt
           </Button>
         </div>
@@ -98,7 +108,7 @@ const Dashboard = () => {
           value={metrics.todaySales.revenue}
           subtitle={`${metrics.todaySales.litres} sold`}
           icon="💰"
-          trend={{ value: 12.5, label: 'vs yesterday', direction: 'up' }}
+          trend={summaryData?.totalRevenue > 0 ? { value: 12.5, label: 'vs yesterday', direction: 'up' } : undefined}
           gradient
         />
         
@@ -107,7 +117,7 @@ const Dashboard = () => {
           value={metrics.todaySales.transactions}
           subtitle="completed today"
           icon="🧾"
-          trend={{ value: 8.3, label: 'vs yesterday', direction: 'up' }}
+          trend={summaryData?.totalTransactions > 0 ? { value: 8.3, label: 'vs yesterday', direction: 'up' } : undefined}
         />
         
         <MetricCard
@@ -119,10 +129,10 @@ const Dashboard = () => {
         
         <MetricCard
           title="Pump Efficiency"
-          value={`${metrics.pumps.efficiency}%`}
+          value={metrics.pumps.total > 0 ? `${metrics.pumps.efficiency}%` : "No data"}
           subtitle={`${metrics.pumps.active}/${metrics.pumps.total} pumps active`}
           icon="⛽"
-          trend={{ value: 2.1, label: 'vs last week', direction: 'up' }}
+          trend={metrics.pumps.total > 0 ? { value: 2.1, label: 'vs last week', direction: 'up' } : undefined}
         />
       </div>
 
@@ -142,39 +152,44 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {uploadsData?.map((upload: UploadType, index: number) => (
-                  <div key={upload.id}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-fuel-blue animate-pulse" />
-                        <div>
-                          <p className="font-medium text-sm">₹{upload.amount || 'N/A'}</p>
-                          <p className="text-xs text-muted-foreground">{upload.litres || 'N/A'}L</p>
+                {uploadsData && uploadsData.length > 0 ? (
+                  uploadsData.map((upload: UploadType, index: number) => (
+                    <div key={upload.id}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 rounded-full bg-fuel-blue animate-pulse" />
+                          <div>
+                            <p className="font-medium text-sm">₹{upload.amount || 'Processing...'}</p>
+                            <p className="text-xs text-muted-foreground">{upload.litres ? `${upload.litres}L` : 'Processing...'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs px-2 py-1 ${getStatusColor(upload.status)}`}
+                          >
+                            {upload.status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(upload.uploadedAt).toLocaleString()}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs px-2 py-1 ${getStatusColor(upload.status)}`}
-                        >
-                          {upload.status}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(upload.uploadedAt).toLocaleString()}
-                        </span>
-                      </div>
+                      {index < uploadsData.length - 1 && <Separator className="mt-4" />}
                     </div>
-                    {index < (uploadsData?.length || 0) - 1 && <Separator className="mt-4" />}
-                  </div>
-                ))}
-                
-                {!uploadsData?.length && (
+                  ))
+                ) : (
                   <div className="text-center py-4">
                     <p className="text-muted-foreground">No recent uploads</p>
+                    <p className="text-sm text-muted-foreground">Upload your first receipt to get started</p>
                   </div>
                 )}
               </div>
-              <Button variant="outline" className="w-full mt-4">
+              <Button 
+                variant="outline" 
+                className="w-full mt-4"
+                onClick={() => navigate('/app/upload')}
+              >
                 View All Uploads
               </Button>
             </CardContent>
@@ -195,22 +210,37 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <Button className="w-full justify-start bg-fuel-orange hover:bg-fuel-orange/90 text-white">
+                <Button 
+                  className="w-full justify-start bg-fuel-orange hover:bg-fuel-orange/90 text-white"
+                  onClick={() => navigate('/app/upload')}
+                >
                   <span className="mr-2">📄</span>
                   Upload Receipt
                 </Button>
                 
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/app/prices')}
+                >
                   <span className="mr-2">⛽</span>
                   Update Fuel Prices
                 </Button>
                 
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/app/sales')}
+                >
                   <span className="mr-2">📊</span>
                   View Sales Report
                 </Button>
                 
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/app/pumps')}
+                >
                   <span className="mr-2">🏭</span>
                   Check Pump Status
                 </Button>
@@ -261,7 +291,9 @@ const Dashboard = () => {
               <div className="w-3 h-3 rounded-full bg-fuel-warning animate-pulse" />
               <div>
                 <p className="font-medium text-sm">Cloud Storage</p>
-                <p className="text-xs text-muted-foreground">Minor delays expected</p>
+                <p className="text-xs text-muted-foreground">
+                  {uploadsData && uploadsData.length > 0 ? 'Active' : 'No uploads yet'}
+                </p>
               </div>
             </div>
           </div>

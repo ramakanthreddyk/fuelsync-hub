@@ -1,21 +1,23 @@
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiService } from '@/services/api';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'Employee' | 'Pump Owner' | 'Manager' | 'Super Admin';
+  role: string;
   stationId?: string;
   planId?: string;
+  customLimits?: Record<string, any>;
+  createdAt?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,51 +27,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      if (apiService.isAuthenticated()) {
-        try {
+    const initAuth = async () => {
+      try {
+        if (apiService.isAuthenticated()) {
           const response = await apiService.getCurrentUser();
-          if (response.success) {
+          if (response.success && response.data) {
             setUser(response.data);
           } else {
             apiService.clearToken();
           }
-        } catch (error) {
-          apiService.clearToken();
         }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        apiService.clearToken();
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
-    checkAuth();
+    initAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const response = await apiService.login(email, password);
-      if (response.success) {
+      if (response.success && response.data) {
         setUser(response.data.user);
         return true;
       }
       return false;
     } catch (error) {
+      console.error('Login error:', error);
       return false;
     }
   };
 
   const logout = () => {
-    apiService.clearToken();
+    apiService.logout();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');

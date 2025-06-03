@@ -66,7 +66,7 @@ const Landing = () => {
       name: "Enterprise",
       price: "Custom",
       period: "pricing",
-      trial: "Arrange a call",
+      trial: "Contact us",
       features: [
         "Unlimited employees",
         "Unlimited pumps",
@@ -78,6 +78,10 @@ const Landing = () => {
       popular: false
     }
   ];
+
+  const handleWhatsAppContact = () => {
+    window.open('https://wa.me/918121937837?text=Hi, I am interested in FuelSync for my fuel station. Please provide more details.', '_blank');
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-600 to-blue-800">
@@ -114,12 +118,20 @@ const Landing = () => {
           </p>
           <Button 
             size="lg" 
-            className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 text-lg rounded-full"
+            className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 text-lg rounded-full mr-4"
+            onClick={handleWhatsAppContact}
+          >
+            Contact on WhatsApp
+          </Button>
+          <Button 
+            size="lg" 
+            variant="outline"
+            className="bg-white/10 border-white/20 text-white hover:bg-white/20 px-8 py-4 text-lg rounded-full"
             onClick={() => navigate('/login')}
           >
-            Start Free Trial
+            Try Demo
           </Button>
-          <p className="text-blue-200 mt-4">No credit card required • 3-month free trial</p>
+          <p className="text-blue-200 mt-4">WhatsApp: +91 81219 37837 • Free consultation</p>
         </div>
 
         {/* Hero Visual */}
@@ -220,9 +232,9 @@ const Landing = () => {
                   
                   <Button 
                     className={`w-full ${plan.popular ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-                    onClick={() => navigate('/login')}
+                    onClick={plan.name === 'Enterprise' ? handleWhatsAppContact : () => navigate('/login')}
                   >
-                    {plan.name === 'Enterprise' ? 'Contact Sales' : 'Start Free Trial'}
+                    {plan.name === 'Enterprise' ? 'Contact on WhatsApp' : 'Start Free Trial'}
                   </Button>
                 </CardContent>
               </Card>
@@ -241,11 +253,11 @@ const Landing = () => {
           <Button 
             size="lg" 
             className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 text-lg rounded-full"
-            onClick={() => navigate('/login')}
+            onClick={handleWhatsAppContact}
           >
-            Start Your Free Trial Today
+            Contact Us on WhatsApp
           </Button>
-          <p className="text-blue-200 mt-4">Questions? Contact us at support@fuelsync.com</p>
+          <p className="text-blue-200 mt-4">WhatsApp: +91 81219 37837</p>
         </div>
       </section>
 
@@ -278,7 +290,6 @@ const Landing = () => {
               <ul className="space-y-2 text-blue-200">
                 <li>Help Center</li>
                 <li>Contact Us</li>
-                <li>API Docs</li>
                 <li>System Status</li>
               </ul>
             </div>

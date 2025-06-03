@@ -4,78 +4,60 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { useQuery } from "@tanstack/react-query";
+import { apiService } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from "@/hooks/use-toast";
 
 const Settings = () => {
   const { user } = useAuth();
-  const [settings, setSettings] = useState({
-    notifications: {
-      ocrUpdates: true,
-      priceAlerts: false,
-      maintenanceReminders: true,
-      dailyReports: false
-    },
-    preferences: {
-      theme: 'light',
-      language: 'en',
-      currency: 'INR',
-      timezone: 'Asia/Kolkata'
-    },
-    security: {
-      twoFactorAuth: false,
-      sessionTimeout: '30',
-      passwordExpiry: '90'
+  const { toast } = useToast();
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [notifications, setNotifications] = useState(true);
+  const [autoReports, setAutoReports] = useState(false);
+
+  // Fetch user details with plan information
+  const { data: userDetails } = useQuery({
+    queryKey: ['user-details'],
+    queryFn: async () => {
+      const response = await apiService.getCurrentUser();
+      return response.data;
     }
   });
 
-  const { toast } = useToast();
-
-  const handleSaveSettings = () => {
+  const handleSaveProfile = () => {
+    // TODO: Implement profile update API
     toast({
-      title: "Settings Saved",
-      description: "Your settings have been updated successfully.",
+      title: "Profile Updated",
+      description: "Your profile has been updated successfully.",
     });
   };
 
-  const updateNotificationSetting = (key: string, value: boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      notifications: {
-        ...prev.notifications,
-        [key]: value
-      }
-    }));
+  const handleChangePassword = () => {
+    // TODO: Implement password change API
+    toast({
+      title: "Password Changed",
+      description: "Your password has been updated successfully.",
+    });
   };
 
-  const updateSecuritySetting = (key: string, value: any) => {
-    setSettings(prev => ({
-      ...prev,
-      security: {
-        ...prev.security,
-        [key]: value
-      }
-    }));
+  // Get plan details with fallback
+  const planName = userDetails?.plan?.name || 'Basic';
+  const customLimits = userDetails?.customLimits || {};
+
+  // Define plan limits with defaults
+  const defaultLimits = {
+    Basic: { maxUploadsPerDay: 5, maxEmployees: 2, maxPumps: 3, maxStations: 1 },
+    Premium: { maxUploadsPerDay: 10, maxEmployees: 5, maxPumps: 5, maxStations: 1 },
+    Enterprise: { maxUploadsPerDay: -1, maxEmployees: -1, maxPumps: -1, maxStations: -1 }
   };
 
-  // Get plan limits based on user's role and plan
-  const getPlanLimits = () => {
-    if (!user) return null;
-    
-    // Default plan limits
-    const planLimits = {
-      Basic: { maxEmployees: 2, maxPumps: 3, maxStations: 1, maxUploadsPerDay: 5 },
-      Premium: { maxEmployees: 5, maxPumps: 5, maxStations: 1, maxUploadsPerDay: 10 },
-      Enterprise: { maxEmployees: 'Unlimited', maxPumps: 'Unlimited', maxStations: 'Unlimited', maxUploadsPerDay: 'Unlimited' }
-    };
-
-    return planLimits[user.plan as keyof typeof planLimits] || planLimits.Basic;
-  };
-
-  const currentLimits = getPlanLimits();
+  const planLimits = defaultLimits[planName] || defaultLimits.Basic;
+  const effectiveLimits = { ...planLimits, ...customLimits };
 
   return (
     <div className="space-y-6">
@@ -83,20 +65,13 @@ const Settings = () => {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">
-          Manage your account settings, preferences, and system configuration.
+          Manage your account settings and preferences.
         </p>
       </div>
 
-      <Tabs defaultValue="account" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
-        </TabsList>
-
-        {/* Account Settings */}
-        <TabsContent value="account" className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile Settings */}
+        <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -104,299 +79,237 @@ const Settings = () => {
                 Profile Information
               </CardTitle>
               <CardDescription>
-                Update your personal information and account details
+                Update your personal information and contact details
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={user?.name || "Loading..."} />
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your full name"
+                  />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" defaultValue={user?.email || "Loading..."} />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" defaultValue="+91 98765 43210" />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue={user?.role || "Loading..."} disabled />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                  />
                 </div>
               </div>
               
-              <Button onClick={handleSaveSettings}>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Input
+                  id="role"
+                  value={user?.role || 'Employee'}
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Contact your administrator to change your role
+                </p>
+              </div>
+              
+              <Button onClick={handleSaveProfile} className="w-full md:w-auto">
                 Save Changes
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>🏢</span>
-                Station Information
-              </CardTitle>
-              <CardDescription>
-                Manage your fuel station details
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="station-name">Station Name</Label>
-                  <Input id="station-name" defaultValue="City Fuel Station" />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="station-id">Station ID</Label>
-                  <Input id="station-id" defaultValue={user?.stationId || "N/A"} disabled />
-                </div>
-                
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input id="address" defaultValue="123 Main Street, City Name, State - 400001" />
-                </div>
-              </div>
-              
-              <Button onClick={handleSaveSettings}>
-                Update Station Info
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Notification Settings */}
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>🔔</span>
-                Notification Preferences
-              </CardTitle>
-              <CardDescription>
-                Choose what notifications you want to receive
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">OCR Processing Updates</p>
-                    <p className="text-sm text-muted-foreground">Get notified when receipt processing is complete</p>
-                  </div>
-                  <Switch
-                    checked={settings.notifications.ocrUpdates}
-                    onCheckedChange={(checked) => updateNotificationSetting('ocrUpdates', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Price Change Alerts</p>
-                    <p className="text-sm text-muted-foreground">Notifications when fuel prices are updated</p>
-                  </div>
-                  <Switch
-                    checked={settings.notifications.priceAlerts}
-                    onCheckedChange={(checked) => updateNotificationSetting('priceAlerts', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Maintenance Reminders</p>
-                    <p className="text-sm text-muted-foreground">Reminders for scheduled pump maintenance</p>
-                  </div>
-                  <Switch
-                    checked={settings.notifications.maintenanceReminders}
-                    onCheckedChange={(checked) => updateNotificationSetting('maintenanceReminders', checked)}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Daily Reports</p>
-                    <p className="text-sm text-muted-foreground">Automatic daily sales summary emails</p>
-                  </div>
-                  <Switch
-                    checked={settings.notifications.dailyReports}
-                    onCheckedChange={(checked) => updateNotificationSetting('dailyReports', checked)}
-                  />
-                </div>
-              </div>
-              
-              <Button onClick={handleSaveSettings}>
-                Save Notification Settings
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Security Settings */}
-        <TabsContent value="security" className="space-y-6">
+          {/* Security Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span>🔒</span>
-                Security & Privacy
+                Security
               </CardTitle>
               <CardDescription>
-                Manage your account security settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Two-Factor Authentication</p>
-                    <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
-                  </div>
-                  <Switch
-                    checked={settings.security.twoFactorAuth}
-                    onCheckedChange={(checked) => updateSecuritySetting('twoFactorAuth', checked)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-                  <Input
-                    id="session-timeout"
-                    type="number"
-                    value={settings.security.sessionTimeout}
-                    onChange={(e) => updateSecuritySetting('sessionTimeout', e.target.value)}
-                    className="w-32"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="password-expiry">Password Expiry (days)</Label>
-                  <Input
-                    id="password-expiry"
-                    type="number"
-                    value={settings.security.passwordExpiry}
-                    onChange={(e) => updateSecuritySetting('passwordExpiry', e.target.value)}
-                    className="w-32"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <Button onClick={handleSaveSettings}>
-                  Save Security Settings
-                </Button>
-                <Button variant="outline" className="ml-3">
-                  Change Password
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Billing Settings */}
-        <TabsContent value="billing" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>💳</span>
-                Current Plan & Limits
-              </CardTitle>
-              <CardDescription>
-                Manage your subscription and view your current limits
+                Manage your password and security preferences
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-primary/20 rounded-lg bg-primary/5">
-                <div>
-                  <h3 className="font-semibold text-lg">{user?.plan || 'Basic'} Plan</h3>
-                  <p className="text-sm text-muted-foreground">Your current subscription plan</p>
-                </div>
-                <Badge variant="secondary" className="px-3 py-1">
-                  Active
-                </Badge>
+              <div className="space-y-2">
+                <Label htmlFor="current-password">Current Password</Label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  placeholder="Enter current password"
+                />
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    placeholder="Enter new password"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+              
+              <Button onClick={handleChangePassword} variant="outline" className="w-full md:w-auto">
+                Update Password
+              </Button>
+            </CardContent>
+          </Card>
 
-              {/* Current Limits */}
-              {currentLimits && (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-3">Your Current Limits</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Max Employees:</span>
-                      <span className="ml-2 font-medium">{currentLimits.maxEmployees}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Max Pumps:</span>
-                      <span className="ml-2 font-medium">{currentLimits.maxPumps}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Max Stations:</span>
-                      <span className="ml-2 font-medium">{currentLimits.maxStations}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Daily Uploads:</span>
-                      <span className="ml-2 font-medium">{currentLimits.maxUploadsPerDay}</span>
-                    </div>
-                  </div>
+          {/* Preferences */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>⚙️</span>
+                Preferences
+              </CardTitle>
+              <CardDescription>
+                Configure your app preferences and notifications
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="notifications">Email Notifications</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive email notifications for important updates
+                  </p>
                 </div>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="p-4">
-                  <h4 className="font-medium mb-2">Basic Plan</h4>
-                  <p className="text-2xl font-bold mb-2">₹999<span className="text-sm font-normal">/month</span></p>
-                  <p className="text-xs text-orange-600 mb-3">3-month free trial</p>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• 2 employees max</li>
-                    <li>• 3 pumps max</li>
-                    <li>• 5 uploads/day</li>
-                    <li>• Basic analytics</li>
-                  </ul>
-                </Card>
-                
-                <Card className="p-4 border-primary shadow-lg">
-                  <h4 className="font-medium mb-2">Premium Plan</h4>
-                  <p className="text-2xl font-bold mb-2">₹2,499<span className="text-sm font-normal">/month</span></p>
-                  <p className="text-xs text-orange-600 mb-3">14-day free trial</p>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• 5 employees max</li>
-                    <li>• 5 pumps max</li>
-                    <li>• 10 uploads/day</li>
-                    <li>• Advanced analytics</li>
-                    <li>• Export reports</li>
-                  </ul>
-                </Card>
-                
-                <Card className="p-4">
-                  <h4 className="font-medium mb-2">Enterprise Plan</h4>
-                  <p className="text-2xl font-bold mb-2">Custom<span className="text-sm font-normal"> pricing</span></p>
-                  <p className="text-xs text-orange-600 mb-3">Arrange a call</p>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Unlimited employees</li>
-                    <li>• Unlimited pumps</li>
-                    <li>• Unlimited uploads</li>
-                    <li>• Multi-station support</li>
-                    <li>• Custom integrations</li>
-                  </ul>
-                </Card>
+                <Switch
+                  id="notifications"
+                  checked={notifications}
+                  onCheckedChange={setNotifications}
+                />
               </div>
               
-              <div className="flex gap-3">
-                <Button>
-                  Upgrade Plan
-                </Button>
-                <Button variant="outline">
-                  Billing History
+              <Separator />
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="auto-reports">Auto Reports</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically generate daily reports
+                  </p>
+                </div>
+                <Switch
+                  id="auto-reports"
+                  checked={autoReports}
+                  onCheckedChange={setAutoReports}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Account Summary */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>📊</span>
+                Account Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center">
+                <Badge variant="outline" className="px-3 py-1 text-lg">
+                  {planName} Plan
+                </Badge>
+                {customLimits && Object.keys(customLimits).length > 0 && (
+                  <p className="text-xs text-orange-600 mt-1">Custom limits applied</p>
+                )}
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Daily Uploads</span>
+                  <span className="font-medium">
+                    {effectiveLimits.maxUploadsPerDay === -1 ? 'Unlimited' : effectiveLimits.maxUploadsPerDay}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Max Employees</span>
+                  <span className="font-medium">
+                    {effectiveLimits.maxEmployees === -1 ? 'Unlimited' : effectiveLimits.maxEmployees}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Max Pumps</span>
+                  <span className="font-medium">
+                    {effectiveLimits.maxPumps === -1 ? 'Unlimited' : effectiveLimits.maxPumps}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Max Stations</span>
+                  <span className="font-medium">
+                    {effectiveLimits.maxStations === -1 ? 'Unlimited' : effectiveLimits.maxStations}
+                  </span>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-2">Need to upgrade?</p>
+                <Button variant="outline" size="sm" className="w-full">
+                  Contact Support
                 </Button>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+
+          {/* Usage Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>📈</span>
+                Usage Statistics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Uploads Today</span>
+                  <span className="font-medium">0</span>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Uploads</span>
+                  <span className="font-medium">0</span>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Active Since</span>
+                  <span className="font-medium">
+                    {userDetails?.createdAt ? new Date(userDetails.createdAt).toLocaleDateString() : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };

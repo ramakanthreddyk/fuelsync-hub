@@ -27,13 +27,13 @@ import { apiService } from '@/services/api';
 import { useToast } from "@/hooks/use-toast";
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Upload Receipt', href: '/upload', icon: Upload },
-  { name: 'Sales Analytics', href: '/sales', icon: BarChart3 },
-  { name: 'Fuel Prices', href: '/prices', icon: DollarSign },
-  { name: 'Pump Management', href: '/pumps', icon: Fuel },
-  { name: 'Reports', href: '/reports', icon: FileText },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Dashboard', href: '/app/dashboard', icon: Home },
+  { name: 'Upload Receipt', href: '/app/upload', icon: Upload },
+  { name: 'Sales Analytics', href: '/app/sales', icon: BarChart3 },
+  { name: 'Fuel Prices', href: '/app/prices', icon: DollarSign },
+  { name: 'Pump Management', href: '/app/pumps', icon: Fuel },
+  { name: 'Reports', href: '/app/reports', icon: FileText },
+  { name: 'Settings', href: '/app/settings', icon: Settings },
 ];
 
 const AppSidebar = () => {
@@ -68,8 +68,7 @@ const AppSidebar = () => {
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
-                const isActive = location.pathname === item.href || 
-                  (item.href === '/dashboard' && location.pathname === '/');
+                const isActive = location.pathname === item.href;
                 
                 return (
                   <SidebarMenuItem key={item.name}>
