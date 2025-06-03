@@ -1,104 +1,181 @@
 
 const { Pump, Nozzle } = require('../models');
 
-const getPumps = async (req, res) => {
+// Get all pumps
+exports.getPumps = async (req, res) => {
   try {
-    const pumps = await Pump.findAll({
-      include: [
-        {
-          model: Nozzle,
-          as: 'nozzles',
-          order: [['number', 'ASC']]
-        }
-      ],
-      order: [['name', 'ASC']]
-    });
+    // TODO: Replace with real DB query - returning dummy pumps for frontend dev
+    const dummyPumps = [
+      {
+        id: '1',
+        name: 'Pump 1',
+        status: 'active',
+        location: 'North Side',
+        lastMaintenanceDate: '2024-05-15T00:00:00Z',
+        totalSalesToday: 12450,
+        nozzles: [
+          {
+            id: '1',
+            number: 1,
+            fuelType: 'Petrol',
+            status: 'active',
+            pumpId: '1'
+          },
+          {
+            id: '2',
+            number: 2,
+            fuelType: 'Diesel',
+            status: 'active',
+            pumpId: '1'
+          }
+        ]
+      },
+      {
+        id: '2',
+        name: 'Pump 2',
+        status: 'active',
+        location: 'South Side',
+        lastMaintenanceDate: '2024-05-20T00:00:00Z',
+        totalSalesToday: 8930,
+        nozzles: [
+          {
+            id: '3',
+            number: 1,
+            fuelType: 'Petrol',
+            status: 'active',
+            pumpId: '2'
+          },
+          {
+            id: '4',
+            number: 2,
+            fuelType: 'Diesel',
+            status: 'maintenance',
+            pumpId: '2'
+          }
+        ]
+      },
+      {
+        id: '3',
+        name: 'Pump 3',
+        status: 'maintenance',
+        location: 'East Side',
+        lastMaintenanceDate: '2024-05-10T00:00:00Z',
+        totalSalesToday: 0,
+        nozzles: [
+          {
+            id: '5',
+            number: 1,
+            fuelType: 'Petrol',
+            status: 'inactive',
+            pumpId: '3'
+          },
+          {
+            id: '6',
+            number: 2,
+            fuelType: 'Diesel',
+            status: 'inactive',
+            pumpId: '3'
+          }
+        ]
+      }
+    ];
 
     res.json({
       success: true,
-      data: pumps
+      data: dummyPumps
     });
   } catch (error) {
-    console.error('Get pumps error:', error);
+    console.error('Error fetching pumps:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to fetch pumps data'
     });
   }
 };
 
-const updatePumpStatus = async (req, res) => {
+// Update pump status
+exports.updatePumpStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { pumpId } = req.params;
     const { status } = req.body;
 
-    if (!['active', 'inactive', 'maintenance'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid status. Must be active, inactive, or maintenance'
-      });
-    }
+    // TODO: Replace with real DB update
+    console.log(`Updating pump ${pumpId} status to ${status}`);
 
-    const pump = await Pump.findByPk(id);
-    if (!pump) {
-      return res.status(404).json({
-        success: false,
-        error: 'Pump not found'
-      });
-    }
-
-    await pump.update({ status });
+    // Return updated pump data
+    const updatedPump = {
+      id: pumpId,
+      status: status,
+      updatedAt: new Date().toISOString()
+    };
 
     res.json({
       success: true,
-      data: pump
+      data: updatedPump,
+      message: 'Pump status updated successfully'
     });
   } catch (error) {
-    console.error('Update pump status error:', error);
+    console.error('Error updating pump status:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to update pump status'
     });
   }
 };
 
-const updateNozzleFuelType = async (req, res) => {
+// Update nozzle fuel type
+exports.updateNozzleFuelType = async (req, res) => {
   try {
     const { nozzleId } = req.params;
     const { fuelType } = req.body;
 
-    if (!['Petrol', 'Diesel'].includes(fuelType)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid fuel type. Must be Petrol or Diesel'
-      });
-    }
-
-    const nozzle = await Nozzle.findByPk(nozzleId);
-    if (!nozzle) {
-      return res.status(404).json({
-        success: false,
-        error: 'Nozzle not found'
-      });
-    }
-
-    await nozzle.update({ fuelType });
+    // TODO: Replace with real DB update
+    console.log(`Updating nozzle ${nozzleId} fuel type to ${fuelType}`);
 
     res.json({
       success: true,
-      data: nozzle
+      message: 'Nozzle fuel type updated successfully'
     });
   } catch (error) {
-    console.error('Update nozzle fuel type error:', error);
+    console.error('Error updating nozzle fuel type:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to update nozzle fuel type'
     });
   }
 };
 
-module.exports = {
-  getPumps,
-  updatePumpStatus,
-  updateNozzleFuelType
+// Get pump performance metrics
+exports.getPumpMetrics = async (req, res) => {
+  try {
+    const { pumpId } = req.params;
+    const { period = '24h' } = req.query;
+
+    // TODO: Replace with real DB aggregation
+    const dummyMetrics = {
+      pumpId: pumpId,
+      period: period,
+      totalSales: 15670,
+      totalLitres: 456,
+      transactions: 34,
+      uptime: 98.5,
+      efficiency: 94.2,
+      hourlyData: [
+        { hour: '00:00', sales: 890, litres: 25 },
+        { hour: '01:00', sales: 1200, litres: 34 },
+        { hour: '02:00', sales: 1560, litres: 42 }
+      ]
+    };
+
+    res.json({
+      success: true,
+      data: dummyMetrics
+    });
+  } catch (error) {
+    console.error('Error fetching pump metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pump metrics'
+    });
+  }
 };

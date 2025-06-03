@@ -5,32 +5,58 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import MetricCard from '@/components/MetricCard';
 import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
+import { apiService } from '@/services/api';
+import { Upload as UploadType } from '@/types/api';
 
 const Dashboard = () => {
-  // Mock data - replace with actual API calls
+  // Fetch dashboard data from API
+  const { data: summaryData } = useQuery({
+    queryKey: ['daily-summary', new Date().toISOString().split('T')[0]],
+    queryFn: async () => {
+      const response = await apiService.getDailySummary(new Date().toISOString().split('T')[0]);
+      return response.data;
+    }
+  });
+
+  const { data: uploadsData } = useQuery({
+    queryKey: ['recent-uploads'],
+    queryFn: async () => {
+      const response = await apiService.getUploads(1, 3); // Get only 3 recent uploads
+      return response.data || [];
+    }
+  });
+
+  const { data: pumpsData } = useQuery({
+    queryKey: ['pumps'],
+    queryFn: async () => {
+      const response = await apiService.getPumps();
+      return response.data || [];
+    }
+  });
+
+  // Calculate metrics from API data
   const metrics = {
     todaySales: {
-      revenue: "₹45,678",
-      litres: "1,234 L",
-      transactions: 89
+      revenue: summaryData ? `₹${summaryData.totalRevenue.toLocaleString()}` : "₹0",
+      litres: summaryData ? `${summaryData.totalLitres} L` : "0 L",
+      transactions: summaryData?.totalTransactions || 0
     },
     uploads: {
-      today: 3,
-      limit: 10,
-      remaining: 7
+      today: uploadsData?.filter(upload => 
+        new Date(upload.uploadedAt).toDateString() === new Date().toDateString()
+      ).length || 0,
+      limit: 10, // This should come from user plan
+      remaining: 10 - (uploadsData?.filter(upload => 
+        new Date(upload.uploadedAt).toDateString() === new Date().toDateString()
+      ).length || 0)
     },
     pumps: {
-      active: 6,
-      total: 8,
-      efficiency: 94.5
+      active: pumpsData?.filter(pump => pump.status === 'active').length || 0,
+      total: pumpsData?.length || 0,
+      efficiency: 94.5 // This should be calculated from pump data
     }
   };
-
-  const recentUploads = [
-    { id: 1, status: 'success', amount: '₹2,450', litres: '45.6L', time: '2 hrs ago' },
-    { id: 2, status: 'processing', amount: '₹1,890', litres: '35.2L', time: '3 hrs ago' },
-    { id: 3, status: 'success', amount: '₹3,210', litres: '59.8L', time: '4 hrs ago' },
-  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -116,14 +142,14 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentUploads.map((upload, index) => (
+                {uploadsData?.map((upload: UploadType, index: number) => (
                   <div key={upload.id}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-fuel-blue animate-pulse" />
                         <div>
-                          <p className="font-medium text-sm">{upload.amount}</p>
-                          <p className="text-xs text-muted-foreground">{upload.litres}</p>
+                          <p className="font-medium text-sm">₹{upload.amount || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{upload.litres || 'N/A'}L</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -134,13 +160,19 @@ const Dashboard = () => {
                           {upload.status}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {upload.time}
+                          {new Date(upload.uploadedAt).toLocaleString()}
                         </span>
                       </div>
                     </div>
-                    {index < recentUploads.length - 1 && <Separator className="mt-4" />}
+                    {index < (uploadsData?.length || 0) - 1 && <Separator className="mt-4" />}
                   </div>
                 ))}
+                
+                {!uploadsData?.length && (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">No recent uploads</p>
+                  </div>
+                )}
               </div>
               <Button variant="outline" className="w-full mt-4">
                 View All Uploads

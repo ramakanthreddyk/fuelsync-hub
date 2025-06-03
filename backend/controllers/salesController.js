@@ -1,126 +1,162 @@
 
-const { Sale, Pump, User } = require('../models');
-const { Op } = require('sequelize');
+const { Sale } = require('../models');
 
-const getSales = async (req, res) => {
+// Get sales with filters
+exports.getSales = async (req, res) => {
   try {
     const { startDate, endDate, page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
-
-    // Dummy sales data - remove when backend is ready
+    
+    // TODO: Replace with real DB data - returning dummy sales for frontend dev
     const dummySales = [
       {
         id: '1',
-        pumpId: 'pump-1',
         fuelType: 'Petrol',
+        pumpId: 'PUMP-001',
         litres: 45.6,
-        pricePerLitre: 105.50,
-        totalAmount: 4810.80,
-        timestamp: new Date(Date.now() - 86400000).toISOString(),
-        shift: 'morning',
-        pump: { name: 'Pump 1' },
-        user: { name: 'John Doe' }
+        pricePerLitre: 102.5,
+        totalAmount: 4674,
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+        userId: req.user.id
       },
       {
         id: '2',
-        pumpId: 'pump-2',
         fuelType: 'Diesel',
-        litres: 32.8,
-        pricePerLitre: 98.75,
-        totalAmount: 3239.00,
-        timestamp: new Date(Date.now() - 82800000).toISOString(),
-        shift: 'afternoon',
-        pump: { name: 'Pump 2' },
-        user: { name: 'Jane Smith' }
+        pumpId: 'PUMP-002',
+        litres: 78.2,
+        pricePerLitre: 89.3,
+        totalAmount: 6981,
+        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
+        userId: req.user.id
       },
       {
         id: '3',
-        pumpId: 'pump-1',
         fuelType: 'Petrol',
-        litres: 28.4,
-        pricePerLitre: 105.50,
-        totalAmount: 2996.20,
-        timestamp: new Date(Date.now() - 79200000).toISOString(),
-        shift: 'night',
-        pump: { name: 'Pump 1' },
-        user: { name: 'Mike Johnson' }
-      },
-      {
-        id: '4',
-        pumpId: 'pump-3',
-        fuelType: 'Petrol',
-        litres: 52.1,
-        pricePerLitre: 105.50,
-        totalAmount: 5496.55,
-        timestamp: new Date(Date.now() - 172800000).toISOString(),
-        shift: 'morning',
-        pump: { name: 'Pump 3' },
-        user: { name: 'Sarah Wilson' }
+        pumpId: 'PUMP-003',
+        litres: 32.1,
+        pricePerLitre: 102.5,
+        totalAmount: 3290,
+        timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
+        userId: req.user.id
       }
     ];
 
-    // Filter by date if provided
-    let filteredSales = dummySales;
-    if (startDate || endDate) {
-      filteredSales = dummySales.filter(sale => {
-        const saleDate = new Date(sale.timestamp);
-        const start = startDate ? new Date(startDate) : new Date(0);
-        const end = endDate ? new Date(endDate) : new Date();
-        return saleDate >= start && saleDate <= end;
-      });
-    }
-
-    const paginatedSales = filteredSales.slice(offset, offset + parseInt(limit));
-
     res.json({
       success: true,
-      data: paginatedSales,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: filteredSales.length,
-        totalPages: Math.ceil(filteredSales.length / limit)
-      }
+      data: dummySales
     });
   } catch (error) {
-    console.error('Get sales error:', error);
+    console.error('Error fetching sales:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to fetch sales data'
     });
   }
 };
 
-const getDailySummary = async (req, res) => {
+// Get daily summary
+exports.getDailySummary = async (req, res) => {
   try {
     const { date } = req.params;
-
-    // Dummy daily summary - remove when backend is ready
-    const summary = {
-      date,
-      totalRevenue: 45678.50,
-      totalLitres: 456.7,
+    
+    // TODO: Replace with real DB aggregation - returning dummy summary for frontend dev
+    const dummySummary = {
+      date: date,
+      totalRevenue: 45678,
+      totalLitres: 1234,
       totalTransactions: 89,
       fuelTypeBreakdown: {
-        petrol: { litres: 284.2, revenue: 29978.10, transactions: 52 },
-        diesel: { litres: 172.5, revenue: 15700.40, transactions: 37 }
-      }
+        petrol: {
+          revenue: 28450,
+          litres: 756,
+          transactions: 52
+        },
+        diesel: {
+          revenue: 17228,
+          litres: 478,
+          transactions: 37
+        }
+      },
+      hourlyBreakdown: [
+        { hour: '06:00', sales: 2500, transactions: 8 },
+        { hour: '07:00', sales: 4200, transactions: 12 },
+        { hour: '08:00', sales: 6800, transactions: 18 },
+        { hour: '09:00', sales: 5400, transactions: 15 },
+        { hour: '10:00', sales: 4900, transactions: 13 },
+        { hour: '11:00', sales: 3200, transactions: 9 },
+        { hour: '12:00', sales: 7600, transactions: 21 }
+      ]
     };
 
     res.json({
       success: true,
-      data: summary
+      data: dummySummary
     });
   } catch (error) {
-    console.error('Get daily summary error:', error);
+    console.error('Error fetching daily summary:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to fetch daily summary'
     });
   }
 };
 
-module.exports = {
-  getSales,
-  getDailySummary
+// Get shift summary
+exports.getShiftSummary = async (req, res) => {
+  try {
+    const { date, shift } = req.params;
+    
+    // TODO: Replace with real DB aggregation
+    const dummyShiftSummary = {
+      date: date,
+      shift: shift,
+      revenue: 15230,
+      litres: 412,
+      transactions: 28,
+      startTime: '06:00',
+      endTime: '14:00'
+    };
+
+    res.json({
+      success: true,
+      data: dummyShiftSummary
+    });
+  } catch (error) {
+    console.error('Error fetching shift summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch shift summary'
+    });
+  }
+};
+
+// Get sales trends
+exports.getSalesTrends = async (req, res) => {
+  try {
+    const { period = '7d' } = req.query;
+    
+    // TODO: Replace with real DB aggregation
+    const dummyTrends = {
+      period: period,
+      data: [
+        { date: '2024-06-01', revenue: 45678, litres: 1234 },
+        { date: '2024-06-02', revenue: 52341, litres: 1456 },
+        { date: '2024-06-03', revenue: 48923, litres: 1298 },
+        { date: '2024-06-04', revenue: 41256, litres: 1102 },
+        { date: '2024-06-05', revenue: 38945, litres: 1034 },
+        { date: '2024-06-06', revenue: 43567, litres: 1189 },
+        { date: '2024-06-07', revenue: 47892, litres: 1267 }
+      ]
+    };
+
+    res.json({
+      success: true,
+      data: dummyTrends
+    });
+  } catch (error) {
+    console.error('Error fetching sales trends:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch sales trends'
+    });
+  }
 };
