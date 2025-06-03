@@ -1,4 +1,3 @@
-
 import { 
   User, 
   Upload, 
@@ -129,6 +128,36 @@ class ApiService {
     return response;
   }
 
+  // User management endpoints (Super Admin)
+  async getAllUsers(): Promise<ApiResponse<User[]>> {
+    console.log('API: Fetching all users');
+    return this.request<User[]>('/users');
+  }
+
+  async createEmployee(employeeData: { name: string; email: string; password: string }): Promise<ApiResponse<User>> {
+    console.log('API: Creating employee', employeeData.email);
+    return this.request<User>('/users/employees', {
+      method: 'POST',
+      body: JSON.stringify(employeeData),
+    });
+  }
+
+  async updateUserPlan(userId: string, planName: string): Promise<ApiResponse<unknown>> {
+    console.log('API: Updating user plan', userId, planName);
+    return this.request(`/users/${userId}/plan`, {
+      method: 'PUT',
+      body: JSON.stringify({ planName }),
+    });
+  }
+
+  async deleteUser(userId: string, confirmed: boolean = false): Promise<ApiResponse<unknown>> {
+    console.log('API: Deleting user', userId);
+    return this.request(`/users/${userId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmed }),
+    });
+  }
+
   // Upload endpoints
   async getUploads(page = 1, limit = 20): Promise<ApiResponse<Upload[]>> {
     console.log('API: Fetching uploads');
@@ -226,6 +255,14 @@ class ApiService {
   async getPumps(): Promise<ApiResponse<Pump[]>> {
     console.log('API: Fetching pumps');
     return this.request<Pump[]>('/pumps');
+  }
+
+  async createPump(pumpData: { name: string; location: string }): Promise<ApiResponse<Pump>> {
+    console.log('API: Creating pump', pumpData);
+    return this.request<Pump>('/pumps', {
+      method: 'POST',
+      body: JSON.stringify(pumpData),
+    });
   }
 
   async updatePumpStatus(pumpId: string, status: string): Promise<ApiResponse<Pump>> {

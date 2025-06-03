@@ -1,32 +1,21 @@
 
-const { FuelPrice } = require('../models');
+const { FuelPrice, User } = require('../models');
 
 // Get all fuel prices
 exports.getFuelPrices = async (req, res) => {
   try {
-    // TODO: Replace with real DB query - returning dummy prices for frontend dev
-    const dummyPrices = [
-      {
-        id: '1',
-        fuelType: 'Petrol',
-        price: 102.50,
-        updatedBy: 'Admin',
-        updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-        effectiveDate: new Date().toISOString()
-      },
-      {
-        id: '2',
-        fuelType: 'Diesel',
-        price: 89.30,
-        updatedBy: 'Admin',
-        updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
-        effectiveDate: new Date().toISOString()
-      }
-    ];
+    const prices = await FuelPrice.findAll({
+      include: [{ 
+        model: User, 
+        as: 'updatedByUser',
+        attributes: ['name']
+      }],
+      order: [['updatedAt', 'DESC']]
+    });
 
     res.json({
       success: true,
-      data: dummyPrices
+      data: prices
     });
   } catch (error) {
     console.error('Error fetching fuel prices:', error);
@@ -37,9 +26,16 @@ exports.getFuelPrices = async (req, res) => {
   }
 };
 
-// Update fuel price
+// Update fuel price (Owner and Super Admin only)
 exports.updateFuelPrice = async (req, res) => {
   try {
+    if (!['Pump Owner', 'Super Admin'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied. Only Pump Owners and Super Admins can update prices.'
+      });
+    }
+
     const { fuelType, price } = req.body;
 
     // Validate input
@@ -50,17 +46,38 @@ exports.updateFuelPrice = async (req, res) => {
       });
     }
 
-    // TODO: Replace with real DB update
-    console.log(`Updating ${fuelType} price to ₹${price}`);
+    if (!['Petrol', 'Diesel'].includes(fuelType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid fuel type. Must be Petrol or Diesel.'
+      });
+    }
 
-    const updatedPrice = {
-      id: Date.now().toString(),
-      fuelType: fuelType,
-      price: parseFloat(price),
-      updatedBy: req.user.name || 'Admin',
-      updatedAt: new Date().toISOString(),
-      effectiveDate: new Date().toISOString()
-    };
+    // Update or create fuel price
+    const [fuelPrice, created] = await FuelPrice.findOrCreate({
+      where: { fuelType },
+      defaults: {
+        fuelType,
+        price: parseFloat(price),
+        updatedBy: req.userId
+      }
+    });
+
+    if (!created) {
+      await fuelPrice.update({
+        price: parseFloat(price),
+        updatedBy: req.userId
+      });
+    }
+
+    const updatedPrice = await FuelPrice.findOne({
+      where: { fuelType },
+      include: [{ 
+        model: User, 
+        as: 'updatedByUser',
+        attributes: ['name']
+      }]
+    });
 
     res.json({
       success: true,
@@ -81,33 +98,38 @@ exports.getPriceHistory = async (req, res) => {
   try {
     const { fuelType, limit = 10 } = req.query;
 
-    // TODO: Replace with real DB query
-    const dummyHistory = [
-      {
-        id: '1',
-        fuelType: fuelType || 'Petrol',
-        price: 102.50,
-        previousPrice: 101.80,
-        change: 0.70,
-        updatedBy: 'Admin',
-        updatedAt: new Date().toISOString(),
-        reason: 'Market price adjustment'
-      },
-      {
-        id: '2',
-        fuelType: fuelType || 'Petrol',
-        price: 101.80,
-        previousPrice: 102.20,
-        change: -0.40,
-        updatedBy: 'Manager',
-        updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        reason: 'Competitive pricing'
-      }
-    ];
+    let whereClause = {};
+    if (fuelType) {
+      whereClause.fuelType = fuelType;
+    }
+
+    // TODO: Implement price history table for tracking changes
+    // For now, return current prices
+    const prices = await FuelPrice.findAll({
+      where: whereClause,
+      include: [{ 
+        model: User, 
+        as: 'updatedByUser',
+        attributes: ['name']
+      }],
+      limit: parseInt(limit),
+      order: [['updatedAt', 'DESC']]
+    });
+
+    const history = prices.map(price => ({
+      id: price.id,
+      fuelType: price.fuelType,
+      price: price.price,
+      previousPrice: price.price - (Math.random() * 2 - 1), // TODO: Get from history
+      change: Math.random() * 2 - 1, // TODO: Calculate real change
+      updatedBy: price.updatedByUser?.name || 'Unknown',
+      updatedAt: price.updatedAt,
+      reason: 'Market adjustment' // TODO: Add reason field
+    }));
 
     res.json({
       success: true,
-      data: dummyHistory
+      data: history
     });
   } catch (error) {
     console.error('Error fetching price history:', error);
@@ -121,26 +143,32 @@ exports.getPriceHistory = async (req, res) => {
 // Get price comparison with nearby stations
 exports.getPriceComparison = async (req, res) => {
   try {
-    // TODO: Replace with real competitor data
-    const dummyComparison = [
+    // TODO: Implement competitor price tracking
+    // For now, return dummy comparison data
+    const ourPrices = await FuelPrice.findAll();
+    
+    const petrolPrice = ourPrices.find(p => p.fuelType === 'Petrol')?.price || 105.50;
+    const dieselPrice = ourPrices.find(p => p.fuelType === 'Diesel')?.price || 98.75;
+
+    const comparison = [
       {
-        stationName: 'Our Station',
-        petrolPrice: 102.50,
-        dieselPrice: 89.30,
+        stationName: 'Your Station',
+        petrolPrice: petrolPrice,
+        dieselPrice: dieselPrice,
         distance: 0,
         isOurStation: true
       },
       {
-        stationName: 'Station A',
-        petrolPrice: 103.20,
-        dieselPrice: 90.10,
+        stationName: 'Competitor A',
+        petrolPrice: petrolPrice + (Math.random() * 4 - 2),
+        dieselPrice: dieselPrice + (Math.random() * 4 - 2),
         distance: 0.5,
         isOurStation: false
       },
       {
-        stationName: 'Station B',
-        petrolPrice: 101.90,
-        dieselPrice: 88.70,
+        stationName: 'Competitor B',
+        petrolPrice: petrolPrice + (Math.random() * 4 - 2),
+        dieselPrice: dieselPrice + (Math.random() * 4 - 2),
         distance: 1.2,
         isOurStation: false
       }
@@ -148,7 +176,7 @@ exports.getPriceComparison = async (req, res) => {
 
     res.json({
       success: true,
-      data: dummyComparison
+      data: comparison
     });
   } catch (error) {
     console.error('Error fetching price comparison:', error);

@@ -1,48 +1,54 @@
 
-const { Sale } = require('../models');
+const { Sale, User, Pump } = require('../models');
 
-// Get sales with filters
+// Get sales with role-based filtering
 exports.getSales = async (req, res) => {
   try {
     const { startDate, endDate, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
     
-    // TODO: Replace with real DB data - returning dummy sales for frontend dev
-    const dummySales = [
-      {
-        id: '1',
-        fuelType: 'Petrol',
-        pumpId: 'PUMP-001',
-        litres: 45.6,
-        pricePerLitre: 102.5,
-        totalAmount: 4674,
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        userId: req.user.id
-      },
-      {
-        id: '2',
-        fuelType: 'Diesel',
-        pumpId: 'PUMP-002',
-        litres: 78.2,
-        pricePerLitre: 89.3,
-        totalAmount: 6981,
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
-        userId: req.user.id
-      },
-      {
-        id: '3',
-        fuelType: 'Petrol',
-        pumpId: 'PUMP-003',
-        litres: 32.1,
-        pricePerLitre: 102.5,
-        totalAmount: 3290,
-        timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
-        userId: req.user.id
-      }
-    ];
+    let whereClause = {};
+    
+    // Apply date filters if provided
+    if (startDate || endDate) {
+      whereClause.createdAt = {};
+      if (startDate) whereClause.createdAt[require('sequelize').Op.gte] = new Date(startDate);
+      if (endDate) whereClause.createdAt[require('sequelize').Op.lte] = new Date(endDate);
+    }
+
+    // Role-based access control
+    if (req.user.role === 'Employee') {
+      whereClause.userId = req.userId;
+    } else if (req.user.role === 'Pump Owner') {
+      // Get sales from own station only
+      const stationUsers = await User.findAll({
+        where: { stationId: req.user.stationId },
+        attributes: ['id']
+      });
+      whereClause.userId = stationUsers.map(u => u.id);
+    }
+    // Super Admin sees all sales
+
+    const sales = await Sale.findAndCountAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'user', attributes: ['name'] },
+        { model: Pump, as: 'pump', attributes: ['name'] }
+      ],
+      offset: parseInt(offset),
+      limit: parseInt(limit),
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({
       success: true,
-      data: dummySales
+      data: sales.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: sales.count,
+        totalPages: Math.ceil(sales.count / limit)
+      }
     });
   } catch (error) {
     console.error('Error fetching sales:', error);
@@ -53,43 +59,84 @@ exports.getSales = async (req, res) => {
   }
 };
 
-// Get daily summary
+// Get daily summary with role-based filtering
 exports.getDailySummary = async (req, res) => {
   try {
     const { date } = req.params;
+    const startDate = new Date(date);
+    const endDate = new Date(date);
+    endDate.setDate(endDate.getDate() + 1);
     
-    // TODO: Replace with real DB aggregation - returning dummy summary for frontend dev
-    const dummySummary = {
-      date: date,
-      totalRevenue: 45678,
-      totalLitres: 1234,
-      totalTransactions: 89,
-      fuelTypeBreakdown: {
-        petrol: {
-          revenue: 28450,
-          litres: 756,
-          transactions: 52
-        },
-        diesel: {
-          revenue: 17228,
-          litres: 478,
-          transactions: 37
-        }
-      },
-      hourlyBreakdown: [
-        { hour: '06:00', sales: 2500, transactions: 8 },
-        { hour: '07:00', sales: 4200, transactions: 12 },
-        { hour: '08:00', sales: 6800, transactions: 18 },
-        { hour: '09:00', sales: 5400, transactions: 15 },
-        { hour: '10:00', sales: 4900, transactions: 13 },
-        { hour: '11:00', sales: 3200, transactions: 9 },
-        { hour: '12:00', sales: 7600, transactions: 21 }
-      ]
+    let whereClause = {
+      createdAt: {
+        [require('sequelize').Op.gte]: startDate,
+        [require('sequelize').Op.lt]: endDate
+      }
     };
+
+    // Role-based access control
+    if (req.user.role === 'Employee') {
+      whereClause.userId = req.userId;
+    } else if (req.user.role === 'Pump Owner') {
+      const stationUsers = await User.findAll({
+        where: { stationId: req.user.stationId },
+        attributes: ['id']
+      });
+      whereClause.userId = stationUsers.map(u => u.id);
+    }
+
+    const sales = await Sale.findAll({
+      where: whereClause,
+      attributes: ['fuelType', 'totalAmount', 'litres']
+    });
+
+    if (sales.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          date,
+          totalRevenue: 0,
+          totalLitres: 0,
+          totalTransactions: 0,
+          fuelTypeBreakdown: {
+            petrol: { revenue: 0, litres: 0, transactions: 0 },
+            diesel: { revenue: 0, litres: 0, transactions: 0 }
+          },
+          hourlyBreakdown: []
+        }
+      });
+    }
+
+    const summary = sales.reduce((acc, sale) => {
+      acc.totalRevenue += parseFloat(sale.totalAmount);
+      acc.totalLitres += parseFloat(sale.litres);
+      acc.totalTransactions += 1;
+
+      const fuelKey = sale.fuelType.toLowerCase();
+      if (!acc.fuelTypeBreakdown[fuelKey]) {
+        acc.fuelTypeBreakdown[fuelKey] = { revenue: 0, litres: 0, transactions: 0 };
+      }
+      
+      acc.fuelTypeBreakdown[fuelKey].revenue += parseFloat(sale.totalAmount);
+      acc.fuelTypeBreakdown[fuelKey].litres += parseFloat(sale.litres);
+      acc.fuelTypeBreakdown[fuelKey].transactions += 1;
+
+      return acc;
+    }, {
+      date,
+      totalRevenue: 0,
+      totalLitres: 0,
+      totalTransactions: 0,
+      fuelTypeBreakdown: {
+        petrol: { revenue: 0, litres: 0, transactions: 0 },
+        diesel: { revenue: 0, litres: 0, transactions: 0 }
+      },
+      hourlyBreakdown: [] // TODO: Implement hourly breakdown from DB
+    });
 
     res.json({
       success: true,
-      data: dummySummary
+      data: summary
     });
   } catch (error) {
     console.error('Error fetching daily summary:', error);
@@ -105,20 +152,45 @@ exports.getShiftSummary = async (req, res) => {
   try {
     const { date, shift } = req.params;
     
-    // TODO: Replace with real DB aggregation
-    const dummyShiftSummary = {
-      date: date,
-      shift: shift,
-      revenue: 15230,
-      litres: 412,
-      transactions: 28,
-      startTime: '06:00',
-      endTime: '14:00'
+    let whereClause = {
+      shift,
+      createdAt: {
+        [require('sequelize').Op.gte]: new Date(date),
+        [require('sequelize').Op.lt]: new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000)
+      }
     };
+
+    // Role-based access control
+    if (req.user.role === 'Employee') {
+      whereClause.userId = req.userId;
+    } else if (req.user.role === 'Pump Owner') {
+      const stationUsers = await User.findAll({
+        where: { stationId: req.user.stationId },
+        attributes: ['id']
+      });
+      whereClause.userId = stationUsers.map(u => u.id);
+    }
+
+    const sales = await Sale.findAll({ where: whereClause });
+
+    const summary = sales.reduce((acc, sale) => {
+      acc.revenue += parseFloat(sale.totalAmount);
+      acc.litres += parseFloat(sale.litres);
+      acc.transactions += 1;
+      return acc;
+    }, {
+      date,
+      shift,
+      revenue: 0,
+      litres: 0,
+      transactions: 0,
+      startTime: shift === 'morning' ? '06:00' : shift === 'afternoon' ? '14:00' : '22:00',
+      endTime: shift === 'morning' ? '14:00' : shift === 'afternoon' ? '22:00' : '06:00'
+    });
 
     res.json({
       success: true,
-      data: dummyShiftSummary
+      data: summary
     });
   } catch (error) {
     console.error('Error fetching shift summary:', error);
@@ -134,23 +206,65 @@ exports.getSalesTrends = async (req, res) => {
   try {
     const { period = '7d' } = req.query;
     
-    // TODO: Replace with real DB aggregation
-    const dummyTrends = {
-      period: period,
-      data: [
-        { date: '2024-06-01', revenue: 45678, litres: 1234 },
-        { date: '2024-06-02', revenue: 52341, litres: 1456 },
-        { date: '2024-06-03', revenue: 48923, litres: 1298 },
-        { date: '2024-06-04', revenue: 41256, litres: 1102 },
-        { date: '2024-06-05', revenue: 38945, litres: 1034 },
-        { date: '2024-06-06', revenue: 43567, litres: 1189 },
-        { date: '2024-06-07', revenue: 47892, litres: 1267 }
-      ]
+    // Calculate date range based on period
+    const endDate = new Date();
+    const startDate = new Date();
+    
+    switch (period) {
+      case '7d':
+        startDate.setDate(startDate.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(startDate.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(startDate.getDate() - 90);
+        break;
+      default:
+        startDate.setDate(startDate.getDate() - 7);
+    }
+
+    let whereClause = {
+      createdAt: {
+        [require('sequelize').Op.gte]: startDate,
+        [require('sequelize').Op.lte]: endDate
+      }
     };
+
+    // Role-based access control
+    if (req.user.role === 'Employee') {
+      whereClause.userId = req.userId;
+    } else if (req.user.role === 'Pump Owner') {
+      const stationUsers = await User.findAll({
+        where: { stationId: req.user.stationId },
+        attributes: ['id']
+      });
+      whereClause.userId = stationUsers.map(u => u.id);
+    }
+
+    const sales = await Sale.findAll({
+      where: whereClause,
+      attributes: ['createdAt', 'totalAmount', 'litres'],
+      order: [['createdAt', 'ASC']]
+    });
+
+    // Group sales by date
+    const trends = sales.reduce((acc, sale) => {
+      const date = sale.createdAt.toISOString().split('T')[0];
+      if (!acc[date]) {
+        acc[date] = { date, revenue: 0, litres: 0 };
+      }
+      acc[date].revenue += parseFloat(sale.totalAmount);
+      acc[date].litres += parseFloat(sale.litres);
+      return acc;
+    }, {});
 
     res.json({
       success: true,
-      data: dummyTrends
+      data: {
+        period,
+        data: Object.values(trends)
+      }
     });
   } catch (error) {
     console.error('Error fetching sales trends:', error);

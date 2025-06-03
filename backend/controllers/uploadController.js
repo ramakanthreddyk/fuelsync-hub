@@ -1,83 +1,50 @@
 
 const { Upload, User, Plan } = require('../models');
-const { uploadToBlob, processOCR } = require('../services/azureService');
-const { validateUpload } = require('../utils/validation');
+const { PLAN_LIMITS } = require('../middleware/planLimits');
 
 const getUploads = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
-    // Dummy data - remove when backend is ready
-    const dummyUploads = [
-      {
-        id: '1',
-        userId: req.userId,
-        filename: 'receipt-001.jpg',
-        originalName: 'receipt-001.jpg',
-        status: 'success',
-        amount: 2450.00,
-        litres: 45.6,
-        fuelType: 'Petrol',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        processedAt: new Date(Date.now() - 86300000).toISOString(),
-        ocrData: {
-          amount: 2450.00,
-          litres: 45.6,
-          fuelType: 'Petrol',
-          pumpId: 'pump-1',
-          timestamp: new Date(Date.now() - 86400000).toISOString()
-        }
-      },
-      {
-        id: '2',
-        userId: req.userId,
-        filename: 'receipt-002.jpg',
-        originalName: 'receipt-002.jpg',
-        status: 'processing',
-        amount: 0,
-        litres: 0,
-        fuelType: 'Diesel',
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        processedAt: null,
-        ocrData: null
-      },
-      {
-        id: '3',
-        userId: req.userId,
-        filename: 'receipt-003.jpg',
-        originalName: 'receipt-003.jpg',
-        status: 'success',
-        amount: 1890.50,
-        litres: 32.8,
-        fuelType: 'Diesel',
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        processedAt: new Date(Date.now() - 172700000).toISOString(),
-        ocrData: {
-          amount: 1890.50,
-          litres: 32.8,
-          fuelType: 'Diesel',
-          pumpId: 'pump-2',
-          timestamp: new Date(Date.now() - 172800000).toISOString()
-        }
-      }
-    ];
+    let whereClause = {};
+    
+    // Role-based access control
+    if (req.user.role === 'Employee') {
+      whereClause.userId = req.userId;
+    } else if (req.user.role === 'Pump Owner') {
+      // Get uploads from own station only
+      const stationUsers = await User.findAll({
+        where: { stationId: req.user.stationId },
+        attributes: ['id']
+      });
+      whereClause.userId = stationUsers.map(u => u.id);
+    }
+    // Super Admin sees all uploads
+
+    const uploads = await Upload.findAndCountAll({
+      where: whereClause,
+      include: [{ model: User, as: 'user', attributes: ['name', 'email'] }],
+      offset: parseInt(offset),
+      limit: parseInt(limit),
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({
       success: true,
-      data: dummyUploads,
+      data: uploads.rows,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: dummyUploads.length,
-        totalPages: Math.ceil(dummyUploads.length / limit)
+        total: uploads.count,
+        totalPages: Math.ceil(uploads.count / limit)
       }
     });
   } catch (error) {
     console.error('Get uploads error:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to fetch uploads'
     });
   }
 };
@@ -91,34 +58,61 @@ const uploadReceipt = async (req, res) => {
       });
     }
 
-    // Check daily upload limit (dummy check for now)
-    const todayUploads = 2; // Dummy count - replace with DB query later
-    const uploadLimit = 10; // Dummy limit - get from user's plan
+    // Check daily upload limit
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayUploads = await Upload.count({
+      where: {
+        userId: req.userId,
+        createdAt: {
+          [require('sequelize').Op.gte]: today
+        }
+      }
+    });
 
-    if (uploadLimit !== 12 && todayUploads >= uploadLimit) {
+    const user = await User.findByPk(req.userId, {
+      include: [{ model: Plan, as: 'plan' }]
+    });
+
+    const planLimits = PLAN_LIMITS[user.plan?.name];
+    if (planLimits && planLimits.maxUploadsPerDay !== -1 && todayUploads >= planLimits.maxUploadsPerDay) {
       return res.status(429).json({
         success: false,
-        error: `Daily upload limit (${uploadLimit}) exceeded`
+        error: `Daily upload limit (${planLimits.maxUploadsPerDay}) exceeded`
       });
     }
 
-    // Create dummy upload record
-    const upload = {
-      id: Date.now().toString(),
+    const upload = await Upload.create({
       userId: req.userId,
       filename: `${Date.now()}-${req.file.originalname}`,
       originalName: req.file.originalname,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
-      status: 'processing',
-      createdAt: new Date().toISOString()
-    };
+      status: 'processing'
+    });
 
-    // Simulate processing delay
-    setTimeout(() => {
-      console.log(`Simulating OCR processing for upload ${upload.id}`);
-      // In real implementation, this would call processOCR
-    }, 2000);
+    // TODO: Implement actual OCR processing with Azure
+    // For now, simulate processing
+    setTimeout(async () => {
+      try {
+        await Upload.update({
+          status: 'success',
+          amount: Math.random() * 5000 + 500,
+          litres: Math.random() * 50 + 10,
+          fuelType: Math.random() > 0.5 ? 'Petrol' : 'Diesel',
+          processedAt: new Date(),
+          ocrData: {
+            confidence: 0.95,
+            processedAt: new Date()
+          }
+        }, {
+          where: { id: upload.id }
+        });
+      } catch (error) {
+        console.error('Error updating upload:', error);
+      }
+    }, 3000);
 
     res.status(201).json({
       success: true,
@@ -128,7 +122,7 @@ const uploadReceipt = async (req, res) => {
     console.error('Upload receipt error:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to upload receipt'
     });
   }
 };
@@ -138,23 +132,31 @@ const updateOcrData = async (req, res) => {
     const { id } = req.params;
     const { amount, litres, fuelType, pumpId } = req.body;
 
-    // Dummy update - replace with DB query later
-    const updatedUpload = {
-      id,
-      userId: req.userId,
+    const upload = await Upload.findOne({
+      where: { id, userId: req.userId }
+    });
+
+    if (!upload) {
+      return res.status(404).json({
+        success: false,
+        error: 'Upload not found'
+      });
+    }
+
+    const updatedUpload = await upload.update({
       amount: parseFloat(amount),
       litres: parseFloat(litres),
       fuelType,
-      updatedAt: new Date().toISOString(),
       ocrData: {
+        ...upload.ocrData,
         amount: parseFloat(amount),
         litres: parseFloat(litres),
         fuelType,
         pumpId,
-        timestamp: new Date().toISOString(),
-        editedManually: true
+        editedManually: true,
+        updatedAt: new Date()
       }
-    };
+    });
 
     res.json({
       success: true,
@@ -164,7 +166,7 @@ const updateOcrData = async (req, res) => {
     console.error('Update OCR data error:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to update OCR data'
     });
   }
 };
@@ -173,8 +175,18 @@ const deleteUpload = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Dummy deletion - replace with DB query later
-    console.log(`Deleting upload ${id} for user ${req.userId}`);
+    const upload = await Upload.findOne({
+      where: { id, userId: req.userId }
+    });
+
+    if (!upload) {
+      return res.status(404).json({
+        success: false,
+        error: 'Upload not found'
+      });
+    }
+
+    await upload.destroy();
 
     res.json({
       success: true,
@@ -184,7 +196,7 @@ const deleteUpload = async (req, res) => {
     console.error('Delete upload error:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to delete upload'
     });
   }
 };
