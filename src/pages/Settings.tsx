@@ -45,9 +45,9 @@ const Settings = () => {
     });
   };
 
-  // Get plan details with fallback
-  const planName = userDetails?.plan?.name || 'Basic';
-  const customLimits = userDetails?.customLimits || {};
+  // Get plan details with fallback - plan is a string, not an object
+  const planName = user?.plan || 'Basic';
+  const customLimits = user?.customLimits || {};
 
   // Define plan limits with defaults
   const defaultLimits = {
@@ -302,7 +302,7 @@ const Settings = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Active Since</span>
                   <span className="font-medium">
-                    {userDetails?.createdAt ? new Date(userDetails.createdAt).toLocaleDateString() : 'N/A'}
+                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
               </div>

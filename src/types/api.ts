@@ -1,4 +1,3 @@
-
 // API Types
 export interface User {
   id: string;
@@ -7,6 +6,9 @@ export interface User {
   role: 'Super Admin' | 'Pump Owner' | 'Manager' | 'Employee';
   plan: 'Free' | 'Basic' | 'Premium';
   stationId?: string;
+  planId?: string;
+  customLimits?: Record<string, any>;
+  createdAt?: string;
 }
 
 export interface Upload {
