@@ -51,6 +51,10 @@ const Sale = sequelize.define('Sale', {
       model: 'uploads',
       key: 'id'
     }
+  },
+  nozzleId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'sales',

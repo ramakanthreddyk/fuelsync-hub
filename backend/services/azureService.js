@@ -1,10 +1,12 @@
+
 const { blobServiceClient, computerVisionClient, CONTAINERS } = require('../config/azure');
-const { Upload, NozzleReading } = require('../models');
+const { Upload, NozzleReading, Pump, Nozzle, FuelPrice } = require('../models');
 const { parseOcrText } = require('../utils/ocrParser');
 const { processNozzleReadings } = require('./salesCalculationService');
 
 const uploadToBlob = async (buffer, filename) => {
   try {
+    console.log('📤 Uploading to Azure Blob:', filename);
     const containerClient = blobServiceClient.getContainerClient(CONTAINERS.RECEIPTS);
     const blockBlobClient = containerClient.getBlockBlobClient(filename);
     
@@ -14,38 +16,43 @@ const uploadToBlob = async (buffer, filename) => {
       }
     });
 
+    console.log('✅ Blob upload successful:', blockBlobClient.url);
     return blockBlobClient.url;
   } catch (error) {
-    console.error('Azure blob upload error:', error);
+    console.error('❌ Azure blob upload error:', error);
     throw new Error('Failed to upload file to Azure');
   }
 };
 
-const processOCR = async (uploadId, imageUrl) => {
+const processOCR = async (uploadId, imageBuffer) => {
   try {
-    console.log(`Processing OCR for upload ${uploadId}`);
+    console.log(`🔍 Starting OCR processing for upload ${uploadId}`);
     
     const upload = await Upload.findByPk(uploadId);
     if (!upload) {
       throw new Error('Upload not found');
     }
 
-    // Use Azure Computer Vision to extract text
-    const result = await computerVisionClient.readInStream(imageUrl);
+    // Use Azure Computer Vision to extract text from buffer
+    console.log('📸 Sending image to Azure Computer Vision...');
+    const result = await computerVisionClient.readInStream(imageBuffer);
     
     // Extract operation ID from the result
     const operationLocation = result.operationLocation;
     const operationId = operationLocation.split('/').pop();
+    console.log('⏳ OCR operation ID:', operationId);
 
     // Poll for results
     let ocrResult;
     let attempts = 0;
-    const maxAttempts = 10;
+    const maxAttempts = 15;
 
     while (attempts < maxAttempts) {
+      console.log(`🔄 Polling OCR results, attempt ${attempts + 1}/${maxAttempts}`);
       ocrResult = await computerVisionClient.getReadResult(operationId);
       
       if (ocrResult.status === 'succeeded') {
+        console.log('✅ OCR processing succeeded');
         break;
       } else if (ocrResult.status === 'failed') {
         throw new Error('OCR processing failed');
@@ -65,27 +72,57 @@ const processOCR = async (uploadId, imageUrl) => {
       .map(result => result.lines.map(line => line.text).join('\n'))
       .join('\n');
 
-    console.log('Raw OCR text:', rawText);
+    console.log('📄 Raw OCR text extracted:', rawText);
 
     // Parse the OCR text using our custom parser
     const extractedData = parseOcrText(rawText);
     
-    console.log('Extracted data:', extractedData);
+    console.log('🎯 Extracted OCR data:', extractedData);
 
     // Validate extracted data
-    if (!extractedData.pump_sno || extractedData.nozzleReadings.length === 0) {
-      throw new Error('Could not extract pump serial number or nozzle readings. Please upload a clearer image.');
+    if (!extractedData.pump_sno) {
+      throw new Error('Could not extract pump serial number. Please upload a clearer image.');
+    }
+    
+    if (extractedData.nozzleReadings.length === 0) {
+      throw new Error('Could not extract nozzle readings. Please upload a clearer image.');
     }
 
-    // Use upload creation date if no date was extracted from OCR
+    // Auto-create or find pump
+    const pump = await findOrCreatePump(extractedData.pump_sno);
+    console.log('🏭 Using pump:', pump.id, pump.name);
+
+    // Use extracted date/time or fall back to upload timestamp
     const readingDate = extractedData.date || upload.createdAt.toISOString().split('T')[0];
     const readingTime = extractedData.time || upload.createdAt.toTimeString().split(' ')[0];
+    
+    console.log('📅 Using reading date/time:', readingDate, readingTime);
 
     // Create nozzle readings in the database
     const nozzleReadings = [];
-    const fuelTypeMap = { 1: 'Petrol', 2: 'Diesel', 3: 'Petrol', 4: 'Diesel' }; // Default mapping
+    const nozzleConfig = await getNozzleConfig();
 
     for (const reading of extractedData.nozzleReadings) {
+      console.log('💾 Processing nozzle reading:', reading);
+      
+      // Auto-create nozzle if it doesn't exist
+      const nozzle = await findOrCreateNozzle(pump.id, reading.nozzle_id);
+      
+      // Check for duplicate reading
+      const existingReading = await NozzleReading.findOne({
+        where: {
+          pumpSno: extractedData.pump_sno,
+          nozzleId: reading.nozzle_id,
+          readingDate,
+          cumulativeVolume: reading.cumulative_volume
+        }
+      });
+
+      if (existingReading) {
+        console.log('⚠️ Duplicate reading detected, skipping:', reading);
+        continue;
+      }
+
       const nozzleReading = await NozzleReading.create({
         uploadId: upload.id,
         userId: upload.userId,
@@ -94,19 +131,27 @@ const processOCR = async (uploadId, imageUrl) => {
         cumulativeVolume: reading.cumulative_volume,
         readingDate,
         readingTime,
-        fuelType: fuelTypeMap[reading.nozzle_id] || 'Petrol',
+        fuelType: nozzle.fuelType || 'Petrol',
         isManualEntry: false
       });
 
       nozzleReadings.push(nozzleReading);
+      console.log('✅ Created nozzle reading:', nozzleReading.id);
+    }
+
+    if (nozzleReadings.length === 0) {
+      throw new Error('No new readings to process (all were duplicates)');
     }
 
     // Process the readings to calculate sales
+    console.log('🧮 Calculating sales from readings...');
     const processedReadings = await processNozzleReadings(nozzleReadings);
 
     // Calculate totals for the upload
     const totalLitres = processedReadings.reduce((sum, r) => sum + parseFloat(r.litresSold || 0), 0);
     const totalAmount = processedReadings.reduce((sum, r) => sum + parseFloat(r.totalAmount || 0), 0);
+
+    console.log('💰 Calculated totals:', { totalLitres, totalAmount });
 
     // Update upload with processed data
     await upload.update({
@@ -121,16 +166,18 @@ const processOCR = async (uploadId, imageUrl) => {
           nozzleId: r.nozzleId,
           cumulativeVolume: r.cumulativeVolume,
           litresSold: r.litresSold,
-          totalAmount: r.totalAmount
+          totalAmount: r.totalAmount,
+          fuelType: r.fuelType
         })),
         timestamp: new Date().toISOString(),
         rawText: rawText
       }
     });
 
-    console.log(`OCR processing completed for upload ${uploadId}. Total: ${totalLitres}L, ₹${totalAmount}`);
+    console.log(`🎉 OCR processing completed for upload ${uploadId}. Total: ${totalLitres}L, ₹${totalAmount}`);
+    
   } catch (error) {
-    console.error(`OCR processing error for upload ${uploadId}:`, error);
+    console.error(`❌ OCR processing error for upload ${uploadId}:`, error);
     
     await Upload.update({
       status: 'failed',
@@ -138,61 +185,70 @@ const processOCR = async (uploadId, imageUrl) => {
     }, {
       where: { id: uploadId }
     });
+    
+    throw error;
   }
 };
 
-const extractReceiptData = (readResults) => {
-  // This is a simplified extraction logic
-  // In production, you'd want more sophisticated pattern matching
-  const text = readResults.map(result => 
-    result.lines.map(line => line.text).join(' ')
-  ).join(' ').toLowerCase();
-
-  console.log('Extracted text:', text);
-
-  let amount = 0;
-  let litres = 0;
-  let fuelType = 'Petrol';
-  let pumpId = null;
-
-  // Extract amount (look for currency symbols and numbers)
-  const amountMatch = text.match(/(?:rs\.?|₹)\s*(\d+(?:\.\d{2})?)/i) || 
-                     text.match(/(\d+\.\d{2})\s*(?:rs\.?|₹)/i);
-  if (amountMatch) {
-    amount = parseFloat(amountMatch[1]);
+// Helper function to find or create pump
+const findOrCreatePump = async (pumpSno) => {
+  console.log('🔍 Finding or creating pump:', pumpSno);
+  
+  let pump = await Pump.findOne({ where: { name: `Pump ${pumpSno}` } });
+  
+  if (!pump) {
+    console.log('🆕 Creating new pump:', pumpSno);
+    pump = await Pump.create({
+      name: `Pump ${pumpSno}`,
+      status: 'active'
+    });
   }
+  
+  return pump;
+};
 
-  // Extract litres
-  const litresMatch = text.match(/(\d+(?:\.\d{1,3})?)\s*(?:l|ltr|litre|litres)/i);
-  if (litresMatch) {
-    litres = parseFloat(litresMatch[1]);
+// Helper function to find or create nozzle
+const findOrCreateNozzle = async (pumpId, nozzleNumber) => {
+  console.log('🔍 Finding or creating nozzle:', pumpId, nozzleNumber);
+  
+  let nozzle = await Nozzle.findOne({ 
+    where: { 
+      pump_id: pumpId, 
+      number: nozzleNumber 
+    } 
+  });
+  
+  if (!nozzle) {
+    console.log('🆕 Creating new nozzle:', nozzleNumber, 'for pump:', pumpId);
+    
+    // Default fuel type mapping (can be customized)
+    const fuelTypeMap = {
+      1: 'Petrol',
+      2: 'Diesel', 
+      3: 'Petrol',
+      4: 'Diesel'
+    };
+    
+    nozzle = await Nozzle.create({
+      pump_id: pumpId,
+      number: nozzleNumber,
+      fuel_type: fuelTypeMap[nozzleNumber] || 'Petrol',
+      status: 'active'
+    });
   }
+  
+  return nozzle;
+};
 
-  // Determine fuel type
-  if (text.includes('diesel') || text.includes('hsd')) {
-    fuelType = 'Diesel';
-  }
-
-  // Extract pump ID
-  const pumpMatch = text.match(/pump\s*(?:no\.?)?\s*(\d+)/i) || 
-                   text.match(/(\d+)\s*pump/i);
-  if (pumpMatch) {
-    pumpId = `pump-${pumpMatch[1]}`;
-  }
-
+// Helper function to get nozzle configuration
+const getNozzleConfig = async () => {
+  // This could be enhanced to read from a configuration table
   return {
-    amount,
-    litres,
-    fuelType,
-    pumpId
+    1: 'Petrol',
+    2: 'Diesel',
+    3: 'Petrol', 
+    4: 'Diesel'
   };
-};
-
-const getCurrentShift = () => {
-  const hour = new Date().getHours();
-  if (hour >= 6 && hour < 14) return 'morning';
-  if (hour >= 14 && hour < 22) return 'afternoon';
-  return 'night';
 };
 
 module.exports = {

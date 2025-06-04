@@ -1,9 +1,11 @@
 
 const { Upload, User, Plan } = require('../models');
 const { getEffectiveLimits } = require('../middleware/planLimits');
+const { uploadToBlob, processOCR } = require('../services/azureService');
 
 const getUploads = async (req, res) => {
   try {
+    console.log('📋 Fetching uploads for user:', req.userId);
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
@@ -30,6 +32,8 @@ const getUploads = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
+    console.log('✅ Found', uploads.count, 'uploads');
+
     res.json({
       success: true,
       data: uploads.rows,
@@ -41,7 +45,7 @@ const getUploads = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get uploads error:', error);
+    console.error('❌ Get uploads error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch uploads'
@@ -51,12 +55,20 @@ const getUploads = async (req, res) => {
 
 const uploadReceipt = async (req, res) => {
   try {
+    console.log('📤 Processing receipt upload for user:', req.userId);
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
         error: 'No file uploaded'
       });
     }
+
+    console.log('📄 File details:', {
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
 
     // Check daily upload limit using effective limits
     const today = new Date();
@@ -77,6 +89,7 @@ const uploadReceipt = async (req, res) => {
 
     const effectiveLimits = getEffectiveLimits(user);
     if (effectiveLimits.maxUploadsPerDay !== -1 && todayUploads >= effectiveLimits.maxUploadsPerDay) {
+      console.log('❌ Daily upload limit exceeded:', todayUploads, '>=', effectiveLimits.maxUploadsPerDay);
       return res.status(429).json({
         success: false,
         error: `Daily upload limit (${effectiveLimits.maxUploadsPerDay}) exceeded`,
@@ -84,43 +97,55 @@ const uploadReceipt = async (req, res) => {
       });
     }
 
+    // Create upload record
+    const filename = `${Date.now()}-${req.file.originalname}`;
     const upload = await Upload.create({
       userId: req.userId,
-      filename: `${Date.now()}-${req.file.originalname}`,
+      filename,
       originalName: req.file.originalname,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
       status: 'processing'
     });
 
-    // TODO: Implement actual OCR processing with Azure
-    // For now, simulate processing
-    setTimeout(async () => {
+    console.log('✅ Created upload record:', upload.id);
+
+    // Upload to Azure Blob Storage
+    try {
+      const blobUrl = await uploadToBlob(req.file.buffer, filename);
+      await upload.update({ blobUrl });
+      console.log('✅ File uploaded to Azure Blob:', blobUrl);
+    } catch (blobError) {
+      console.error('❌ Blob upload failed:', blobError);
+      await upload.update({
+        status: 'failed',
+        errorMessage: 'Failed to upload to cloud storage'
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to upload file to cloud storage'
+      });
+    }
+
+    // Process OCR asynchronously
+    setImmediate(async () => {
       try {
-        await Upload.update({
-          status: 'success',
-          amount: Math.random() * 5000 + 500,
-          litres: Math.random() * 50 + 10,
-          fuelType: Math.random() > 0.5 ? 'Petrol' : 'Diesel',
-          processedAt: new Date(),
-          ocrData: {
-            confidence: 0.95,
-            processedAt: new Date()
-          }
-        }, {
-          where: { id: upload.id }
-        });
-      } catch (error) {
-        console.error('Error updating upload:', error);
+        console.log('🔍 Starting async OCR processing for upload:', upload.id);
+        await processOCR(upload.id, req.file.buffer);
+      } catch (ocrError) {
+        console.error('❌ OCR processing failed for upload:', upload.id, ocrError);
+        // Error is already handled in processOCR function
       }
-    }, 3000);
+    });
 
     res.status(201).json({
       success: true,
-      data: upload
+      data: upload,
+      message: 'File uploaded successfully. OCR processing in progress.'
     });
+
   } catch (error) {
-    console.error('Upload receipt error:', error);
+    console.error('❌ Upload receipt error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to upload receipt'
@@ -130,6 +155,7 @@ const uploadReceipt = async (req, res) => {
 
 const updateOcrData = async (req, res) => {
   try {
+    console.log('✏️ Updating OCR data for upload:', req.params.id);
     const { id } = req.params;
     const { amount, litres, fuelType, pumpId } = req.body;
 
@@ -159,12 +185,14 @@ const updateOcrData = async (req, res) => {
       }
     });
 
+    console.log('✅ OCR data updated for upload:', id);
+
     res.json({
       success: true,
       data: updatedUpload
     });
   } catch (error) {
-    console.error('Update OCR data error:', error);
+    console.error('❌ Update OCR data error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update OCR data'
@@ -174,6 +202,7 @@ const updateOcrData = async (req, res) => {
 
 const deleteUpload = async (req, res) => {
   try {
+    console.log('🗑️ Deleting upload:', req.params.id);
     const { id } = req.params;
 
     const upload = await Upload.findOne({
@@ -188,13 +217,14 @@ const deleteUpload = async (req, res) => {
     }
 
     await upload.destroy();
+    console.log('✅ Upload deleted:', id);
 
     res.json({
       success: true,
       message: 'Upload deleted successfully'
     });
   } catch (error) {
-    console.error('Delete upload error:', error);
+    console.error('❌ Delete upload error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to delete upload'

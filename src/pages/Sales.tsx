@@ -13,10 +13,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const Sales = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
+  console.log('📊 Sales page rendering for date:', selectedDate);
+
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ['sales'],
     queryFn: async () => {
+      console.log('🔄 Fetching sales data...');
       const response = await apiService.getSales();
+      console.log('✅ Sales data fetched:', response.data?.length, 'records');
       return response.data || [];
     }
   });
@@ -24,28 +28,68 @@ const Sales = () => {
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['daily-summary', selectedDate],
     queryFn: async () => {
+      console.log('🔄 Fetching daily summary for:', selectedDate);
       const response = await apiService.getDailySummary(selectedDate);
+      console.log('✅ Daily summary fetched:', response.data);
       return response.data;
     }
   });
 
-  // Chart data
+  // Chart data from real sales data
   const fuelTypeData = summaryData ? [
-    { name: 'Petrol', value: summaryData.fuelTypeBreakdown.petrol.revenue, litres: summaryData.fuelTypeBreakdown.petrol.litres },
-    { name: 'Diesel', value: summaryData.fuelTypeBreakdown.diesel.revenue, litres: summaryData.fuelTypeBreakdown.diesel.litres }
+    { 
+      name: 'Petrol', 
+      value: summaryData.fuelTypeBreakdown.petrol.revenue, 
+      litres: summaryData.fuelTypeBreakdown.petrol.litres,
+      transactions: summaryData.fuelTypeBreakdown.petrol.transactions
+    },
+    { 
+      name: 'Diesel', 
+      value: summaryData.fuelTypeBreakdown.diesel.revenue, 
+      litres: summaryData.fuelTypeBreakdown.diesel.litres,
+      transactions: summaryData.fuelTypeBreakdown.diesel.transactions
+    }
   ] : [];
 
-  const hourlyData = [
-    { hour: '6-8', sales: 12500 },
-    { hour: '8-10', sales: 18700 },
-    { hour: '10-12', sales: 15600 },
-    { hour: '12-14', sales: 22300 },
-    { hour: '14-16', sales: 19800 },
-    { hour: '16-18', sales: 25400 },
-    { hour: '18-20', sales: 21200 }
-  ];
+  // Generate hourly data from sales transactions
+  const hourlyData = React.useMemo(() => {
+    if (!salesData || salesData.length === 0) {
+      return [];
+    }
+
+    const hourlyMap = {};
+    
+    salesData.forEach((sale: Sale) => {
+      const hour = new Date(sale.timestamp).getHours();
+      const hourRange = `${hour}:00-${hour + 1}:00`;
+      
+      if (!hourlyMap[hourRange]) {
+        hourlyMap[hourRange] = { hour: hourRange, sales: 0, transactions: 0 };
+      }
+      
+      hourlyMap[hourRange].sales += parseFloat(sale.totalAmount.toString());
+      hourlyMap[hourRange].transactions += 1;
+    });
+
+    return Object.values(hourlyMap).sort((a: any, b: any) => {
+      const aHour = parseInt(a.hour.split(':')[0]);
+      const bHour = parseInt(b.hour.split(':')[0]);
+      return aHour - bHour;
+    });
+  }, [salesData]);
 
   const COLORS = ['#ff6b35', '#1e3a8a'];
+
+  if (salesLoading || summaryLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <span className="text-4xl">⏳</span>
+          <p className="text-muted-foreground mt-2">Loading sales data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -71,7 +115,7 @@ const Sales = () => {
       </div>
 
       {/* Summary Cards */}
-      {summaryData && (
+      {summaryData ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard
             title="Today's Revenue"
@@ -104,6 +148,33 @@ const Sales = () => {
             icon="🚛"
           />
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <MetricCard
+            title="Today's Revenue"
+            value="₹0"
+            subtitle="0L sold"
+            icon="💰"
+          />
+          <MetricCard
+            title="Transactions"
+            value="0"
+            subtitle="completed today"
+            icon="🧾"
+          />
+          <MetricCard
+            title="Petrol Sales"
+            value="0L"
+            subtitle="₹0"
+            icon="⛽"
+          />
+          <MetricCard
+            title="Diesel Sales"
+            value="0L"
+            subtitle="₹0"
+            icon="🚛"
+          />
+        </div>
       )}
 
       {/* Charts and Tables */}
@@ -123,25 +194,32 @@ const Sales = () => {
                 <CardDescription>Revenue breakdown by fuel type</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={fuelTypeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value, litres }) => `${name}: ₹${value.toLocaleString()} (${litres}L)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {fuelTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {fuelTypeData.length > 0 && fuelTypeData.some(d => d.value > 0) ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={fuelTypeData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value, litres }) => `${name}: ₹${value.toLocaleString()} (${litres}L)`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {fuelTypeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-8">
+                    <span className="text-4xl">📊</span>
+                    <p className="text-muted-foreground mt-2">No sales data for selected date</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -152,15 +230,22 @@ const Sales = () => {
                 <CardDescription>Sales distribution throughout the day</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={hourlyData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="hour" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Sales']} />
-                    <Bar dataKey="sales" fill="#ff6b35" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {hourlyData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={hourlyData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" />
+                      <YAxis />
+                      <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Sales']} />
+                      <Bar dataKey="sales" fill="#ff6b35" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-8">
+                    <span className="text-4xl">📈</span>
+                    <p className="text-muted-foreground mt-2">No hourly data available</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -189,14 +274,9 @@ const Sales = () => {
               <CardDescription>Latest fuel sales transactions</CardDescription>
             </CardHeader>
             <CardContent>
-              {salesLoading ? (
-                <div className="text-center py-8">
-                  <span className="text-2xl">⏳</span>
-                  <p className="text-muted-foreground mt-2">Loading transactions...</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {salesData?.map((sale: Sale) => (
+              <div className="space-y-4">
+                {salesData && salesData.length > 0 ? (
+                  salesData.map((sale: Sale) => (
                     <div key={sale.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{sale.fuelType === 'Petrol' ? '⛽' : '🚛'}</span>
@@ -205,6 +285,11 @@ const Sales = () => {
                           <p className="text-sm text-muted-foreground">
                             {new Date(sale.timestamp).toLocaleString()}
                           </p>
+                          {sale.nozzleId && (
+                            <p className="text-xs text-muted-foreground">
+                              Nozzle {sale.nozzleId}
+                            </p>
+                          )}
                         </div>
                       </div>
                       
@@ -213,16 +298,15 @@ const Sales = () => {
                         <p className="text-sm text-muted-foreground">{sale.litres}L @ ₹{sale.pricePerLitre}/L</p>
                       </div>
                     </div>
-                  ))}
-                  
-                  {!salesData?.length && (
-                    <div className="text-center py-8">
-                      <span className="text-4xl">📊</span>
-                      <p className="text-muted-foreground mt-2">No transactions yet</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <span className="text-4xl">📊</span>
+                    <p className="text-muted-foreground mt-2">No transactions yet</p>
+                    <p className="text-sm text-muted-foreground">Upload receipts to see sales data</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
