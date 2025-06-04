@@ -1,5 +1,5 @@
-
-const { Sale, User, Pump } = require('../models');
+const { Sale, User, Pump, NozzleReading } = require('../models');
+const { Op } = require('sequelize');
 
 // Get sales with role-based filtering
 exports.getSales = async (req, res) => {
@@ -11,43 +11,56 @@ exports.getSales = async (req, res) => {
     
     // Apply date filters if provided
     if (startDate || endDate) {
-      whereClause.createdAt = {};
-      if (startDate) whereClause.createdAt[require('sequelize').Op.gte] = new Date(startDate);
-      if (endDate) whereClause.createdAt[require('sequelize').Op.lte] = new Date(endDate);
+      whereClause.readingDate = {};
+      if (startDate) whereClause.readingDate[Op.gte] = new Date(startDate);
+      if (endDate) whereClause.readingDate[Op.lte] = new Date(endDate);
     }
 
     // Role-based access control
     if (req.user.role === 'Employee') {
       whereClause.userId = req.userId;
     } else if (req.user.role === 'Pump Owner') {
-      // Get sales from own station only
       const stationUsers = await User.findAll({
         where: { stationId: req.user.stationId },
         attributes: ['id']
       });
       whereClause.userId = stationUsers.map(u => u.id);
     }
-    // Super Admin sees all sales
 
-    const sales = await Sale.findAndCountAll({
-      where: whereClause,
-      include: [
-        { model: User, as: 'user', attributes: ['name'] },
-        { model: Pump, as: 'pump', attributes: ['name'] }
-      ],
+    // Get sales data from nozzle readings
+    const readings = await NozzleReading.findAndCountAll({
+      where: {
+        ...whereClause,
+        litresSold: { [Op.gt]: 0 } // Only readings with actual sales
+      },
+      include: [{ model: User, as: 'user', attributes: ['name'] }],
       offset: parseInt(offset),
       limit: parseInt(limit),
-      order: [['createdAt', 'DESC']]
+      order: [['readingDate', 'DESC'], ['readingTime', 'DESC']]
     });
+
+    // Transform nozzle readings to sales format
+    const salesData = readings.rows.map(reading => ({
+      id: reading.id,
+      pumpId: reading.pumpSno,
+      fuelType: reading.fuelType,
+      litres: reading.litresSold,
+      pricePerLitre: reading.pricePerLitre,
+      totalAmount: reading.totalAmount,
+      timestamp: `${reading.readingDate}T${reading.readingTime || '00:00:00'}`,
+      shift: getCurrentShiftFromReading(reading),
+      user: reading.user,
+      nozzleId: reading.nozzleId
+    }));
 
     res.json({
       success: true,
-      data: sales.rows,
+      data: salesData,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: sales.count,
-        totalPages: Math.ceil(sales.count / limit)
+        total: readings.count,
+        totalPages: Math.ceil(readings.count / limit)
       }
     });
   } catch (error) {
@@ -63,15 +76,10 @@ exports.getSales = async (req, res) => {
 exports.getDailySummary = async (req, res) => {
   try {
     const { date } = req.params;
-    const startDate = new Date(date);
-    const endDate = new Date(date);
-    endDate.setDate(endDate.getDate() + 1);
     
     let whereClause = {
-      createdAt: {
-        [require('sequelize').Op.gte]: startDate,
-        [require('sequelize').Op.lt]: endDate
-      }
+      readingDate: date,
+      litresSold: { [Op.gt]: 0 }
     };
 
     // Role-based access control
@@ -85,12 +93,12 @@ exports.getDailySummary = async (req, res) => {
       whereClause.userId = stationUsers.map(u => u.id);
     }
 
-    const sales = await Sale.findAll({
+    const readings = await NozzleReading.findAll({
       where: whereClause,
-      attributes: ['fuelType', 'totalAmount', 'litres']
+      attributes: ['fuelType', 'totalAmount', 'litresSold', 'readingTime']
     });
 
-    if (sales.length === 0) {
+    if (readings.length === 0) {
       return res.json({
         success: true,
         data: {
@@ -107,19 +115,20 @@ exports.getDailySummary = async (req, res) => {
       });
     }
 
-    const summary = sales.reduce((acc, sale) => {
-      acc.totalRevenue += parseFloat(sale.totalAmount);
-      acc.totalLitres += parseFloat(sale.litres);
+    const summary = readings.reduce((acc, reading) => {
+      const revenue = parseFloat(reading.totalAmount || 0);
+      const litres = parseFloat(reading.litresSold || 0);
+
+      acc.totalRevenue += revenue;
+      acc.totalLitres += litres;
       acc.totalTransactions += 1;
 
-      const fuelKey = sale.fuelType.toLowerCase();
-      if (!acc.fuelTypeBreakdown[fuelKey]) {
-        acc.fuelTypeBreakdown[fuelKey] = { revenue: 0, litres: 0, transactions: 0 };
+      const fuelKey = reading.fuelType.toLowerCase();
+      if (acc.fuelTypeBreakdown[fuelKey]) {
+        acc.fuelTypeBreakdown[fuelKey].revenue += revenue;
+        acc.fuelTypeBreakdown[fuelKey].litres += litres;
+        acc.fuelTypeBreakdown[fuelKey].transactions += 1;
       }
-      
-      acc.fuelTypeBreakdown[fuelKey].revenue += parseFloat(sale.totalAmount);
-      acc.fuelTypeBreakdown[fuelKey].litres += parseFloat(sale.litres);
-      acc.fuelTypeBreakdown[fuelKey].transactions += 1;
 
       return acc;
     }, {
@@ -131,7 +140,7 @@ exports.getDailySummary = async (req, res) => {
         petrol: { revenue: 0, litres: 0, transactions: 0 },
         diesel: { revenue: 0, litres: 0, transactions: 0 }
       },
-      hourlyBreakdown: [] // TODO: Implement hourly breakdown from DB
+      hourlyBreakdown: []
     });
 
     res.json({
@@ -145,6 +154,16 @@ exports.getDailySummary = async (req, res) => {
       error: 'Failed to fetch daily summary'
     });
   }
+};
+
+// Helper function to determine shift from reading time
+const getCurrentShiftFromReading = (reading) => {
+  if (!reading.readingTime) return 'morning';
+  
+  const hour = parseInt(reading.readingTime.split(':')[0]);
+  if (hour >= 6 && hour < 14) return 'morning';
+  if (hour >= 14 && hour < 22) return 'afternoon';
+  return 'night';
 };
 
 // Get shift summary

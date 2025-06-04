@@ -1,3 +1,4 @@
+
 // API Types
 export interface User {
   id: string;
@@ -22,11 +23,43 @@ export interface Upload {
   uploadedAt: string;
   processedAt?: string;
   ocrData?: {
-    amount: number;
-    litres: number;
-    fuelType: string;
-    pumpId?: string;
+    pump_sno?: string;
+    date?: string;
+    time?: string;
+    nozzleReadings?: Array<{
+      nozzle_id: number;
+      cumulative_volume: number;
+    }>;
+    processedReadings?: Array<{
+      nozzleId: number;
+      cumulativeVolume: number;
+      litresSold: number;
+      totalAmount: number;
+    }>;
     timestamp?: string;
+    rawText?: string;
+  };
+}
+
+export interface NozzleReading {
+  id: string;
+  uploadId?: string;
+  userId: string;
+  pumpSno: string;
+  nozzleId: number;
+  cumulativeVolume: number;
+  readingDate: string;
+  readingTime?: string;
+  fuelType: 'Petrol' | 'Diesel';
+  isManualEntry: boolean;
+  litresSold?: number;
+  pricePerLitre?: number;
+  totalAmount?: number;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    name: string;
+    email: string;
   };
 }
 
@@ -39,6 +72,7 @@ export interface Sale {
   totalAmount: number;
   timestamp: string;
   shift: 'morning' | 'afternoon' | 'night';
+  nozzleId?: number;
 }
 
 export interface FuelPrice {

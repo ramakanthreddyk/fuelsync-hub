@@ -1,6 +1,7 @@
-
 const { blobServiceClient, computerVisionClient, CONTAINERS } = require('../config/azure');
-const { Upload, Sale } = require('../models');
+const { Upload, NozzleReading } = require('../models');
+const { parseOcrText } = require('../utils/ocrParser');
+const { processNozzleReadings } = require('./salesCalculationService');
 
 const uploadToBlob = async (buffer, filename) => {
   try {
@@ -59,38 +60,75 @@ const processOCR = async (uploadId, imageUrl) => {
       throw new Error('OCR processing timeout');
     }
 
-    // Extract receipt data from OCR results
-    const extractedData = extractReceiptData(ocrResult.analyzeResult.readResults);
+    // Extract the raw text from OCR results
+    const rawText = ocrResult.analyzeResult.readResults
+      .map(result => result.lines.map(line => line.text).join('\n'))
+      .join('\n');
+
+    console.log('Raw OCR text:', rawText);
+
+    // Parse the OCR text using our custom parser
+    const extractedData = parseOcrText(rawText);
     
-    // Update upload with OCR results
+    console.log('Extracted data:', extractedData);
+
+    // Validate extracted data
+    if (!extractedData.pump_sno || extractedData.nozzleReadings.length === 0) {
+      throw new Error('Could not extract pump serial number or nozzle readings. Please upload a clearer image.');
+    }
+
+    // Use upload creation date if no date was extracted from OCR
+    const readingDate = extractedData.date || upload.createdAt.toISOString().split('T')[0];
+    const readingTime = extractedData.time || upload.createdAt.toTimeString().split(' ')[0];
+
+    // Create nozzle readings in the database
+    const nozzleReadings = [];
+    const fuelTypeMap = { 1: 'Petrol', 2: 'Diesel', 3: 'Petrol', 4: 'Diesel' }; // Default mapping
+
+    for (const reading of extractedData.nozzleReadings) {
+      const nozzleReading = await NozzleReading.create({
+        uploadId: upload.id,
+        userId: upload.userId,
+        pumpSno: extractedData.pump_sno,
+        nozzleId: reading.nozzle_id,
+        cumulativeVolume: reading.cumulative_volume,
+        readingDate,
+        readingTime,
+        fuelType: fuelTypeMap[reading.nozzle_id] || 'Petrol',
+        isManualEntry: false
+      });
+
+      nozzleReadings.push(nozzleReading);
+    }
+
+    // Process the readings to calculate sales
+    const processedReadings = await processNozzleReadings(nozzleReadings);
+
+    // Calculate totals for the upload
+    const totalLitres = processedReadings.reduce((sum, r) => sum + parseFloat(r.litresSold || 0), 0);
+    const totalAmount = processedReadings.reduce((sum, r) => sum + parseFloat(r.totalAmount || 0), 0);
+
+    // Update upload with processed data
     await upload.update({
       status: 'success',
-      amount: extractedData.amount,
-      litres: extractedData.litres,
-      fuelType: extractedData.fuelType,
+      amount: totalAmount,
+      litres: totalLitres,
+      fuelType: processedReadings.length > 0 ? processedReadings[0].fuelType : 'Petrol',
       processedAt: new Date(),
       ocrData: {
         ...extractedData,
+        processedReadings: processedReadings.map(r => ({
+          nozzleId: r.nozzleId,
+          cumulativeVolume: r.cumulativeVolume,
+          litresSold: r.litresSold,
+          totalAmount: r.totalAmount
+        })),
         timestamp: new Date().toISOString(),
-        rawText: ocrResult.analyzeResult.readResults
+        rawText: rawText
       }
     });
 
-    // Optionally create a sale record from the OCR data
-    if (extractedData.amount > 0 && extractedData.litres > 0) {
-      await Sale.create({
-        userId: upload.userId,
-        pumpId: extractedData.pumpId || null,
-        fuelType: extractedData.fuelType,
-        litres: extractedData.litres,
-        pricePerLitre: extractedData.amount / extractedData.litres,
-        totalAmount: extractedData.amount,
-        shift: getCurrentShift(),
-        uploadId: upload.id
-      });
-    }
-
-    console.log(`OCR processing completed for upload ${uploadId}`);
+    console.log(`OCR processing completed for upload ${uploadId}. Total: ${totalLitres}L, ₹${totalAmount}`);
   } catch (error) {
     console.error(`OCR processing error for upload ${uploadId}:`, error);
     
@@ -159,6 +197,5 @@ const getCurrentShift = () => {
 
 module.exports = {
   uploadToBlob,
-  processOCR,
-  extractReceiptData
+  processOCR
 };

@@ -1,3 +1,4 @@
+
 import { 
   User, 
   Upload, 
@@ -5,6 +6,7 @@ import {
   FuelPrice, 
   Pump, 
   DailySummary, 
+  NozzleReading,
   ApiResponse 
 } from '@/types/api';
 
@@ -215,6 +217,52 @@ class ApiService {
   async deleteUpload(uploadId: string): Promise<ApiResponse<unknown>> {
     console.log('API: Deleting upload', uploadId);
     return this.request(`/uploads/${uploadId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Nozzle reading endpoints
+  async getNozzleReadings(page = 1, limit = 20, pumpSno?: string, date?: string): Promise<ApiResponse<NozzleReading[]>> {
+    console.log('API: Fetching nozzle readings');
+    
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    if (pumpSno) params.append('pumpSno', pumpSno);
+    if (date) params.append('date', date);
+
+    return this.request<NozzleReading[]>(`/nozzle-readings?${params.toString()}`);
+  }
+
+  async createManualReading(readingData: {
+    pumpSno: string;
+    nozzleId: number;
+    cumulativeVolume: number;
+    readingDate: string;
+    readingTime?: string;
+    fuelType: 'Petrol' | 'Diesel';
+  }): Promise<ApiResponse<NozzleReading>> {
+    console.log('API: Creating manual reading', readingData);
+    return this.request<NozzleReading>('/nozzle-readings/manual', {
+      method: 'POST',
+      body: JSON.stringify(readingData),
+    });
+  }
+
+  async updateNozzleReading(readingId: string, updateData: {
+    cumulativeVolume: number;
+    fuelType: 'Petrol' | 'Diesel';
+  }): Promise<ApiResponse<NozzleReading>> {
+    console.log('API: Updating nozzle reading', readingId, updateData);
+    return this.request<NozzleReading>(`/nozzle-readings/${readingId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async deleteNozzleReading(readingId: string): Promise<ApiResponse<unknown>> {
+    console.log('API: Deleting nozzle reading', readingId);
+    return this.request(`/nozzle-readings/${readingId}`, {
       method: 'DELETE',
     });
   }
