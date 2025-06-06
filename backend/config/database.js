@@ -1,5 +1,6 @@
 
 const { Sequelize } = require('sequelize');
+require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -14,15 +15,15 @@ const sequelize = new Sequelize({
     underscored: true, // snake_case in DB
   },
   dialectOptions: {
-    ssl: process.env.DB_SSL === 'true' ? {
+    ssl: {
       require: true,
       rejectUnauthorized: false,
-    } : false,
+    },
   },
   logging: process.env.DB_LOGGING === 'true' || !isProduction ? console.log : false,
   pool: {
     max: 10,
-    min: 0,
+    min: 2,
     acquire: 30000,
     idle: 10000,
   },
