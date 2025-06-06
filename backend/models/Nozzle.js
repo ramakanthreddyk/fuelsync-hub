@@ -42,7 +42,7 @@ const Nozzle = sequelize.define('Nozzle', {
   indexes: [
     {
       unique: true,
-      fields: ['pump_id', 'number']
+      fields: ['pump_id', 'nozzle_id']
     }
   ]
 });

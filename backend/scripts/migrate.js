@@ -67,7 +67,31 @@ const runMigrations = async () => {
         console.log(`⚠️  ${file} not found, skipping...`);
       }
     }
-    
+    // Ensure 'user_id' exists in 'nozzle_readings'
+    try {
+      const [results] = await sequelize.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'nozzle_readings' AND column_name = 'user_id'
+      `);
+
+      if (results.length === 0) {
+        console.log('➕ Adding missing column "user_id" to nozzle_readings...');
+        await sequelize.query(`ALTER TABLE nozzle_readings ADD COLUMN user_id UUID;`);
+        await sequelize.query(`
+          ALTER TABLE nozzle_readings
+          ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id)
+          REFERENCES users(id) ON DELETE SET NULL
+        `);
+        console.log('✅ user_id column added');
+      } else {
+        console.log('✅ user_id column already exists');
+      }
+    } catch (error) {
+      console.error('❌ Failed to check or add user_id:', error.message);
+    }
+
+
     // Add supplementary data fixes (based on reference SQL)
     console.log('🔄 Adding supplementary data fixes...');
     
