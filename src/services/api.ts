@@ -171,7 +171,7 @@ class ApiService {
     
     const formData = new FormData();
     formData.append('receipt', file);
-    formData.append('pumpSno', pumpSno);
+    formData.append('pump_sno', pumpSno);
 
     try {
       const response = await fetch(`${this.baseUrl}/uploads`, {
@@ -223,25 +223,25 @@ class ApiService {
   }
 
   // Nozzle reading endpoints
-  async getNozzleReadings(page = 1, limit = 20, pumpSno?: string, date?: string): Promise<ApiResponse<NozzleReading[]>> {
+  async getNozzleReadings(page = 1, limit = 20, pump_sno?: string, date?: string): Promise<ApiResponse<NozzleReading[]>> {
     console.log('API: Fetching nozzle readings');
     
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
-    if (pumpSno) params.append('pumpSno', pumpSno);
+    if (pump_sno) params.append('pump_sno', pump_sno);
     if (date) params.append('date', date);
 
     return this.request<NozzleReading[]>(`/nozzle-readings?${params.toString()}`);
   }
 
   async createManualReading(readingData: {
-    pumpSno: string;
-    nozzleId: number;
-    cumulativeVolume: number;
-    readingDate: string;
-    readingTime?: string;
-    fuelType: 'Petrol' | 'Diesel';
+    pump_sno: string;
+    nozzle_id: number;
+    cumulative_volume: number;
+    reading_date: string;
+    reading_time?: string;
+    fuel_type: 'Petrol' | 'Diesel';
   }): Promise<ApiResponse<NozzleReading>> {
     console.log('API: Creating manual reading', readingData);
     return this.request<NozzleReading>('/nozzle-readings/manual', {
@@ -251,8 +251,8 @@ class ApiService {
   }
 
   async updateNozzleReading(readingId: string, updateData: {
-    cumulativeVolume: number;
-    fuelType: 'Petrol' | 'Diesel';
+    cumulative_volume: number;
+    fuel_type: 'Petrol' | 'Diesel';
   }): Promise<ApiResponse<NozzleReading>> {
     console.log('API: Updating nozzle reading', readingId, updateData);
     return this.request<NozzleReading>(`/nozzle-readings/${readingId}`, {

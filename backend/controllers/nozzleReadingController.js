@@ -1,18 +1,18 @@
 
-const { NozzleReading, User } = require('../models');
+const { NozzleReading, User } = require('../models/multiTenantIndex');
 const { processNozzleReadings } = require('../services/salesCalculationService');
 
 const getNozzleReadings = async (req, res) => {
   try {
-    const { page = 1, limit = 20, pumpSno, date } = req.query;
+    const { page = 1, limit = 20, pump_sno, date } = req.query;
     const offset = (page - 1) * limit;
 
     let whereClause = {};
     
     // Role-based access control
-    if (req.user.role === 'Employee') {
+    if (req.user.role === 'employee') {
       whereClause.userId = req.userId;
-    } else if (req.user.role === 'Pump Owner') {
+    } else if (req.user.role === 'owner') {
       const stationUsers = await User.findAll({
         where: { stationId: req.user.stationId },
         attributes: ['id']
@@ -21,7 +21,7 @@ const getNozzleReadings = async (req, res) => {
     }
 
     // Apply filters
-    if (pumpSno) whereClause.pumpSno = pumpSno;
+    if (pump_sno) whereClause.pumpSno = pump_sno;
     if (date) whereClause.readingDate = date;
 
     const readings = await NozzleReading.findAndCountAll({
@@ -53,22 +53,22 @@ const getNozzleReadings = async (req, res) => {
 
 const createManualReading = async (req, res) => {
   try {
-    const { pumpSno, nozzleId, cumulativeVolume, readingDate, readingTime, fuelType } = req.body;
+    const { pump_sno, nozzle_id, cumulative_volume, reading_date, reading_time, fuel_type } = req.body;
 
-    if (!pumpSno || !nozzleId || !cumulativeVolume || !readingDate || !fuelType) {
+    if (!pump_sno || !nozzle_id || !cumulative_volume || !reading_date || !fuel_type) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: pumpSno, nozzleId, cumulativeVolume, readingDate, fuelType'
+        error: 'Missing required fields: pump_sno, nozzle_id, cumulative_volume, reading_date, fuel_type'
       });
     }
 
     // Check for duplicate reading
     const existingReading = await NozzleReading.findOne({
       where: {
-        pumpSno,
-        nozzleId,
-        readingDate,
-        readingTime: readingTime || null,
+        pumpSno: pump_sno,
+        nozzleId: nozzle_id,
+        readingDate: reading_date,
+        readingTime: reading_time || null,
         isManualEntry: true
       }
     });
@@ -83,12 +83,12 @@ const createManualReading = async (req, res) => {
     // Create the manual reading
     const nozzleReading = await NozzleReading.create({
       userId: req.userId,
-      pumpSno,
-      nozzleId: parseInt(nozzleId),
-      cumulativeVolume: parseFloat(cumulativeVolume),
-      readingDate,
-      readingTime: readingTime || null,
-      fuelType,
+      pumpSno: pump_sno,
+      nozzleId: parseInt(nozzle_id),
+      cumulativeVolume: parseFloat(cumulative_volume),
+      readingDate: reading_date,
+      readingTime: reading_time || null,
+      fuelType: fuel_type,
       isManualEntry: true
     });
 
@@ -111,7 +111,7 @@ const createManualReading = async (req, res) => {
 const updateNozzleReading = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cumulativeVolume, fuelType } = req.body;
+    const { cumulative_volume, fuel_type } = req.body;
 
     const reading = await NozzleReading.findOne({
       where: { id, userId: req.userId }
@@ -126,8 +126,8 @@ const updateNozzleReading = async (req, res) => {
 
     // Update the reading
     await reading.update({
-      cumulativeVolume: parseFloat(cumulativeVolume),
-      fuelType
+      cumulativeVolume: parseFloat(cumulative_volume),
+      fuelType: fuel_type
     });
 
     // Recalculate sales for this reading

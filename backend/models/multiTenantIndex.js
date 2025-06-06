@@ -8,6 +8,7 @@ const FuelPrice = require('./MultiTenantFuelPrice');
 const Upload = require('./Upload');
 const OCRReading = require('./MultiTenantOCRReading');
 const Sale = require('./MultiTenantSale');
+const NozzleReading = require('./NozzleReading');
 
 // Define associations for multi-tenant architecture
 
@@ -26,6 +27,7 @@ User.hasMany(Upload, { foreignKey: 'userId', as: 'uploads' });
 User.hasMany(OCRReading, { foreignKey: 'enteredBy', as: 'ocrReadings' });
 User.hasMany(Sale, { foreignKey: 'createdBy', as: 'sales' });
 User.hasMany(FuelPrice, { foreignKey: 'updatedBy', as: 'priceUpdates' });
+User.hasMany(NozzleReading, { foreignKey: 'userId', as: 'nozzleReadings' });
 
 // Plan relationships
 Plan.hasMany(User, { foreignKey: 'planId', as: 'users' });
@@ -62,6 +64,9 @@ Sale.belongsTo(OCRReading, { foreignKey: 'readingId', as: 'reading' });
 Sale.belongsTo(OCRReading, { foreignKey: 'previousReadingId', as: 'previousReading' });
 Sale.belongsTo(User, { foreignKey: 'createdBy', as: 'createdByUser' });
 
+// NozzleReading relationships
+NozzleReading.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 module.exports = {
   Station,
   User,
@@ -71,5 +76,6 @@ module.exports = {
   FuelPrice,
   Upload,
   OCRReading,
-  Sale
+  Sale,
+  NozzleReading
 };
