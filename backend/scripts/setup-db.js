@@ -13,7 +13,12 @@ const setupDatabase = async () => {
     
     // Drop all tables if they exist (fresh start)
     console.log('🗑️  Dropping existing tables...');
-    await sequelize.drop({ cascade: true });
+    try {
+      await sequelize.drop({ cascade: true });
+      console.log('✅ Existing tables dropped successfully');
+    } catch (error) {
+      console.warn('⚠️  Could not drop tables, continuing anyway:', error.message);
+    }
     
     // Read and execute SQL files in order
     const sqlFiles = [
@@ -35,8 +40,11 @@ const setupDatabase = async () => {
           try {
             await sequelize.query(statement + ';');
           } catch (error) {
-            if (!error.message.includes('already exists')) {
-              console.warn(`⚠️  Warning in ${file}:`, error.message);
+            if (error.message.includes('already exists')) {
+              console.warn(`⚠️  Warning in ${file}: ${error.message}`);
+            } else {
+              // For other errors, log them but continue execution
+              console.error(`❌ Error in ${file}: ${error.message}`);
             }
           }
         }
@@ -48,17 +56,21 @@ const setupDatabase = async () => {
     }
     
     // Verify setup by checking if admin user exists
-    const [results] = await sequelize.query("SELECT email, role FROM users WHERE email = 'admin@fuelsync.com'");
-    
-    if (results.length > 0) {
-      console.log('✅ Database setup completed successfully!');
-      console.log('🔑 Demo credentials:');
-      console.log('   Admin: admin@fuelsync.com / admin123');
-      console.log('   Owner: owner@fuelsync.com / owner123');
-      console.log('   Manager: manager@fuelsync.com / manager123');
-      console.log('   Employee: employee@fuelsync.com / employee123');
-    } else {
-      console.log('⚠️  Setup completed but admin user not found');
+    try {
+      const [results] = await sequelize.query("SELECT email, role FROM users WHERE email = 'admin@fuelsync.com'");
+      
+      if (results.length > 0) {
+        console.log('✅ Database setup completed successfully!');
+        console.log('🔑 Demo credentials:');
+        console.log('   Admin: admin@fuelsync.com / admin123');
+        console.log('   Owner: owner@fuelsync.com / owner123');
+        console.log('   Manager: manager@fuelsync.com / manager123');
+        console.log('   Employee: employee@fuelsync.com / employee123');
+      } else {
+        console.log('⚠️  Setup completed but admin user not found');
+      }
+    } catch (error) {
+      console.error('❌ Could not verify setup:', error.message);
     }
     
     process.exit(0);

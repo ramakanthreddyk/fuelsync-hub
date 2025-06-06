@@ -19,7 +19,7 @@ const sequelize = new Sequelize({
       rejectUnauthorized: false,
     } : false,
   },
-  logging: process.env.DB_LOGGING === 'true' || isProduction ? false : console.log,
+  logging: process.env.DB_LOGGING === 'true' || !isProduction ? console.log : false,
   pool: {
     max: 10,
     min: 0,

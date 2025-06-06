@@ -28,8 +28,11 @@ const runMigrations = async () => {
             await sequelize.query(statement + ';');
           } catch (error) {
             // Log warning but continue if it's just that something already exists
-            if (!error.message.includes('already exists')) {
+            if (error.message.includes('already exists')) {
               console.warn(`⚠️  Warning in ${file}: ${error.message}`);
+            } else {
+              // For other errors, log them but continue execution
+              console.error(`❌ Error in ${file}: ${error.message}`);
             }
           }
         }
