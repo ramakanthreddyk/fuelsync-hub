@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const Upload = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pumpSno, setPumpSno] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -25,20 +27,22 @@ const Upload = () => {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => apiService.uploadReceipt(file),
+    mutationFn: (data: { file: File; pumpSno: string }) => 
+      apiService.uploadReceipt(data.file, data.pumpSno),
     onSuccess: () => {
       toast({
         title: "Upload Successful",
         description: "Your receipt has been uploaded for OCR processing.",
       });
       setSelectedFile(null);
+      setPumpSno('');
       setUploadProgress(0);
       queryClient.invalidateQueries({ queryKey: ['uploads'] });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Upload Failed",
-        description: "There was an error uploading your receipt. Please try again.",
+        description: error.message || "There was an error uploading your receipt. Please try again.",
         variant: "destructive",
       });
       setUploadProgress(0);
@@ -61,18 +65,24 @@ const Upload = () => {
   };
 
   const handleUpload = () => {
-    if (selectedFile) {
+    if (selectedFile && pumpSno.trim()) {
       // Simulate upload progress
       const interval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 100) {
             clearInterval(interval);
-            uploadMutation.mutate(selectedFile);
+            uploadMutation.mutate({ file: selectedFile, pumpSno: pumpSno.trim() });
             return 100;
           }
           return prev + 10;
         });
       }, 200);
+    } else {
+      toast({
+        title: "Missing Information",
+        description: "Please select a file and enter the pump serial number.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -112,14 +122,31 @@ const Upload = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
-            <div>
+            <div className="space-y-2">
+              <Label htmlFor="pumpSno">Pump Serial Number</Label>
               <Input
+                id="pumpSno"
+                type="text"
+                value={pumpSno}
+                onChange={(e) => setPumpSno(e.target.value)}
+                placeholder="e.g., P001, P002"
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the pump serial number shown on the receipt
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="file">Receipt Image</Label>
+              <Input
+                id="file"
                 type="file"
                 accept="image/*"
                 onChange={handleFileSelect}
                 className="cursor-pointer"
               />
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-xs text-muted-foreground">
                 Supported formats: JPG, PNG, JPEG (Max 10MB)
               </p>
             </div>
@@ -149,7 +176,7 @@ const Upload = () => {
 
             <Button 
               onClick={handleUpload} 
-              disabled={!selectedFile || uploadMutation.isPending || uploadProgress > 0}
+              disabled={!selectedFile || !pumpSno.trim() || uploadMutation.isPending || uploadProgress > 0}
               className="w-full"
             >
               {uploadMutation.isPending || uploadProgress > 0 ? (
@@ -196,11 +223,16 @@ const Upload = () => {
                       <p className="text-sm text-muted-foreground">
                         Uploaded {new Date(upload.uploadedAt).toLocaleDateString()}
                       </p>
+                      {upload.ocrData?.pump_sno && (
+                        <p className="text-xs text-muted-foreground">
+                          Pump: {upload.ocrData.pump_sno}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    {upload.status === 'success' && upload.ocrData && (
+                    {upload.status === 'success' && (
                       <div className="text-right">
                         <p className="font-medium">₹{upload.amount}</p>
                         <p className="text-sm text-muted-foreground">{upload.litres}L</p>

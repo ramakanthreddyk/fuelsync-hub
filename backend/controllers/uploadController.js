@@ -1,7 +1,8 @@
 
-const { Upload, User, Plan } = require('../models');
+const { Upload, User, Plan, Station } = require('../models');
 const { getEffectiveLimits } = require('../middleware/planLimits');
-const { uploadToBlob, processOCR } = require('../services/azureService');
+const { uploadToBlob } = require('../services/azureService');
+const MultiTenantOCRController = require('./multiTenantOCRController');
 
 const getUploads = async (req, res) => {
   try {
@@ -9,24 +10,48 @@ const getUploads = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
+    // Get user with station info
+    const user = await User.findByPk(req.userId, {
+      include: [{ model: Station, as: 'station' }]
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
     let whereClause = {};
     
     // Role-based access control
-    if (req.user.role === 'Employee') {
+    if (user.role === 'employee') {
+      // Employee sees only their uploads
       whereClause.userId = req.userId;
-    } else if (req.user.role === 'Pump Owner') {
-      // Get uploads from own station only
-      const stationUsers = await User.findAll({
-        where: { stationId: req.user.stationId },
-        attributes: ['id']
-      });
-      whereClause.userId = stationUsers.map(u => u.id);
+    } else if (user.role === 'owner') {
+      // Owner sees all uploads from their station
+      if (user.stationId) {
+        whereClause.stationId = user.stationId;
+      } else {
+        whereClause.userId = req.userId; // Fallback if no station assigned
+      }
     }
-    // Super Admin sees all uploads
+    // Super Admin sees all uploads (no filter)
 
     const uploads = await Upload.findAndCountAll({
       where: whereClause,
-      include: [{ model: User, as: 'user', attributes: ['name', 'email'] }],
+      include: [
+        { 
+          model: User, 
+          as: 'user', 
+          attributes: ['name', 'email'] 
+        },
+        {
+          model: Station,
+          as: 'station',
+          attributes: ['name', 'location']
+        }
+      ],
       offset: parseInt(offset),
       limit: parseInt(limit),
       order: [['createdAt', 'DESC']]
@@ -64,27 +89,51 @@ const uploadReceipt = async (req, res) => {
       });
     }
 
+    const { pumpSno } = req.body;
+    if (!pumpSno) {
+      return res.status(400).json({
+        success: false,
+        error: 'Pump serial number (pumpSno) is required'
+      });
+    }
+
     console.log('📄 File details:', {
       originalName: req.file.originalname,
       size: req.file.size,
-      mimetype: req.file.mimetype
+      mimetype: req.file.mimetype,
+      pumpSno
     });
 
-    // Check daily upload limit using effective limits
+    // Get user with station info
+    const user = await User.findByPk(req.userId, {
+      include: [{ 
+        model: Station, 
+        as: 'station' 
+      }, {
+        model: Plan,
+        as: 'plan'
+      }]
+    });
+
+    if (!user || !user.station) {
+      return res.status(400).json({
+        success: false,
+        error: 'User must be assigned to a station'
+      });
+    }
+
+    // Check daily upload limit
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const todayUploads = await Upload.count({
       where: {
         userId: req.userId,
+        stationId: user.stationId,
         createdAt: {
           [require('sequelize').Op.gte]: today
         }
       }
-    });
-
-    const user = await User.findByPk(req.userId, {
-      include: [{ model: Plan, as: 'plan' }]
     });
 
     const effectiveLimits = getEffectiveLimits(user);
@@ -101,6 +150,7 @@ const uploadReceipt = async (req, res) => {
     const filename = `${Date.now()}-${req.file.originalname}`;
     const upload = await Upload.create({
       userId: req.userId,
+      stationId: user.stationId,
       filename,
       originalName: req.file.originalname,
       fileSize: req.file.size,
@@ -108,7 +158,7 @@ const uploadReceipt = async (req, res) => {
       status: 'processing'
     });
 
-    console.log('✅ Created upload record:', upload.id);
+    console.log('✅ Created upload record:', upload.id, 'for station:', user.station.name);
 
     // Upload to Azure Blob Storage
     try {
@@ -127,14 +177,13 @@ const uploadReceipt = async (req, res) => {
       });
     }
 
-    // Process OCR asynchronously
+    // Process OCR asynchronously using multi-tenant controller
     setImmediate(async () => {
       try {
         console.log('🔍 Starting async OCR processing for upload:', upload.id);
-        await processOCR(upload.id, req.file.buffer);
+        await MultiTenantOCRController.processOCRReading(upload.id, req.file.buffer, pumpSno);
       } catch (ocrError) {
         console.error('❌ OCR processing failed for upload:', upload.id, ocrError);
-        // Error is already handled in processOCR function
       }
     });
 
@@ -159,14 +208,32 @@ const updateOcrData = async (req, res) => {
     const { id } = req.params;
     const { amount, litres, fuelType, pumpId } = req.body;
 
+    // Get user info for authorization
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    let whereClause = { id };
+    
+    // Role-based access control
+    if (user.role === 'employee') {
+      whereClause.userId = req.userId;
+    } else if (user.role === 'owner' && user.stationId) {
+      whereClause.stationId = user.stationId;
+    }
+
     const upload = await Upload.findOne({
-      where: { id, userId: req.userId }
+      where: whereClause
     });
 
     if (!upload) {
       return res.status(404).json({
         success: false,
-        error: 'Upload not found'
+        error: 'Upload not found or access denied'
       });
     }
 
@@ -205,14 +272,32 @@ const deleteUpload = async (req, res) => {
     console.log('🗑️ Deleting upload:', req.params.id);
     const { id } = req.params;
 
+    // Get user info for authorization
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    let whereClause = { id };
+    
+    // Role-based access control
+    if (user.role === 'employee') {
+      whereClause.userId = req.userId;
+    } else if (user.role === 'owner' && user.stationId) {
+      whereClause.stationId = user.stationId;
+    }
+
     const upload = await Upload.findOne({
-      where: { id, userId: req.userId }
+      where: whereClause
     });
 
     if (!upload) {
       return res.status(404).json({
         success: false,
-        error: 'Upload not found'
+        error: 'Upload not found or access denied'
       });
     }
 

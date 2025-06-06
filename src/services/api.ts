@@ -166,11 +166,12 @@ class ApiService {
     return this.request<Upload[]>(`/uploads?page=${page}&limit=${limit}`);
   }
 
-  async uploadReceipt(file: File): Promise<ApiResponse<Upload>> {
-    console.log('API: Uploading receipt', file.name);
+  async uploadReceipt(file: File, pumpSno: string): Promise<ApiResponse<Upload>> {
+    console.log('API: Uploading receipt', file.name, 'for pump', pumpSno);
     
     const formData = new FormData();
     formData.append('receipt', file);
+    formData.append('pumpSno', pumpSno);
 
     try {
       const response = await fetch(`${this.baseUrl}/uploads`, {

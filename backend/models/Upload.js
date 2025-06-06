@@ -11,8 +11,18 @@ const Upload = sequelize.define('Upload', {
   userId: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'user_id',
     references: {
       model: 'users',
+      key: 'id'
+    }
+  },
+  stationId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'station_id',
+    references: {
+      model: 'stations',
       key: 'id'
     }
   },
@@ -22,19 +32,23 @@ const Upload = sequelize.define('Upload', {
   },
   originalName: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    field: 'original_name'
   },
   fileSize: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    field: 'file_size'
   },
   mimeType: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    field: 'mime_type'
   },
   blobUrl: {
     type: DataTypes.TEXT,
-    allowNull: true
+    allowNull: true,
+    field: 'blob_url'
   },
   status: {
     type: DataTypes.ENUM('processing', 'success', 'failed'),
@@ -54,23 +68,28 @@ const Upload = sequelize.define('Upload', {
   fuelType: {
     type: DataTypes.ENUM('Petrol', 'Diesel'),
     allowNull: false,
-    defaultValue: 'Petrol'
+    defaultValue: 'Petrol',
+    field: 'fuel_type'
   },
   processedAt: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
+    field: 'processed_at'
   },
   ocrData: {
     type: DataTypes.JSONB,
-    allowNull: true
+    allowNull: true,
+    field: 'ocr_data'
   },
   errorMessage: {
     type: DataTypes.TEXT,
-    allowNull: true
+    allowNull: true,
+    field: 'error_message'
   }
 }, {
   tableName: 'uploads',
-  timestamps: true
+  timestamps: true,
+  underscored: true
 });
 
 module.exports = Upload;
