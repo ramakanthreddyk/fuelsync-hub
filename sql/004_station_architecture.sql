@@ -1,10 +1,12 @@
 
 -- FuelSync Multi-Tenant Station Architecture
--- Complete database restructure for station-based fuel management
+-- Azure PostgreSQL compatible database schema
+
+-- First ensure pgcrypto extension is available (required for gen_random_uuid())
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Drop existing tables to recreate with proper structure
 DROP TABLE IF EXISTS sales CASCADE;
-DROP TABLE IF EXISTS nozzle_readings CASCADE;
 DROP TABLE IF EXISTS ocr_readings CASCADE;
 DROP TABLE IF EXISTS uploads CASCADE;
 DROP TABLE IF EXISTS nozzles CASCADE;
@@ -14,35 +16,19 @@ DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS stations CASCADE;
 DROP TABLE IF EXISTS plans CASCADE;
 
+-- Drop existing types if they exist
+DROP TYPE IF EXISTS user_role CASCADE;
+DROP TYPE IF EXISTS fuel_type CASCADE;
+DROP TYPE IF EXISTS upload_status CASCADE;
+DROP TYPE IF EXISTS shift_type CASCADE;
+DROP TYPE IF EXISTS plan_name CASCADE;
+
 -- Create ENUM types
-DO $$
-BEGIN
-  -- User roles
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-    CREATE TYPE user_role AS ENUM ('super_admin', 'owner', 'manager', 'employee');
-  END IF;
-  
-  -- Fuel types
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'fuel_type') THEN
-    CREATE TYPE fuel_type AS ENUM ('petrol', 'diesel');
-  END IF;
-  
-  -- Upload status
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'upload_status') THEN
-    CREATE TYPE upload_status AS ENUM ('processing', 'success', 'failed');
-  END IF;
-  
-  -- Shifts
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'shift_type') THEN
-    CREATE TYPE shift_type AS ENUM ('morning', 'afternoon', 'night');
-  END IF;
-  
-  -- Plan names
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'plan_name') THEN
-    CREATE TYPE plan_name AS ENUM ('Free', 'Basic', 'Premium');
-  END IF;
-END
-$$;
+CREATE TYPE user_role AS ENUM ('super_admin', 'owner', 'manager', 'employee');
+CREATE TYPE fuel_type AS ENUM ('petrol', 'diesel');
+CREATE TYPE upload_status AS ENUM ('processing', 'success', 'failed');
+CREATE TYPE shift_type AS ENUM ('morning', 'afternoon', 'night');
+CREATE TYPE plan_name AS ENUM ('Free', 'Basic', 'Premium');
 
 -- Plans table
 CREATE TABLE plans (
@@ -233,9 +219,10 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECU
 CREATE TRIGGER update_pumps_updated_at BEFORE UPDATE ON pumps FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_nozzles_updated_at BEFORE UPDATE ON nozzles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_uploads_updated_at BEFORE UPDATE ON uploads FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_plans_updated_at BEFORE UPDATE ON plans FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Create views for common queries
-CREATE VIEW station_summary AS
+CREATE OR REPLACE VIEW station_summary AS
 SELECT 
     s.id,
     s.name,
@@ -243,28 +230,28 @@ SELECT
     COUNT(DISTINCT p.id) as total_pumps,
     COUNT(DISTINCT n.id) as total_nozzles,
     COUNT(DISTINCT u.id) FILTER (WHERE u.role = 'employee') as total_employees,
-    COALESCE(SUM(sal.total_amount), 0) as today_revenue,
-    COALESCE(SUM(sal.litres_sold), 0) as today_litres
+    COALESCE(SUM(sal.total_amount) FILTER (WHERE sal.sale_date = CURRENT_DATE), 0) as today_revenue,
+    COALESCE(SUM(sal.litres_sold) FILTER (WHERE sal.sale_date = CURRENT_DATE), 0) as today_litres
 FROM stations s
 LEFT JOIN pumps p ON s.id = p.station_id AND p.status = 'active'
 LEFT JOIN nozzles n ON p.id = n.pump_id AND n.status = 'active'
 LEFT JOIN users u ON s.id = u.station_id AND u.is_active = true
-LEFT JOIN sales sal ON s.id = sal.station_id AND sal.sale_date = CURRENT_DATE
+LEFT JOIN sales sal ON s.id = sal.station_id
 WHERE s.is_active = true
 GROUP BY s.id, s.name, s.location;
 
-CREATE VIEW pump_performance AS
+CREATE OR REPLACE VIEW pump_performance AS
 SELECT 
     p.id,
     p.station_id,
     p.pump_sno,
     p.name,
     p.status,
-    COUNT(DISTINCT sal.id) as total_sales_today,
-    COALESCE(SUM(sal.total_amount), 0) as revenue_today,
-    COALESCE(SUM(sal.litres_sold), 0) as litres_today,
+    COUNT(DISTINCT sal.id) FILTER (WHERE sal.sale_date = CURRENT_DATE) as total_sales_today,
+    COALESCE(SUM(sal.total_amount) FILTER (WHERE sal.sale_date = CURRENT_DATE), 0) as revenue_today,
+    COALESCE(SUM(sal.litres_sold) FILTER (WHERE sal.sale_date = CURRENT_DATE), 0) as litres_today,
     COUNT(DISTINCT n.id) as active_nozzles
 FROM pumps p
 LEFT JOIN nozzles n ON p.id = n.pump_id AND n.status = 'active'
-LEFT JOIN sales sal ON p.id = sal.pump_id AND sal.sale_date = CURRENT_DATE
+LEFT JOIN sales sal ON p.id = sal.pump_id
 GROUP BY p.id, p.station_id, p.pump_sno, p.name, p.status;

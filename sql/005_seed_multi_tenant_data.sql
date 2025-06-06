@@ -23,15 +23,15 @@ INSERT INTO stations (id, name, location, address, contact_info, license_number)
  'KA-FC-2024-003');
 
 -- Insert test users with proper hierarchy
--- Super Admin
+-- Super Admin (password: admin123)
 INSERT INTO users (id, name, email, password, role, plan_id) 
-SELECT '550e8400-e29b-41d4-a716-446655440010', 'System Administrator', 'admin@fuelsync.com', 
-       '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'super_admin', p.id
-FROM plans p WHERE p.name = 'Premium';
+VALUES ('550e8400-e29b-41d4-a716-446655440010', 'System Administrator', 'admin@fuelsync.com', 
+       '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'super_admin', 
+       (SELECT id FROM plans WHERE name = 'Premium'));
 
--- Station Owners
+-- Station Owners (password: owner123)
 INSERT INTO users (id, name, email, password, role, station_id, plan_id) VALUES
-('550e8400-e29b-41d4-a716-446655440011', 'Rajesh Kumar', 'rajesh@fuelmax.com', 
+('550e8400-e29b-41d4-a716-446655440011', 'Rajesh Kumar', 'owner@fuelsync.com', 
  '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'owner', 
  '550e8400-e29b-41d4-a716-446655440001', (SELECT id FROM plans WHERE name = 'Basic')),
 ('550e8400-e29b-41d4-a716-446655440012', 'Priya Sharma', 'priya@fuelmax.com', 
@@ -41,18 +41,18 @@ INSERT INTO users (id, name, email, password, role, station_id, plan_id) VALUES
  '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'owner', 
  '550e8400-e29b-41d4-a716-446655440003', (SELECT id FROM plans WHERE name = 'Free'));
 
--- Managers
+-- Managers (password: manager123)
 INSERT INTO users (id, name, email, password, role, station_id, plan_id) VALUES
-('550e8400-e29b-41d4-a716-446655440021', 'Amit Singh', 'amit@fuelmax.com', 
+('550e8400-e29b-41d4-a716-446655440021', 'Amit Singh', 'manager@fuelsync.com', 
  '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'manager', 
  '550e8400-e29b-41d4-a716-446655440001', (SELECT id FROM plans WHERE name = 'Basic')),
 ('550e8400-e29b-41d4-a716-446655440022', 'Sneha Patil', 'sneha@fuelmax.com', 
  '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'manager', 
  '550e8400-e29b-41d4-a716-446655440002', (SELECT id FROM plans WHERE name = 'Premium'));
 
--- Employees
+-- Employees (password: employee123)
 INSERT INTO users (id, name, email, password, role, station_id, plan_id) VALUES
-('550e8400-e29b-41d4-a716-446655440031', 'Rohit Mehta', 'rohit@fuelmax.com', 
+('550e8400-e29b-41d4-a716-446655440031', 'Rohit Mehta', 'employee@fuelsync.com', 
  '$2a$12$LQv3c1yqBwEHJ/OKL2XfOOHyFaFDK8K8Y0XQNOXwpx7LfGMGzV/ta', 'employee', 
  '550e8400-e29b-41d4-a716-446655440001', (SELECT id FROM plans WHERE name = 'Basic')),
 ('550e8400-e29b-41d4-a716-446655440032', 'Neha Gupta', 'neha@fuelmax.com', 
@@ -131,53 +131,45 @@ INSERT INTO fuel_prices (station_id, fuel_type, price, valid_from, updated_by) V
 ('550e8400-e29b-41d4-a716-446655440003', 'petrol', 105.75, '2024-06-01 00:00:00+00', '550e8400-e29b-41d4-a716-446655440013'),
 ('550e8400-e29b-41d4-a716-446655440003', 'diesel', 98.50, '2024-06-01 00:00:00+00', '550e8400-e29b-41d4-a716-446655440013');
 
--- Insert sample OCR readings for the last 7 days
+-- Insert sample OCR readings for demonstration (last 7 days)
 WITH date_series AS (
     SELECT generate_series(
         CURRENT_DATE - INTERVAL '7 days',
         CURRENT_DATE,
         INTERVAL '1 day'
     )::date as reading_date
-),
-sample_readings AS (
-    SELECT 
-        ds.reading_date,
-        p.id as pump_id,
-        p.station_id,
-        p.pump_sno,
-        n.nozzle_id,
-        n.fuel_type,
-        -- Generate cumulative volumes that increase over time
-        CASE 
-            WHEN n.fuel_type = 'petrol' THEN 
-                50000 + (EXTRACT(EPOCH FROM ds.reading_date) / 86400)::int * 200 + n.nozzle_id * 100 + random() * 50
-            ELSE 
-                45000 + (EXTRACT(EPOCH FROM ds.reading_date) / 86400)::int * 150 + n.nozzle_id * 75 + random() * 40
-        END as cumulative_volume,
-        '08:00:00'::time as reading_time,
-        (ARRAY['550e8400-e29b-41d4-a716-446655440031', '550e8400-e29b-41d4-a716-446655440032', '550e8400-e29b-41d4-a716-446655440033', '550e8400-e29b-41d4-a716-446655440034'])[
-            ceil(random() * 4)
-        ]::uuid as entered_by
-    FROM date_series ds
-    CROSS JOIN pumps p
-    CROSS JOIN nozzles n
-    WHERE p.id = n.pump_id 
-    AND p.status = 'active' 
-    AND n.status = 'active'
 )
 INSERT INTO ocr_readings (
-    station_id, pump_id, nozzle_id, pump_sno, fuel_type, 
+    station_id, pump_id, nozzle_id, pump_sno, fuel_type,
     cumulative_volume, reading_date, reading_time, 
     is_manual_entry, entered_by
 )
-SELECT DISTINCT
-    station_id, pump_id, nozzle_id, pump_sno, fuel_type,
-    cumulative_volume::decimal(12,3), reading_date, reading_time,
-    false, entered_by
-FROM sample_readings
-ORDER BY reading_date, pump_sno, nozzle_id;
+SELECT 
+    p.station_id,
+    p.id as pump_id,
+    n.nozzle_id,
+    p.pump_sno,
+    n.fuel_type,
+    -- Generate increasing cumulative volumes for each day
+    50000 + (EXTRACT(EPOCH FROM ds.reading_date - CURRENT_DATE + INTERVAL '7 days') / 86400)::int * 100 + 
+        n.nozzle_id * 50 + (random() * 20)::int as cumulative_volume,
+    ds.reading_date,
+    '08:00:00'::time as reading_time,
+    false,
+    -- Choose a valid user from the station
+    (SELECT id FROM users WHERE station_id = p.station_id AND role = 'employee' LIMIT 1)
+FROM 
+    date_series ds
+CROSS JOIN pumps p
+JOIN nozzles n ON p.id = n.pump_id
+WHERE 
+    p.status = 'active' 
+    AND n.status = 'active'
+ORDER BY 
+    reading_date, pump_sno, nozzle_id;
 
--- Generate sales from the OCR readings
+-- Calculate and insert sales data based on OCR readings
+-- For each nozzle's consecutive readings, calculate the difference and create a sale
 WITH reading_pairs AS (
     SELECT 
         curr.id as current_reading_id,
@@ -186,23 +178,25 @@ WITH reading_pairs AS (
         curr.pump_id,
         curr.nozzle_id,
         curr.fuel_type,
-        curr.reading_date,
-        curr.cumulative_volume - COALESCE(prev.cumulative_volume, curr.cumulative_volume - 50) as litres_sold,
+        curr.reading_date as sale_date,
+        curr.cumulative_volume - prev.cumulative_volume as litres_sold,
         fp.price as price_per_litre,
         curr.entered_by
-    FROM ocr_readings curr
-    LEFT JOIN ocr_readings prev ON (
-        curr.station_id = prev.station_id 
-        AND curr.pump_sno = prev.pump_sno 
-        AND curr.nozzle_id = prev.nozzle_id
-        AND prev.reading_date = curr.reading_date - INTERVAL '1 day'
-    )
-    LEFT JOIN fuel_prices fp ON (
-        curr.station_id = fp.station_id 
-        AND curr.fuel_type = fp.fuel_type
-        AND fp.valid_from <= curr.reading_date::timestamp
-    )
-    WHERE curr.reading_date >= CURRENT_DATE - INTERVAL '7 days'
+    FROM 
+        ocr_readings curr
+    JOIN 
+        ocr_readings prev ON 
+            curr.station_id = prev.station_id AND
+            curr.pump_id = prev.pump_id AND
+            curr.nozzle_id = prev.nozzle_id AND
+            prev.reading_date = curr.reading_date - INTERVAL '1 day'
+    JOIN 
+        fuel_prices fp ON 
+            curr.station_id = fp.station_id AND
+            curr.fuel_type = fp.fuel_type
+    WHERE 
+        curr.cumulative_volume > prev.cumulative_volume
+        AND fp.valid_from <= curr.reading_date
 )
 INSERT INTO sales (
     station_id, pump_id, nozzle_id, reading_id, previous_reading_id,
@@ -212,20 +206,15 @@ INSERT INTO sales (
 SELECT 
     station_id, pump_id, nozzle_id, current_reading_id, previous_reading_id,
     fuel_type, 
-    GREATEST(litres_sold, 0)::decimal(10,3),
+    litres_sold::decimal(10,3),
     price_per_litre,
-    ROUND(GREATEST(litres_sold, 0) * price_per_litre, 2)::decimal(12,2),
-    reading_date,
+    ROUND(litres_sold * price_per_litre, 2)::decimal(12,2) as total_amount,
+    sale_date,
     'morning'::shift_type,
     entered_by
-FROM reading_pairs
-WHERE litres_sold > 0 AND price_per_litre IS NOT NULL;
+FROM 
+    reading_pairs;
 
--- Update statistics
-ANALYZE stations;
-ANALYZE users;
-ANALYZE pumps;
-ANALYZE nozzles;
-ANALYZE fuel_prices;
-ANALYZE ocr_readings;
-ANALYZE sales;
+-- Create an index to speed up future queries
+CREATE INDEX IF NOT EXISTS idx_ocr_readings_pump_date ON ocr_readings(pump_id, reading_date);
+CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);

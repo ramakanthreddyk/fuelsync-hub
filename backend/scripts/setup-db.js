@@ -17,9 +17,8 @@ const setupDatabase = async () => {
     
     // Read and execute SQL files in order
     const sqlFiles = [
-      '001_initial_schema.sql',
-      '002_seed_data.sql',
-      '003_views_and_functions.sql'
+      '004_station_architecture.sql',
+      '005_seed_multi_tenant_data.sql'
     ];
     
     for (const file of sqlFiles) {
@@ -56,8 +55,8 @@ const setupDatabase = async () => {
       console.log('🔑 Demo credentials:');
       console.log('   Admin: admin@fuelsync.com / admin123');
       console.log('   Owner: owner@fuelsync.com / owner123');
-      console.log('   Employee: employee@fuelsync.com / employee123');
       console.log('   Manager: manager@fuelsync.com / manager123');
+      console.log('   Employee: employee@fuelsync.com / employee123');
     } else {
       console.log('⚠️  Setup completed but admin user not found');
     }

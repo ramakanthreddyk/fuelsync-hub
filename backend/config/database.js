@@ -1,3 +1,4 @@
+
 const { Sequelize } = require('sequelize');
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -13,10 +14,10 @@ const sequelize = new Sequelize({
     underscored: true, // snake_case in DB
   },
   dialectOptions: {
-    ssl: {
+    ssl: process.env.DB_SSL === 'true' ? {
       require: true,
       rejectUnauthorized: false,
-    },
+    } : false,
   },
   logging: process.env.DB_LOGGING === 'true' || isProduction ? false : console.log,
   pool: {
