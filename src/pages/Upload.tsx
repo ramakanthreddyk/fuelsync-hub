@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,8 @@ import { Upload, Camera, Plus } from "lucide-react";
 export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [manualData, setManualData] = useState({
-    pump_sno: '',
-    nozzle_number: '',
+    pump_id: '',
+    nozzle_id: '',
     cumulative_vol: '',
     reading_date: new Date().toISOString().split('T')[0],
     reading_time: new Date().toTimeString().slice(0, 5)
@@ -24,11 +24,38 @@ export default function UploadPage() {
     type: 'cash' as const,
     payer: ''
   });
+  const [pumps, setPumps] = useState<any[]>([]);
+  const [nozzles, setNozzles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const currentStation = user?.stations?.[0]?.id;
 
-  const currentStation = user?.stations?.[0];
+  useEffect(() => {
+    const fetchPumps = async () => {
+      if (currentStation) {
+        const { data, error } = await supabase
+          .from('pumps')
+          .select('id, pump_sno')
+          .eq('station_id', currentStation);
+        if (!error) setPumps(data);
+      }
+    };
+    fetchPumps();
+  }, [currentStation]);
+
+  useEffect(() => {
+    const fetchNozzles = async () => {
+      if (manualData.pump_id) {
+        const { data, error } = await supabase
+          .from('nozzles')
+          .select('id, nozzle_number')
+          .eq('pump_id', manualData.pump_id);
+        if (!error) setNozzles(data);
+      }
+    };
+    fetchNozzles();
+  }, [manualData.pump_id]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,7 +81,7 @@ export default function UploadPage() {
   };
 
   const handleManualEntry = async () => {
-    if (!currentStation || !manualData.pump_sno || !manualData.nozzle_number || !manualData.cumulative_vol) {
+    if (!currentStation || !manualData.pump_id || !manualData.nozzle_id || !manualData.cumulative_vol) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields",
@@ -66,31 +93,11 @@ export default function UploadPage() {
     try {
       setLoading(true);
 
-      // First, get the nozzle ID from pump_sno and nozzle_number
-      const { data: pumps, error: pumpError } = await supabase
-        .from('pumps')
-        .select('id')
-        .eq('station_id', currentStation.id)
-        .eq('pump_sno', manualData.pump_sno)
-        .single();
-
-      if (pumpError || !pumps) throw new Error('Pump not found');
-
-      const { data: nozzle, error: nozzleError } = await supabase
-        .from('nozzles')
-        .select('id')
-        .eq('pump_id', pumps.id)
-        .eq('nozzle_number', parseInt(manualData.nozzle_number))
-        .single();
-
-      if (nozzleError || !nozzle) throw new Error('Nozzle not found');
-
-      // Create OCR reading with correct enum value
       const { error: readingError } = await supabase
         .from('ocr_readings')
         .insert({
-          station_id: currentStation.id,
-          nozzle_id: nozzle.id,
+          station_id: currentStation,
+          nozzle_id: parseInt(manualData.nozzle_id),
           cumulative_vol: parseFloat(manualData.cumulative_vol),
           reading_date: manualData.reading_date,
           reading_time: manualData.reading_time,
@@ -102,7 +109,7 @@ export default function UploadPage() {
 
       toast({ title: "Success", description: "Manual reading recorded successfully" });
       setManualData({
-        pump_sno: '', nozzle_number: '', cumulative_vol: '',
+        pump_id: '', nozzle_id: '', cumulative_vol: '',
         reading_date: new Date().toISOString().split('T')[0],
         reading_time: new Date().toTimeString().slice(0, 5)
       });
@@ -130,7 +137,7 @@ export default function UploadPage() {
     try {
       setLoading(true);
       const { error } = await supabase.from('tender_entries').insert({
-        station_id: currentStation.id,
+        station_id: currentStation,
         user_id: user?.id,
         amount: parseFloat(tenderData.amount),
         type: tenderData.type,
