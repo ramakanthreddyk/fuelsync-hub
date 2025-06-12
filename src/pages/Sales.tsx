@@ -38,20 +38,20 @@ export default function Sales() {
   });
 
   // Handle both array and object responses from API
-  const sales = Array.isArray(salesData) ? salesData : (salesData?.data || []);
+  const sales: Sale[] = Array.isArray(salesData) ? salesData : (salesData?.data || []);
 
   // Create fuel type breakdown with proper type handling
   const fuelTypeData = sales.length > 0 ? [
     { 
       name: 'Petrol', 
-      value: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.totalAmount, 0),
-      litres: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.litres, 0),
+      value: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum: number, s: Sale) => sum + Number(s.totalAmount), 0),
+      litres: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum: number, s: Sale) => sum + Number(s.litres), 0),
       transactions: sales.filter((s: Sale) => s.fuelType === 'Petrol').length
     },
     { 
       name: 'Diesel', 
-      value: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.totalAmount, 0),
-      litres: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.litres, 0),
+      value: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum: number, s: Sale) => sum + Number(s.totalAmount), 0),
+      litres: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum: number, s: Sale) => sum + Number(s.litres), 0),
       transactions: sales.filter((s: Sale) => s.fuelType === 'Diesel').length
     }
   ] : [];
@@ -96,8 +96,8 @@ export default function Sales() {
     );
   }
 
-  const totalRevenue = sales.reduce((sum: number, sale: Sale) => sum + sale.totalAmount, 0);
-  const totalLitres = sales.reduce((sum: number, sale: Sale) => sum + sale.litres, 0);
+  const totalRevenue = sales.reduce((sum: number, sale: Sale) => sum + Number(sale.totalAmount), 0);
+  const totalLitres = sales.reduce((sum: number, sale: Sale) => sum + Number(sale.litres), 0);
   const totalTransactions = sales.length;
   const petrolData = fuelTypeData[0] || { litres: 0, value: 0 };
   const dieselData = fuelTypeData[1] || { litres: 0, value: 0 };
