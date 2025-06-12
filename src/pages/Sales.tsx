@@ -62,7 +62,7 @@ export default function Sales() {
       return [];
     }
 
-    const hourlyMap = {};
+    const hourlyMap: Record<string, { hour: string; sales: number; transactions: number }> = {};
     
     sales.forEach((sale) => {
       const hour = new Date(sale.timestamp).getHours();
@@ -76,7 +76,7 @@ export default function Sales() {
       hourlyMap[hourRange].transactions += 1;
     });
 
-    return Object.values(hourlyMap).sort((a: any, b: any) => {
+    return Object.values(hourlyMap).sort((a, b) => {
       const aHour = parseInt(a.hour.split(':')[0]);
       const bHour = parseInt(b.hour.split(':')[0]);
       return aHour - bHour;

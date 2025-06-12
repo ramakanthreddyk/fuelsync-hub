@@ -124,8 +124,9 @@ export const planLimitsService = {
     
     if (!limits.maxEmployees) return;
 
-    // For now, count employees directly from users table
-    // This will be updated once user_stations table is properly integrated
+    // Count employees for this specific station using the users table
+    // Since we removed station_id from users, we'll count all active employees for now
+    // This should be updated once proper user-station relationships are established
     const { count, error } = await supabase
       .from('users')
       .select('*', { count: 'exact' })
