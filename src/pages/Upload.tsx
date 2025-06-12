@@ -106,7 +106,7 @@ export default function UploadPage() {
     }
 
     const result = await submitManualReading({
-      station_id: Number(currentStation),
+      station_id: currentStation,
       nozzle_id: parseInt(manualData.nozzle_id),
       cumulative_vol: parseFloat(manualData.cumulative_vol),
       reading_date: manualData.reading_date,
@@ -137,7 +137,7 @@ export default function UploadPage() {
     
     try {
       const { error } = await supabase.from('tender_entries').insert({
-        station_id: Number(currentStation),
+        station_id: currentStation,
         user_id: user?.id,
         amount: parseFloat(tenderData.amount),
         type: tenderData.type,
