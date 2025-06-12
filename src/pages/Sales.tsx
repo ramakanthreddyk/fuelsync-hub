@@ -294,8 +294,8 @@ export default function Sales() {
             {canAccessAllStations && (
               <div>
                 <Label>Station</Label>
-                <Select value={selectedStationId?.toString() || ''} onValueChange={(value) => {
-                  setSelectedStationId(value ? parseInt(value) : null);
+                <Select value={selectedStationId?.toString() || 'all'} onValueChange={(value) => {
+                  setSelectedStationId(value === 'all' ? null : parseInt(value));
                   setSelectedPumpId(null);
                   setSelectedNozzleId(null);
                 }}>
@@ -303,7 +303,7 @@ export default function Sales() {
                     <SelectValue placeholder="All stations" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All stations</SelectItem>
+                    <SelectItem value="all">All stations</SelectItem>
                     {stations.map((station) => (
                       <SelectItem key={station.id} value={station.id.toString()}>
                         {station.name}
@@ -317,15 +317,15 @@ export default function Sales() {
             {/* Pump Filter */}
             <div>
               <Label>Pump</Label>
-              <Select value={selectedPumpId?.toString() || ''} onValueChange={(value) => {
-                setSelectedPumpId(value ? parseInt(value) : null);
+              <Select value={selectedPumpId?.toString() || 'all'} onValueChange={(value) => {
+                setSelectedPumpId(value === 'all' ? null : parseInt(value));
                 setSelectedNozzleId(null);
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All pumps" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All pumps</SelectItem>
+                  <SelectItem value="all">All pumps</SelectItem>
                   {pumps?.map((pump) => (
                     <SelectItem key={pump.id} value={pump.id.toString()}>
                       {pump.name || `Pump ${pump.pump_sno}`}
@@ -338,14 +338,14 @@ export default function Sales() {
             {/* Nozzle Filter */}
             <div>
               <Label>Nozzle</Label>
-              <Select value={selectedNozzleId?.toString() || ''} onValueChange={(value) => {
-                setSelectedNozzleId(value ? parseInt(value) : null);
+              <Select value={selectedNozzleId?.toString() || 'all'} onValueChange={(value) => {
+                setSelectedNozzleId(value === 'all' ? null : parseInt(value));
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All nozzles" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All nozzles</SelectItem>
+                  <SelectItem value="all">All nozzles</SelectItem>
                   {pumps?.flatMap(pump => 
                     pump.nozzles.map(nozzle => (
                       <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
