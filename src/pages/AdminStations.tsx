@@ -1,176 +1,212 @@
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Station, User, Plan } from '@/types/database';
-import { Plus, Edit, Building2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus, Building2, MapPin, Fuel, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+interface Station {
+  id: number;
+  name: string;
+  brand: 'IOCL' | 'BPCL' | 'HPCL';
+  address: string;
+  owner_id: number;
+  current_plan_id: number;
+  created_at: string;
+  updated_at: string;
+  users: Array<{ id: number; name: string; email: string; role: string }>;
+  plans: { id: number; name: string };
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface Plan {
+  id: number;
+  name: string;
+  price_monthly: number;
+}
 
 export default function AdminStations() {
-  const { user: currentUser } = useAuth();
-  const { toast } = useToast();
-  const [stations, setStations] = useState<Station[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isAddStationOpen, setIsAddStationOpen] = useState(false);
   const [newStation, setNewStation] = useState({
     name: '',
     brand: 'IOCL' as const,
     address: '',
-    owner_id: null as number | null,
-    current_plan_id: null as number | null
+    owner_id: '',
+    current_plan_id: ''
   });
 
-  useEffect(() => {
-    if (currentUser?.role === 'superadmin') {
-      loadData();
-    }
-  }, [currentUser]);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // Load stations with owner info
-      const { data: stationsData } = await supabase
+  // Only superadmin can access this page
+  if (user?.role !== 'superadmin') {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">
+              Access denied. This page is only available to super administrators.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Fetch stations
+  const { data: stations, isLoading } = useQuery({
+    queryKey: ['stations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('stations')
         .select(`
           *,
-          owner:owner_id(name, email),
-          plan:current_plan_id(name)
+          users!stations_owner_id_fkey (id, name, email, role),
+          plans (id, name, price_monthly)
         `)
         .order('created_at', { ascending: false });
-      
-      // Load users (potential owners)
-      const { data: usersData } = await supabase
+
+      if (error) throw error;
+      return data as Station[];
+    },
+  });
+
+  // Fetch owners for dropdown
+  const { data: owners } = useQuery({
+    queryKey: ['owners'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('users')
         .select('*')
-        .in('role', ['owner', 'superadmin'])
+        .eq('role', 'owner')
         .order('name');
-      
-      // Load plans
-      const { data: plansData } = await supabase
+
+      if (error) throw error;
+      return data as User[];
+    },
+  });
+
+  // Fetch plans for dropdown
+  const { data: plans } = useQuery({
+    queryKey: ['plans'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('plans')
         .select('*')
-        .eq('is_active', true)
         .order('name');
-      
-      setStations(stationsData || []);
-      setUsers(usersData || []);
-      // Type cast features from Json to Record<string, any>
-      setPlans((plansData || []).map(plan => ({
-        ...plan,
-        features: (plan.features as Record<string, any>) || {}
-      })));
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load stations data',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const createStation = async () => {
-    try {
-      setLoading(true);
-      
+      if (error) throw error;
+      return data as Plan[];
+    },
+  });
+
+  // Add station mutation
+  const addStationMutation = useMutation({
+    mutationFn: async (stationData: typeof newStation) => {
       const { data, error } = await supabase
         .from('stations')
-        .insert([{
-          name: newStation.name,
-          brand: newStation.brand,
-          address: newStation.address,
-          owner_id: newStation.owner_id,
-          current_plan_id: newStation.current_plan_id
-        }])
+        .insert({
+          name: stationData.name,
+          brand: stationData.brand,
+          address: stationData.address,
+          owner_id: parseInt(stationData.owner_id),
+          current_plan_id: parseInt(stationData.current_plan_id)
+        })
         .select()
         .single();
 
       if (error) throw error;
-
-      // If owner is assigned, create a user_stations relationship
-      if (newStation.owner_id) {
-        await supabase
-          .from('user_stations')
-          .insert({
-            user_id: newStation.owner_id,
-            station_id: data.id
-          });
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Station created successfully'
-      });
-
-      setIsCreateDialogOpen(false);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stations'] });
+      setIsAddStationOpen(false);
       setNewStation({
         name: '',
         brand: 'IOCL',
         address: '',
-        owner_id: null,
-        current_plan_id: null
+        owner_id: '',
+        current_plan_id: ''
       });
-      
-      loadData();
-    } catch (error) {
-      console.error('Error creating station:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to create station',
-        variant: 'destructive'
+        title: "Success",
+        description: "Station created successfully",
       });
-    } finally {
-      setLoading(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create station",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddStation = () => {
+    if (!newStation.name || !newStation.address || !newStation.owner_id || !newStation.current_plan_id) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addStationMutation.mutate(newStation);
+  };
+
+  const getBrandColor = (brand: string) => {
+    switch (brand) {
+      case 'IOCL': return 'bg-red-100 text-red-800';
+      case 'BPCL': return 'bg-green-100 text-green-800';
+      case 'HPCL': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  if (currentUser?.role !== 'superadmin') {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Access Denied</h1>
-          <p className="text-muted-foreground">Only superadmins can access this page</p>
-        </div>
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading stations...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Station Management</h1>
-          <p className="text-muted-foreground">
-            Manage fuel stations and their configurations
-          </p>
+          <h1 className="text-3xl font-bold">Station Management</h1>
+          <p className="text-muted-foreground">Manage fuel stations across the system</p>
         </div>
         
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isAddStationOpen} onOpenChange={setIsAddStationOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Station
+              <Plus className="w-4 h-4 mr-2" />
+              Add Station
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Create New Station</DialogTitle>
+              <DialogTitle>Add New Station</DialogTitle>
               <DialogDescription>
-                Add a new fuel station to the system
+                Create a new fuel station in the system
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -179,13 +215,13 @@ export default function AdminStations() {
                 <Input
                   id="name"
                   value={newStation.name}
-                  onChange={(e) => setNewStation({ ...newStation, name: e.target.value })}
-                  placeholder="Station name"
+                  onChange={(e) => setNewStation(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Green Valley IOCL"
                 />
               </div>
               <div>
                 <Label htmlFor="brand">Brand</Label>
-                <Select value={newStation.brand} onValueChange={(value: any) => setNewStation({ ...newStation, brand: value })}>
+                <Select value={newStation.brand} onValueChange={(value: any) => setNewStation(prev => ({ ...prev, brand: value }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -201,129 +237,121 @@ export default function AdminStations() {
                 <Input
                   id="address"
                   value={newStation.address}
-                  onChange={(e) => setNewStation({ ...newStation, address: e.target.value })}
-                  placeholder="Station address"
+                  onChange={(e) => setNewStation(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="123 Main Street, City, State, PIN"
                 />
               </div>
               <div>
                 <Label htmlFor="owner">Station Owner</Label>
-                <Select value={newStation.owner_id?.toString() || ''} onValueChange={(value) => setNewStation({ ...newStation, owner_id: value ? parseInt(value) : null })}>
+                <Select value={newStation.owner_id} onValueChange={(value) => setNewStation(prev => ({ ...prev, owner_id: value }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select owner" />
+                    <SelectValue placeholder="Select an owner" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id.toString()}>
-                        {user.name} ({user.email})
+                    {owners?.map((owner) => (
+                      <SelectItem key={owner.id} value={owner.id.toString()}>
+                        {owner.name} ({owner.email})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="plan">Initial Plan</Label>
-                <Select value={newStation.current_plan_id?.toString() || ''} onValueChange={(value) => setNewStation({ ...newStation, current_plan_id: value ? parseInt(value) : null })}>
+                <Label htmlFor="plan">Plan</Label>
+                <Select value={newStation.current_plan_id} onValueChange={(value) => setNewStation(prev => ({ ...prev, current_plan_id: value }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select plan" />
+                    <SelectValue placeholder="Select a plan" />
                   </SelectTrigger>
                   <SelectContent>
-                    {plans.map((plan) => (
+                    {plans?.map((plan) => (
                       <SelectItem key={plan.id} value={plan.id.toString()}>
-                        {plan.name} - ₹{plan.price_monthly || 0}/month
+                        {plan.name} (₹{plan.price_monthly}/month)
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={createStation} disabled={loading} className="w-full">
-                {loading ? 'Creating...' : 'Create Station'}
+              <Button onClick={handleAddStation} disabled={addStationMutation.isPending} className="w-full">
+                {addStationMutation.isPending ? 'Creating...' : 'Create Station'}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Stations</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stations.length}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">IOCL Stations</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stations.filter(s => s.brand === 'IOCL').length}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Plans</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{plans.length}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {stations?.map((station) => (
+          <Card key={station.id} className="relative">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5" />
+                    {station.name}
+                  </CardTitle>
+                  <CardDescription className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {station.address}
+                  </CardDescription>
+                </div>
+                <Badge className={getBrandColor(station.brand)}>
+                  {station.brand}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm">
+                <div className="text-muted-foreground">Owner:</div>
+                <div>{station.users?.name || 'Unknown'}</div>
+                <div className="text-xs text-muted-foreground">{station.users?.email}</div>
+              </div>
+              
+              <div className="text-sm">
+                <div className="text-muted-foreground">Plan:</div>
+                <div className="flex items-center gap-2">
+                  <span>{station.plans?.name || 'No Plan'}</span>
+                  {station.plans?.price_monthly && (
+                    <Badge variant="outline">
+                      ₹{station.plans.price_monthly}/mo
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              
+              <div className="text-sm text-muted-foreground">
+                Created: {new Date(station.created_at).toLocaleDateString()}
+              </div>
+              
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm">
+                  <Fuel className="w-3 h-3 mr-1" />
+                  View Pumps
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Users className="w-3 h-3 mr-1" />
+                  Employees
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Stations</CardTitle>
-          <CardDescription>
-            Manage and monitor all fuel stations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {stations.map((station) => (
-                <TableRow key={station.id}>
-                  <TableCell className="font-medium">{station.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{station.brand}</Badge>
-                  </TableCell>
-                  <TableCell>{station.address || 'No address'}</TableCell>
-                  <TableCell>
-                    {users.find(u => u.id === station.owner_id)?.name || 'No owner'}
-                  </TableCell>
-                  <TableCell>
-                    {plans.find(p => p.id === station.current_plan_id)?.name || 'No plan'}
-                  </TableCell>
-                  <TableCell>{new Date(station.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Button variant="outline" size="sm">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {(!stations || stations.length === 0) && (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No stations found</h3>
+            <p className="text-muted-foreground mb-4">
+              Get started by creating fuel stations in the system.
+            </p>
+            <Button onClick={() => setIsAddStationOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create First Station
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

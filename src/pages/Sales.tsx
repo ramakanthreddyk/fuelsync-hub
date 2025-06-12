@@ -2,293 +2,461 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus, TrendingUp, DollarSign, Fuel, Calendar } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "@tanstack/react-query";
-import { apiService } from '@/services/api';
-import { Sale, DailySummary } from '@/types/api';
-import MetricCard from '@/components/MetricCard';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { useAuth } from '@/hooks/useAuth';
+
+interface Sale {
+  id: number;
+  delta_volume_l: number;
+  price_per_litre: number;
+  total_amount: number;
+  shift: 'morning' | 'afternoon' | 'night';
+  fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
+  is_manual_entry: boolean;
+  created_at: string;
+  pumps: { pump_sno: string; name: string };
+  nozzles: { nozzle_number: number; fuel_type: string };
+  users: { name: string };
+}
+
+interface Pump {
+  id: number;
+  pump_sno: string;
+  name: string;
+  nozzles: Array<{
+    id: number;
+    nozzle_number: number;
+    fuel_type: string;
+  }>;
+}
 
 export default function Sales() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isManualSaleOpen, setIsManualSaleOpen] = useState(false);
+  const [manualSale, setManualSale] = useState({
+    pumpId: '',
+    nozzleId: '',
+    litres: '',
+    fuelType: 'PETROL' as const,
+    pricePerLitre: '',
+    shift: 'morning' as const
+  });
+
+  const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const currentStation = user?.stations?.[0];
 
-  console.log('📊 Sales page rendering for date:', selectedDate);
-
-  const { data: salesData, isLoading: salesLoading } = useQuery({
+  // Fetch sales
+  const { data: sales, isLoading: salesLoading } = useQuery({
     queryKey: ['sales', currentStation?.id],
     queryFn: async () => {
-      if (!currentStation) return { data: [] };
-      return await apiService.getSales(currentStation.id);
+      if (!currentStation?.id) return [];
+      
+      const { data, error } = await supabase.functions.invoke('sales-api', {
+        method: 'GET',
+        body: null,
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      
+      return data.data as Sale[];
     },
-    enabled: !!currentStation
+    enabled: !!currentStation?.id,
   });
 
-  const { data: dailySummary, isLoading: summaryLoading } = useQuery({
+  // Fetch pumps for manual sale
+  const { data: pumps } = useQuery({
+    queryKey: ['pumps', currentStation?.id],
+    queryFn: async () => {
+      if (!currentStation?.id) return [];
+      
+      const { data, error } = await supabase.functions.invoke('pumps-api', {
+        method: 'GET',
+        body: null,
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      
+      return data.data as Pump[];
+    },
+    enabled: !!currentStation?.id && isManualSaleOpen,
+  });
+
+  // Fetch daily summary
+  const { data: dailySummary } = useQuery({
     queryKey: ['daily-summary', currentStation?.id],
     queryFn: async () => {
-      if (!currentStation) return null;
-      return await apiService.getDailySummary(currentStation.id);
+      if (!currentStation?.id) return null;
+      
+      const { data, error } = await supabase.functions.invoke('sales-api', {
+        method: 'GET',
+        body: null,
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      
+      return data.data;
     },
-    enabled: !!currentStation
+    enabled: !!currentStation?.id,
   });
 
-  // Handle both array and object responses from API
-  const sales: Sale[] = Array.isArray(salesData) ? salesData : (salesData?.data || []);
+  // Add manual sale mutation
+  const addManualSaleMutation = useMutation({
+    mutationFn: async (saleData: typeof manualSale) => {
+      const { data, error } = await supabase.functions.invoke('sales-api', {
+        method: 'POST',
+        body: {
+          stationId: currentStation?.id,
+          ...saleData,
+          enteredBy: user?.id
+        },
+      });
 
-  // Create fuel type breakdown with proper type handling
-  const fuelTypeData = sales.length > 0 ? [
-    { 
-      name: 'Petrol', 
-      value: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum: number, s: Sale) => sum + Number(s.totalAmount), 0),
-      litres: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum: number, s: Sale) => sum + Number(s.litres), 0),
-      transactions: sales.filter((s: Sale) => s.fuelType === 'Petrol').length
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      
+      return data.data;
     },
-    { 
-      name: 'Diesel', 
-      value: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum: number, s: Sale) => sum + Number(s.totalAmount), 0),
-      litres: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum: number, s: Sale) => sum + Number(s.litres), 0),
-      transactions: sales.filter((s: Sale) => s.fuelType === 'Diesel').length
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-summary'] });
+      setIsManualSaleOpen(false);
+      setManualSale({
+        pumpId: '',
+        nozzleId: '',
+        litres: '',
+        fuelType: 'PETROL',
+        pricePerLitre: '',
+        shift: 'morning'
+      });
+      toast({
+        title: "Success",
+        description: "Manual sale recorded successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record sale",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddManualSale = () => {
+    if (!manualSale.pumpId || !manualSale.nozzleId || !manualSale.litres || !manualSale.pricePerLitre) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
     }
-  ] : [];
+    addManualSaleMutation.mutate(manualSale);
+  };
 
-  // Generate hourly data from sales transactions
-  const hourlyData = React.useMemo(() => {
-    if (!sales || sales.length === 0) {
-      return [];
+  const selectedPump = pumps?.find(p => p.id.toString() === manualSale.pumpId);
+  const availableNozzles = selectedPump?.nozzles || [];
+
+  const getShiftColor = (shift: string) => {
+    switch (shift) {
+      case 'morning': return 'bg-yellow-100 text-yellow-800';
+      case 'afternoon': return 'bg-orange-100 text-orange-800';
+      case 'night': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
+  };
 
-    const hourlyMap: Record<string, { hour: string; sales: number; transactions: number }> = {};
-    
-    sales.forEach((sale) => {
-      const hour = new Date(sale.timestamp).getHours();
-      const hourRange = `${hour}:00-${hour + 1}:00`;
-      
-      if (!hourlyMap[hourRange]) {
-        hourlyMap[hourRange] = { hour: hourRange, sales: 0, transactions: 0 };
-      }
-      
-      hourlyMap[hourRange].sales += parseFloat(sale.totalAmount.toString());
-      hourlyMap[hourRange].transactions += 1;
-    });
+  const getFuelTypeColor = (fuelType: string) => {
+    switch (fuelType) {
+      case 'PETROL': return 'bg-blue-100 text-blue-800';
+      case 'DIESEL': return 'bg-orange-100 text-orange-800';
+      case 'CNG': return 'bg-green-100 text-green-800';
+      case 'EV': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
 
-    return Object.values(hourlyMap).sort((a, b) => {
-      const aHour = parseInt(a.hour.split(':')[0]);
-      const bHour = parseInt(b.hour.split(':')[0]);
-      return aHour - bHour;
-    });
-  }, [sales]);
-
-  const COLORS = ['#ff6b35', '#1e3a8a'];
-
-  if (salesLoading || summaryLoading) {
+  if (!currentStation) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-8">
-          <span className="text-4xl">⏳</span>
-          <p className="text-muted-foreground mt-2">Loading sales data...</p>
-        </div>
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">
+              No station assigned to your account. Please contact your administrator.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const totalRevenue = sales.reduce((sum: number, sale: Sale) => sum + Number(sale.totalAmount), 0);
-  const totalLitres = sales.reduce((sum: number, sale: Sale) => sum + Number(sale.litres), 0);
-  const totalTransactions = sales.length;
-  const petrolData = fuelTypeData[0] || { litres: 0, value: 0 };
-  const dieselData = fuelTypeData[1] || { litres: 0, value: 0 };
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Sales Tracking</h1>
-          <p className="text-muted-foreground mt-1">
-            Monitor your fuel sales, revenue, and performance metrics.
-          </p>
+          <h1 className="text-3xl font-bold">Sales Management</h1>
+          <p className="text-muted-foreground">Track and manage sales for {currentStation.name}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border rounded-md"
-          />
-          <Button variant="outline">
-            Export Report
-          </Button>
-        </div>
+        
+        <Dialog open={isManualSaleOpen} onOpenChange={setIsManualSaleOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Manual Sale Entry
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Manual Sale Entry</DialogTitle>
+              <DialogDescription>
+                Record a manual sale when OCR processing fails
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="pump">Select Pump</Label>
+                <Select value={manualSale.pumpId} onValueChange={(value) => setManualSale(prev => ({ ...prev, pumpId: value, nozzleId: '' }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a pump" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pumps?.map((pump) => (
+                      <SelectItem key={pump.id} value={pump.id.toString()}>
+                        {pump.name} ({pump.pump_sno})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="nozzle">Select Nozzle</Label>
+                <Select 
+                  value={manualSale.nozzleId} 
+                  onValueChange={(value) => setManualSale(prev => ({ ...prev, nozzleId: value }))}
+                  disabled={!manualSale.pumpId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a nozzle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableNozzles.map((nozzle) => (
+                      <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
+                        Nozzle #{nozzle.nozzle_number} ({nozzle.fuel_type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="litres">Litres</Label>
+                  <Input
+                    id="litres"
+                    type="number"
+                    step="0.001"
+                    value={manualSale.litres}
+                    onChange={(e) => setManualSale(prev => ({ ...prev, litres: e.target.value }))}
+                    placeholder="25.750"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="pricePerLitre">Price per Litre</Label>
+                  <Input
+                    id="pricePerLitre"
+                    type="number"
+                    step="0.01"
+                    value={manualSale.pricePerLitre}
+                    onChange={(e) => setManualSale(prev => ({ ...prev, pricePerLitre: e.target.value }))}
+                    placeholder="102.50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="fuelType">Fuel Type</Label>
+                  <Select value={manualSale.fuelType} onValueChange={(value: any) => setManualSale(prev => ({ ...prev, fuelType: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PETROL">Petrol</SelectItem>
+                      <SelectItem value="DIESEL">Diesel</SelectItem>
+                      <SelectItem value="CNG">CNG</SelectItem>
+                      <SelectItem value="EV">EV Charging</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="shift">Shift</Label>
+                  <Select value={manualSale.shift} onValueChange={(value: any) => setManualSale(prev => ({ ...prev, shift: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="morning">Morning</SelectItem>
+                      <SelectItem value="afternoon">Afternoon</SelectItem>
+                      <SelectItem value="night">Night</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {manualSale.litres && manualSale.pricePerLitre && (
+                <div className="p-3 bg-gray-50 rounded">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Total Amount:</span>
+                    <span className="text-lg font-bold">
+                      ₹{(parseFloat(manualSale.litres) * parseFloat(manualSale.pricePerLitre)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <Button onClick={handleAddManualSale} disabled={addManualSaleMutation.isPending} className="w-full">
+                {addManualSaleMutation.isPending ? 'Recording...' : 'Record Sale'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard
-          title="Today's Revenue"
-          value={`₹${totalRevenue.toLocaleString()}`}
-          subtitle={`${totalLitres}L sold`}
-          icon="💰"
-          trend={{ value: 12.5, label: 'vs yesterday', direction: 'up' }}
-          gradient
-        />
-        
-        <MetricCard
-          title="Transactions"
-          value={totalTransactions}
-          subtitle="completed today"
-          icon="🧾"
-          trend={{ value: 8.3, label: 'vs yesterday', direction: 'up' }}
-        />
-        
-        <MetricCard
-          title="Petrol Sales"
-          value={`${petrolData.litres}L`}
-          subtitle={`₹${petrolData.value.toLocaleString()}`}
-          icon="⛽"
-        />
-        
-        <MetricCard
-          title="Diesel Sales"
-          value={`${dieselData.litres}L`}
-          subtitle={`₹${dieselData.value.toLocaleString()}`}
-          icon="🚛"
-        />
-      </div>
-
-      {/* Charts and Tables */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Fuel Type Distribution */}
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Fuel Type Distribution</CardTitle>
-                <CardDescription>Revenue breakdown by fuel type</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {fuelTypeData.length > 0 && fuelTypeData.some(d => d.value > 0) ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={fuelTypeData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value, litres }) => `${name}: ₹${value.toLocaleString()} (${litres}L)`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {fuelTypeData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="text-center py-8">
-                    <span className="text-4xl">📊</span>
-                    <p className="text-muted-foreground mt-2">No sales data for selected date</p>
-                  </div>
-                )}
+                <div className="text-2xl font-bold">
+                  ₹{sales?.filter(s => s.created_at.startsWith(new Date().toISOString().split('T')[0]))
+                    .reduce((sum, s) => sum + s.total_amount, 0).toFixed(2) || '0.00'}
+                </div>
               </CardContent>
             </Card>
 
-            {/* Hourly Sales */}
             <Card>
-              <CardHeader>
-                <CardTitle>Hourly Sales Pattern</CardTitle>
-                <CardDescription>Sales distribution throughout the day</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Litres</CardTitle>
+                <Fuel className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {hourlyData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={hourlyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="hour" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Sales']} />
-                      <Bar dataKey="sales" fill="#ff6b35" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="text-center py-8">
-                    <span className="text-4xl">📈</span>
-                    <p className="text-muted-foreground mt-2">No hourly data available</p>
-                  </div>
-                )}
+                <div className="text-2xl font-bold">
+                  {sales?.filter(s => s.created_at.startsWith(new Date().toISOString().split('T')[0]))
+                    .reduce((sum, s) => sum + s.delta_volume_l, 0).toFixed(2) || '0.00'} L
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Transactions</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {sales?.filter(s => s.created_at.startsWith(new Date().toISOString().split('T')[0])).length || 0}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Avg. Sale</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  ₹{sales?.filter(s => s.created_at.startsWith(new Date().toISOString().split('T')[0])).length 
+                    ? (sales.filter(s => s.created_at.startsWith(new Date().toISOString().split('T')[0]))
+                        .reduce((sum, s) => sum + s.total_amount, 0) / 
+                       sales.filter(s => s.created_at.startsWith(new Date().toISOString().split('T')[0])).length)
+                        .toFixed(2) 
+                    : '0.00'}
+                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        <TabsContent value="trends" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales Trends</CardTitle>
-              <CardDescription>7-day sales performance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <span className="text-4xl">📈</span>
-                <p className="text-muted-foreground mt-2">Trends chart coming soon</p>
-                <p className="text-sm text-muted-foreground">Historical data will be displayed here</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="transactions" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>Latest fuel sales transactions</CardDescription>
+              <CardTitle>Recent Sales</CardTitle>
+              <CardDescription>Latest sales transactions</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {sales && sales.length > 0 ? (
-                  sales.map((sale) => (
+              {salesLoading ? (
+                <div className="text-center py-4">Loading sales...</div>
+              ) : sales && sales.length > 0 ? (
+                <div className="space-y-4">
+                  {sales.slice(0, 20).map((sale) => (
                     <div key={sale.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{sale.fuelType === 'Petrol' ? '⛽' : '🚛'}</span>
-                        <div>
-                          <p className="font-medium">{sale.fuelType} - {sale.pumpId}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(sale.timestamp).toLocaleString()}
-                          </p>
-                          {sale.nozzleId && (
-                            <p className="text-xs text-muted-foreground">
-                              Nozzle {sale.nozzleId}
-                            </p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{sale.pumps?.name || 'Unknown Pump'}</span>
+                          <Badge className={getFuelTypeColor(sale.fuel_type)}>
+                            {sale.fuel_type}
+                          </Badge>
+                          <Badge className={getShiftColor(sale.shift)}>
+                            {sale.shift}
+                          </Badge>
+                          {sale.is_manual_entry && (
+                            <Badge variant="outline">Manual</Badge>
                           )}
                         </div>
+                        <div className="text-sm text-muted-foreground">
+                          {sale.delta_volume_l.toFixed(3)} L @ ₹{sale.price_per_litre.toFixed(2)}/L
+                          • Nozzle #{sale.nozzles?.nozzle_number}
+                          • {sale.users?.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(sale.created_at).toLocaleString()}
+                        </div>
                       </div>
-                      
                       <div className="text-right">
-                        <p className="font-medium">₹{sale.totalAmount.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">{sale.litres}L @ ₹{sale.pricePerLitre}/L</p>
+                        <div className="text-lg font-bold">₹{sale.total_amount.toFixed(2)}</div>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <span className="text-4xl">📊</span>
-                    <p className="text-muted-foreground mt-2">No transactions yet</p>
-                    <p className="text-sm text-muted-foreground">Upload receipts to see sales data</p>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <TrendingUp className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No sales found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Start recording sales through OCR uploads or manual entry.
+                  </p>
+                  <Button onClick={() => setIsManualSaleOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Record First Sale
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

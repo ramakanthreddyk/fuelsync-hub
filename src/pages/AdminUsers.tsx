@@ -1,521 +1,391 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Station, Plan } from '@/types/database';
-import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus, Users, Settings, Trash2, Shield } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'superadmin' | 'owner' | 'employee';
+  is_active: boolean;
+  created_at: string;
+  station_id: number | null;
+}
+
+interface Station {
+  id: number;
+  name: string;
+  brand: string;
+  address: string;
+}
 
 export default function AdminUsers() {
-  const { user: currentUser } = useAuth();
-  const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
-    role: 'employee' as 'employee' | 'owner',
-    station_id: null as number | null,
-    create_first_station: false,
-    station_name: '',
-    station_brand: 'IOCL' as const,
-    station_address: '',
-    plan_id: null as number | null
+    role: 'employee' as const,
+    station_id: ''
   });
 
-  useEffect(() => {
-    if (currentUser?.role === 'superadmin') {
-      loadData();
-    }
-  }, [currentUser]);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // Load users
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      // Load stations
-      const { data: stationsData } = await supabase
-        .from('stations')
-        .select('*')
-        .order('name');
-      
-      // Load plans
-      const { data: plansData } = await supabase
-        .from('plans')
-        .select('*')
-        .order('price_monthly');
-      
-      setUsers(usersData || []);
-      setStations(stationsData || []);
-      setPlans((plansData || []) as Plan[]); // Type assertion to handle Json type
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load users data',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createUser = async () => {
-    try {
-      setLoading(true);
-      
-      if (newUser.role === 'owner' && newUser.create_first_station) {
-        // Create owner with first station
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .insert([{
-            name: newUser.name,
-            email: newUser.email,
-            phone: newUser.phone,
-            password: newUser.password,
-            role: newUser.role,
-            is_active: true
-          }])
-          .select()
-          .single();
-
-        if (userError) throw userError;
-
-        // Create first station for the owner
-        const { data: stationData, error: stationError } = await supabase
-          .from('stations')
-          .insert([{
-            name: newUser.station_name,
-            brand: newUser.station_brand,
-            address: newUser.station_address,
-            owner_id: userData.id,
-            current_plan_id: newUser.plan_id
-          }])
-          .select()
-          .single();
-
-        if (stationError) throw stationError;
-
-        toast({
-          title: 'Success',
-          description: 'Owner and station created successfully'
-        });
-      } else {
-        // Create regular user (employee or owner without station)
-        const { data, error } = await supabase
-          .from('users')
-          .insert([{
-            name: newUser.name,
-            email: newUser.email,
-            phone: newUser.phone,
-            password: newUser.password,
-            role: newUser.role,
-            station_id: newUser.role === 'employee' ? newUser.station_id : null,
-            is_active: true
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        toast({
-          title: 'Success',
-          description: 'User created successfully'
-        });
-      }
-
-      setIsCreateDialogOpen(false);
-      resetNewUser();
-      loadData();
-    } catch (error) {
-      console.error('Error creating user:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create user',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetNewUser = () => {
-    setNewUser({
-      name: '',
-      email: '',
-      phone: '',
-      password: '',
-      role: 'employee',
-      station_id: null,
-      create_first_station: false,
-      station_name: '',
-      station_brand: 'IOCL',
-      station_address: '',
-      plan_id: null
-    });
-  };
-
-  const deleteUser = async (userId: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'User deleted successfully'
-      });
-      
-      loadData();
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete user',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const toggleUserStatus = async (userId: number, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_active: !currentStatus })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: `User ${!currentStatus ? 'activated' : 'deactivated'} successfully`
-      });
-      
-      loadData();
-    } catch (error) {
-      console.error('Error updating user status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update user status',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  if (currentUser?.role !== 'superadmin') {
+  // Only superadmin can access this page
+  if (user?.role !== 'superadmin') {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Access Denied</h1>
-          <p className="text-muted-foreground">Only superadmins can access this page</p>
-        </div>
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">
+              Access denied. This page is only available to super administrators.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const owners = users.filter(u => u.role === 'owner');
-  const employees = users.filter(u => u.role === 'employee');
+  // Fetch users
+  const { data: users, isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          stations (id, name, brand, address)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as User[];
+    },
+  });
+
+  // Fetch stations for dropdown
+  const { data: stations } = useQuery({
+    queryKey: ['stations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stations')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      return data as Station[];
+    },
+  });
+
+  // Add user mutation
+  const addUserMutation = useMutation({
+    mutationFn: async (userData: typeof newUser) => {
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone,
+          password: userData.password, // In production, this should be hashed
+          role: userData.role,
+          station_id: userData.role === 'employee' && userData.station_id ? parseInt(userData.station_id) : null,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsAddUserOpen(false);
+      setNewUser({
+        name: '',
+        email: '',
+        phone: '',
+        password: '',
+        role: 'employee',
+        station_id: ''
+      });
+      toast({
+        title: "Success",
+        description: "User created successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create user",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Toggle user status mutation
+  const toggleUserStatusMutation = useMutation({
+    mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ is_active: isActive })
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: "Success",
+        description: "User status updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update user status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddUser = () => {
+    if (!newUser.name || !newUser.email || !newUser.password) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in name, email, and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newUser.role === 'employee' && !newUser.station_id) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a station for the employee",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addUserMutation.mutate(newUser);
+  };
+
+  const handleToggleStatus = (userId: number, currentStatus: boolean) => {
+    toggleUserStatusMutation.mutate({ userId, isActive: !currentStatus });
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'superadmin': return 'bg-red-100 text-red-800';
+      case 'owner': return 'bg-blue-100 text-blue-800';
+      case 'employee': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'superadmin': return <Shield className="w-4 h-4" />;
+      case 'owner': return <Settings className="w-4 h-4" />;
+      case 'employee': return <Users className="w-4 h-4" />;
+      default: return <Users className="w-4 h-4" />;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading users...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">
-            Manage system users, owners, and employees
-          </p>
+          <h1 className="text-3xl font-bold">User Management</h1>
+          <p className="text-muted-foreground">Manage system users and their permissions</p>
         </div>
         
-        <div className="flex gap-2">
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create User
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Create New User</DialogTitle>
-                <DialogDescription>
-                  Add a new user to the system
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={newUser.name}
-                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                      placeholder="Full name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      placeholder="email@example.com"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={newUser.phone}
-                      onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                      placeholder="+91-9999999999"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                      placeholder="Password"
-                    />
-                  </div>
-                </div>
+        <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New User</DialogTitle>
+              <DialogDescription>
+                Create a new user account in the system
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  value={newUser.name}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={newUser.phone}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+91-9876543210"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="Temporary password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Select value={newUser.role} onValueChange={(value: any) => setNewUser(prev => ({ ...prev, role: value, station_id: '' }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="superadmin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {newUser.role === 'employee' && (
                 <div>
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={newUser.role} onValueChange={(value: 'employee' | 'owner') => setNewUser({ ...newUser, role: value, create_first_station: false })}>
+                  <Label htmlFor="station">Assign to Station</Label>
+                  <Select value={newUser.station_id} onValueChange={(value) => setNewUser(prev => ({ ...prev, station_id: value }))}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select a station" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
+                      {stations?.map((station) => (
+                        <SelectItem key={station.id} value={station.id.toString()}>
+                          {station.name} ({station.brand})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+              <Button onClick={handleAddUser} disabled={addUserMutation.isPending} className="w-full">
+                {addUserMutation.isPending ? 'Creating...' : 'Create User'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-                {newUser.role === 'owner' && (
-                  <div className="space-y-4 p-4 border rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="create_first_station"
-                        checked={newUser.create_first_station}
-                        onChange={(e) => setNewUser({ ...newUser, create_first_station: e.target.checked })}
-                      />
-                      <Label htmlFor="create_first_station">Create first station for this owner</Label>
-                    </div>
-                    
-                    {newUser.create_first_station && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="station_name">Station Name</Label>
-                            <Input
-                              id="station_name"
-                              value={newUser.station_name}
-                              onChange={(e) => setNewUser({ ...newUser, station_name: e.target.value })}
-                              placeholder="Station name"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="station_brand">Brand</Label>
-                            <Select value={newUser.station_brand} onValueChange={(value: any) => setNewUser({ ...newUser, station_brand: value })}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="IOCL">IOCL</SelectItem>
-                                <SelectItem value="BPCL">BPCL</SelectItem>
-                                <SelectItem value="HPCL">HPCL</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor="station_address">Address</Label>
-                          <Input
-                            id="station_address"
-                            value={newUser.station_address}
-                            onChange={(e) => setNewUser({ ...newUser, station_address: e.target.value })}
-                            placeholder="Station address"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="plan">Plan</Label>
-                          <Select value={newUser.plan_id?.toString() || ''} onValueChange={(value) => setNewUser({ ...newUser, plan_id: value ? parseInt(value) : null })}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select plan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {plans.map((plan) => (
-                                <SelectItem key={plan.id} value={plan.id.toString()}>
-                                  {plan.name} - ₹{plan.price_monthly}/month
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {newUser.role === 'employee' && (
-                  <div>
-                    <Label htmlFor="station">Station</Label>
-                    <Select value={newUser.station_id?.toString() || ''} onValueChange={(value) => setNewUser({ ...newUser, station_id: value ? parseInt(value) : null })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select station" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stations.map((station) => (
-                          <SelectItem key={station.id} value={station.id.toString()}>
-                            {station.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                <Button onClick={createUser} disabled={loading} className="w-full">
-                  {loading ? 'Creating...' : 'Create User'}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {users?.map((userItem) => (
+          <Card key={userItem.id} className="relative">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    {getRoleIcon(userItem.role)}
+                    {userItem.name}
+                  </CardTitle>
+                  <CardDescription>{userItem.email}</CardDescription>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Badge className={getRoleColor(userItem.role)}>
+                    {userItem.role}
+                  </Badge>
+                  <Badge variant={userItem.is_active ? "default" : "secondary"}>
+                    {userItem.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm">
+                <div className="text-muted-foreground">Phone:</div>
+                <div>{userItem.phone || 'Not provided'}</div>
+              </div>
+              
+              {userItem.station_id && (
+                <div className="text-sm">
+                  <div className="text-muted-foreground">Station:</div>
+                  <div>{(userItem as any).stations?.name || 'Unknown Station'}</div>
+                </div>
+              )}
+              
+              <div className="text-sm text-muted-foreground">
+                Created: {new Date(userItem.created_at).toLocaleDateString()}
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant={userItem.is_active ? "destructive" : "default"}
+                  size="sm"
+                  onClick={() => handleToggleStatus(userItem.id, userItem.is_active)}
+                  disabled={toggleUserStatusMutation.isPending}
+                >
+                  {userItem.is_active ? 'Deactivate' : 'Activate'}
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {(!users || users.length === 0) && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
+          <CardContent className="pt-6 text-center">
+            <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No users found</h3>
+            <p className="text-muted-foreground mb-4">
+              Get started by creating user accounts for your system.
+            </p>
+            <Button onClick={() => setIsAddUserOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create First User
+            </Button>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Owners</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{owners.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Employees</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{employees.length}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>System Users</CardTitle>
-          <CardDescription>
-            All users in the system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Station</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => {
-                const userStations = user.stations || [];
-                return (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.role === 'owner' ? (
-                        <div className="flex items-center gap-1">
-                          <Building2 className="h-4 w-4" />
-                          <span>{userStations.length} stations</span>
-                        </div>
-                      ) : (
-                        userStations[0]?.name || 'No station'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={user.is_active ? 'default' : 'secondary'}>
-                        {user.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleUserStatus(user.id, user.is_active || false)}
-                        >
-                          {user.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteUser(user.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      )}
     </div>
   );
 }

@@ -1,1 +1,53 @@
+
 project_id = "untzkhbbsowpkmwrxdws"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+port = 54324
+external_url = "http://127.0.0.1:54321"
+additional_redirect_urls = ["https://untzkhbbsowpkmwrxdws.supabase.co"]
+jwt_expiry = 3600
+enable_signup = true
+enable_confirmations = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[db]
+enabled = true
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[functions.pumps-api]
+verify_jwt = false
+
+[functions.sales-api]
+verify_jwt = false
+
+[functions.nozzles-api]
+verify_jwt = false
+
+[realtime]
+enabled = true
+port = 54323
+tenant_id = "realtime-dev"
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1:54321"
+
+[storage]
+enabled = true
+port = 54321
+file_size_limit = "50MiB"
