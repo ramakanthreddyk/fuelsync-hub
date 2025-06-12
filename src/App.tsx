@@ -5,6 +5,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
+import Upload from '@/pages/Upload';
+import DailyClosure from '@/pages/DailyClosure';
 import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
 import AdminStations from '@/pages/AdminStations';
@@ -69,6 +71,8 @@ function App() {
                   <AppLayout>
                     <Routes>
                       <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/upload" element={<Upload />} />
+                      <Route path="/closure" element={<DailyClosure />} />
                       <Route path="/admin/users" element={<AdminUsers />} />
                       <Route path="/admin/stations" element={<AdminStations />} />
                       <Route path="/settings" element={<Settings />} />
