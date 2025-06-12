@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,7 +26,7 @@ export default function AdminUsers() {
     email: '',
     phone: '',
     password: '',
-    role: 'employee' as 'employee' | 'owner', // Fixed type annotation
+    role: 'employee' as 'employee' | 'owner',
     station_id: null as number | null,
     create_first_station: false,
     station_name: '',
@@ -465,8 +464,7 @@ export default function AdminUsers() {
             </TableHeader>
             <TableBody>
               {users.map((user) => {
-                const userStation = stations.find(s => s.id === user.station_id);
-                const userStations = stations.filter(s => s.owner_id === user.id);
+                const userStations = user.stations || [];
                 return (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
@@ -483,7 +481,7 @@ export default function AdminUsers() {
                           <span>{userStations.length} stations</span>
                         </div>
                       ) : (
-                        userStation?.name || 'No station'
+                        userStations[0]?.name || 'No station'
                       )}
                     </TableCell>
                     <TableCell>

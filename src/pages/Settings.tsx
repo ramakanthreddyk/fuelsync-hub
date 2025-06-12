@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,6 +44,8 @@ export default function Settings() {
   if (!user) {
     return <div>Loading...</div>;
   }
+
+  const currentStation = user?.stations?.[0];
 
   return (
     <div className="space-y-6">
@@ -101,9 +102,9 @@ export default function Settings() {
                   You have full system access
                 </p>
               </div>
-            ) : user.station_id ? (
+            ) : currentStation ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Station ID: {user.station_id}</p>
+                <p className="text-sm font-medium">Station ID: {currentStation.id}</p>
                 <p className="text-sm text-muted-foreground">
                   Station details and settings
                 </p>

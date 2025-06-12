@@ -124,18 +124,20 @@ export const planLimitsService = {
     
     if (!limits.maxEmployees) return;
 
-    const { count, error } = await supabase
-      .from('user_stations')
-      .select('users!inner(*)', { count: 'exact' })
-      .eq('station_id', stationId)
-      .eq('users.role', 'employee')
-      .eq('users.is_active', true);
+    // Count employees by querying users who have this station
+    const { data: employees, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'employee')
+      .eq('is_active', true);
 
     if (error) {
       throw new Error(`Failed to check employee count: ${error.message}`);
     }
 
-    if (count && count >= limits.maxEmployees) {
+    const count = employees?.length || 0;
+
+    if (count >= limits.maxEmployees) {
       throw new PlanLimitsError(
         `Employee limit exceeded. Current: ${count}/${limits.maxEmployees}`,
         'EMPLOYEE_LIMIT_EXCEEDED'

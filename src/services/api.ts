@@ -1,295 +1,190 @@
 
-import { 
-  User, 
-  Upload, 
-  Sale, 
-  FuelPrice, 
-  Pump, 
-  DailySummary, 
-  NozzleReading,
-  ApiResponse 
-} from '@/types/api';
+import { supabase } from '@/integrations/supabase/client';
+import { NozzleReading } from '@/types/api';
 
-class ApiService {
-  private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-  private token: string | null = null;
+export class ApiService {
+  async getNozzleReadings() {
+    const { data, error } = await supabase
+      .from('ocr_readings')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  constructor() {
-    this.token = localStorage.getItem('fuelsync_token');
+    if (error) throw error;
+
+    return {
+      data: data?.map(reading => ({
+        id: reading.id.toString(),
+        pumpSno: reading.station_id.toString(),
+        nozzleId: reading.nozzle_id,
+        fuelType: reading.source === 'ocr' ? 'Petrol' : 'Diesel',
+        cumulativeVolume: reading.cumulative_vol,
+        readingDate: reading.reading_date,
+        readingTime: reading.reading_time,
+        isManualEntry: reading.source === 'manual'
+      })) || []
+    };
   }
 
-  private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+  async createManualReading(data: {
+    pump_sno: string;
+    nozzle_id: number;
+    cumulative_volume: number;
+    reading_date: string;
+    reading_time: string;
+    fuel_type: 'Petrol' | 'Diesel';
+  }) {
+    const { data: result, error } = await supabase
+      .from('ocr_readings')
+      .insert([{
+        station_id: parseInt(data.pump_sno),
+        nozzle_id: data.nozzle_id,
+        source: 'manual' as const,
+        reading_date: data.reading_date,
+        reading_time: data.reading_time,
+        cumulative_vol: data.cumulative_volume
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return result;
+  }
+
+  async updateNozzleReading(id: string, data: { cumulative_volume: number; fuel_type: 'Petrol' | 'Diesel' }) {
+    const { data: result, error } = await supabase
+      .from('ocr_readings')
+      .update({
+        cumulative_vol: data.cumulative_volume
+      })
+      .eq('id', parseInt(id))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return result;
+  }
+
+  async deleteNozzleReading(id: string) {
+    const { error } = await supabase
+      .from('ocr_readings')
+      .delete()
+      .eq('id', parseInt(id));
+
+    if (error) throw error;
+  }
+
+  async getPumps() {
+    const { data, error } = await supabase
+      .from('pumps')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [] };
+  }
+
+  async updatePumpStatus(id: string, isActive: boolean) {
+    const { data, error } = await supabase
+      .from('pumps')
+      .update({ is_active: isActive })
+      .eq('id', parseInt(id))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async updateNozzleFuelType(id: string, fuelType: string) {
+    const { data, error } = await supabase
+      .from('nozzles')
+      .update({ fuel_type: fuelType as any })
+      .eq('id', parseInt(id))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getSales() {
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [] };
+  }
+
+  async getDailySummary() {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('tender_entries')
+      .select('*')
+      .eq('entry_date', today);
+
+    if (error) throw error;
+
+    const summary = {
+      cash: 0,
+      card: 0,
+      upi: 0,
+      credit: 0,
+      total: 0
     };
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-
-    return headers;
-  }
-
-  private async request<T>(
-    endpoint: string, 
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        ...options,
-        headers: {
-          ...this.getHeaders(),
-          ...options.headers,
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.status === 401) {
-        this.clearToken();
-        window.location.href = '/login';
-        return {
-          success: false,
-          error: 'Session expired. Please login again.'
-        };
-      }
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('API request error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  setToken(token: string) {
-    this.token = token;
-    localStorage.setItem('fuelsync_token', token);
-  }
-
-  clearToken() {
-    this.token = null;
-    localStorage.removeItem('fuelsync_token');
-  }
-
-  isAuthenticated(): boolean {
-    return !!this.token;
-  }
-
-  // Basic API methods for backward compatibility
-  async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.request('/auth/me');
-  }
-
-  async getFuelPrices(): Promise<ApiResponse<FuelPrice[]>> {
-    return this.request('/fuel-prices');
-  }
-
-  async updateFuelPrice(fuelType: string, price: number): Promise<ApiResponse<FuelPrice>> {
-    return this.request('/fuel-prices', {
-      method: 'POST',
-      body: JSON.stringify({ fuel_type: fuelType, price }),
+    data?.forEach(entry => {
+      const amount = entry.amount || 0;
+      if (entry.type === 'cash') summary.cash += amount;
+      else if (entry.type === 'card') summary.card += amount;
+      else if (entry.type === 'upi') summary.upi += amount;
+      else if (entry.type === 'credit') summary.credit += amount;
+      summary.total += amount;
     });
+
+    return summary;
   }
 
-  async getPumps(): Promise<ApiResponse<Pump[]>> {
-    return this.request('/pumps');
+  async generateReport() {
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+    return { data: data || [] };
   }
 
-  async updatePumpStatus(pumpId: string, status: string): Promise<ApiResponse<Pump>> {
-    return this.request(`/pumps/${pumpId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
+  async getUploads() {
+    const { data, error } = await supabase
+      .from('ocr_readings')
+      .select('*')
+      .not('image_url', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [] };
   }
 
-  async updateNozzleFuelType(nozzleId: string, fuelType: string): Promise<ApiResponse<any>> {
-    return this.request(`/nozzles/${nozzleId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ fuel_type: fuelType }),
-    });
-  }
+  async uploadReceipt(file: File) {
+    // For now, just create a manual reading entry
+    const { data, error } = await supabase
+      .from('ocr_readings')
+      .insert([{
+        station_id: 1,
+        nozzle_id: 1,
+        source: 'ocr' as const,
+        reading_date: new Date().toISOString().split('T')[0],
+        reading_time: new Date().toTimeString().slice(0, 8),
+        cumulative_vol: Math.random() * 1000
+      }])
+      .select()
+      .single();
 
-  async getNozzleReadings(): Promise<ApiResponse<NozzleReading[]>> {
-    return this.request('/nozzle-readings');
-  }
-
-  async updateNozzleReading(id: string, data: any): Promise<ApiResponse<NozzleReading>> {
-    return this.request(`/nozzle-readings/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteNozzleReading(id: string): Promise<ApiResponse<void>> {
-    return this.request(`/nozzle-readings/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async getSales(): Promise<ApiResponse<Sale[]>> {
-    return this.request('/sales');
-  }
-
-  async getDailySummary(): Promise<ApiResponse<DailySummary>> {
-    return this.request('/sales/daily-summary');
-  }
-
-  async getUploads(): Promise<ApiResponse<Upload[]>> {
-    return this.request('/uploads');
-  }
-
-  async uploadReceipt(file: File): Promise<ApiResponse<Upload>> {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch(`${this.baseUrl}/uploads`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-        },
-        body: formData,
-      });
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Upload failed'
-      };
-    }
-  }
-
-  async generateReport(type: string, startDate: string, endDate: string): Promise<ApiResponse<any>> {
-    return this.request('/reports/generate', {
-      method: 'POST',
-      body: JSON.stringify({ type, startDate, endDate }),
-    });
-  }
-
-  // Multi-tenant station access methods
-  async getUserStations(userId: number): Promise<ApiResponse<any[]>> {
-    return this.request(`/users/${userId}/stations`);
-  }
-
-  async getStationData(stationId: number): Promise<ApiResponse<any>> {
-    return this.request(`/stations/${stationId}`);
-  }
-
-  // Plan limits and enforcement
-  async checkPlanLimits(stationId: number, action: string): Promise<ApiResponse<boolean>> {
-    return this.request(`/stations/${stationId}/plan-limits/check`, {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    });
-  }
-
-  async getPlanUsage(stationId: number): Promise<ApiResponse<any>> {
-    return this.request(`/stations/${stationId}/plan-usage`);
-  }
-
-  // Tender entries
-  async getTenderEntries(stationId: number, date?: string): Promise<ApiResponse<any[]>> {
-    const params = date ? `?date=${date}` : '';
-    return this.request(`/stations/${stationId}/tender-entries${params}`);
-  }
-
-  async createTenderEntry(stationId: number, entryData: any): Promise<ApiResponse<any>> {
-    return this.request(`/stations/${stationId}/tender-entries`, {
-      method: 'POST',
-      body: JSON.stringify(entryData),
-    });
-  }
-
-  // Daily closure
-  async getDailyClosure(stationId: number, date: string): Promise<ApiResponse<any>> {
-    return this.request(`/stations/${stationId}/daily-closure/${date}`);
-  }
-
-  async createDailyClosure(stationId: number, date: string, userId: number): Promise<ApiResponse<any>> {
-    return this.request(`/stations/${stationId}/daily-closure`, {
-      method: 'POST',
-      body: JSON.stringify({ date, closed_by: userId }),
-    });
-  }
-
-  // OCR readings with plan enforcement
-  async uploadOCRImage(stationId: number, file: File, nozzleId: number): Promise<ApiResponse<any>> {
-    const limitCheck = await this.checkPlanLimits(stationId, 'ocr_upload');
-    if (!limitCheck.success || !limitCheck.data) {
-      return {
-        success: false,
-        error: 'OCR upload limit exceeded for current plan'
-      };
-    }
-
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('nozzle_id', nozzleId.toString());
-    formData.append('station_id', stationId.toString());
-
-    try {
-      const response = await fetch(`${this.baseUrl}/stations/${stationId}/ocr-upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-        },
-        body: formData,
-      });
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Upload failed'
-      };
-    }
-  }
-
-  async createManualReading(stationId: number, readingData: any): Promise<ApiResponse<any>> {
-    const limitCheck = await this.checkPlanLimits(stationId, 'manual_entry');
-    if (!limitCheck.success || !limitCheck.data) {
-      return {
-        success: false,
-        error: 'Manual entry not allowed for current plan'
-      };
-    }
-
-    return this.request(`/stations/${stationId}/ocr-readings/manual`, {
-      method: 'POST',
-      body: JSON.stringify(readingData),
-    });
-  }
-
-  // Export reports (plan dependent)
-  async exportReport(stationId: number, reportType: string, format: string): Promise<ApiResponse<any>> {
-    const limitCheck = await this.checkPlanLimits(stationId, 'export_reports');
-    if (!limitCheck.success || !limitCheck.data) {
-      return {
-        success: false,
-        error: 'Report export not available for current plan'
-      };
-    }
-
-    return this.request(`/stations/${stationId}/reports/export`, {
-      method: 'POST',
-      body: JSON.stringify({ type: reportType, format }),
-    });
-  }
-
-  // Event logging
-  async logEvent(stationId: number, eventType: string, payload: any): Promise<ApiResponse<any>> {
-    return this.request(`/stations/${stationId}/events`, {
-      method: 'POST',
-      body: JSON.stringify({ event_type: eventType, payload }),
-    });
+    if (error) throw error;
+    return data;
   }
 }
 

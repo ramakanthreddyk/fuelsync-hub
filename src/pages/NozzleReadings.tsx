@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,14 +33,7 @@ const NozzleReadings = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => apiService.createManualReading({
-      pump_sno: data.pump_sno,
-      nozzle_id: data.nozzle_id,
-      cumulative_volume: data.cumulative_volume,
-      reading_date: data.reading_date,
-      reading_time: data.reading_time,
-      fuel_type: data.fuel_type
-    }),
+    mutationFn: (data: typeof formData) => apiService.createManualReading(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['nozzle-readings'] });
       setIsCreateDialogOpen(false);

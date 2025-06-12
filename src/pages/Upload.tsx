@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { apiService } from '@/services/api';
 import { Upload as UploadType } from '@/types/api';
 import { useToast } from "@/hooks/use-toast";
 
-const Upload = () => {
+export default function Upload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pumpSno, setPumpSno] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -27,25 +26,13 @@ const Upload = () => {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (data: { file: File; pumpSno: string }) => 
-      apiService.uploadReceipt(data.file, data.pumpSno),
+    mutationFn: (file: File) => apiService.uploadReceipt(file),
     onSuccess: () => {
-      toast({
-        title: "Upload Successful",
-        description: "Your receipt has been uploaded for OCR processing.",
-      });
-      setSelectedFile(null);
-      setPumpSno('');
-      setUploadProgress(0);
       queryClient.invalidateQueries({ queryKey: ['uploads'] });
+      toast.success('File uploaded successfully');
     },
     onError: (error: any) => {
-      toast({
-        title: "Upload Failed",
-        description: error.message || "There was an error uploading your receipt. Please try again.",
-        variant: "destructive",
-      });
-      setUploadProgress(0);
+      toast.error(error.message || 'Failed to upload file');
     }
   });
 
@@ -71,7 +58,7 @@ const Upload = () => {
         setUploadProgress(prev => {
           if (prev >= 100) {
             clearInterval(interval);
-            uploadMutation.mutate({ file: selectedFile, pumpSno: pumpSno.trim() });
+            uploadMutation.mutate(selectedFile);
             return 100;
           }
           return prev + 10;
@@ -259,5 +246,3 @@ const Upload = () => {
     </div>
   );
 };
-
-export default Upload;

@@ -53,39 +53,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (email: string) => {
     try {
-      const { data, error } = await supabase
+      // First get the user
+      const { data: userData, error: userError } = await supabase
         .from('users')
-        .select(`
-          *,
-          user_stations!inner(
-            stations(
+        .select('*')
+        .eq('email', email)
+        .eq('is_active', true)
+        .single();
+
+      if (userError || !userData) {
+        console.error('Error fetching user data:', userError);
+        return null;
+      }
+
+      // Then get the stations for this user
+      let stations = [];
+      if (userData.role === 'owner') {
+        // For owners, get stations they own
+        const { data: stationsData, error: stationsError } = await supabase
+          .from('stations')
+          .select('id, name, brand, address')
+          .eq('owner_id', userData.id);
+
+        if (!stationsError && stationsData) {
+          stations = stationsData;
+        }
+      } else if (userData.role === 'employee') {
+        // For employees, get stations via user_stations join table
+        const { data: userStationsData, error: userStationsError } = await supabase
+          .from('user_stations')
+          .select(`
+            stations (
               id,
               name,
               brand,
               address
             )
-          )
-        `)
-        .eq('email', email)
-        .eq('is_active', true)
-        .single();
+          `)
+          .eq('user_id', userData.id);
 
-      if (error) {
-        console.error('Error fetching user data:', error);
-        return null;
+        if (!userStationsError && userStationsData) {
+          stations = userStationsData.map((us: any) => us.stations).filter(Boolean);
+        }
       }
 
       // Transform the data to match our User interface
       const transformedUser: User = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        role: data.role,
-        is_active: data.is_active,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        stations: data.user_stations?.map((us: any) => us.stations) || []
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone,
+        role: userData.role,
+        is_active: userData.is_active,
+        created_at: userData.created_at,
+        updated_at: userData.updated_at,
+        stations: stations || []
       };
 
       return transformedUser;

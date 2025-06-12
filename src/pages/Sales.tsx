@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,56 +9,46 @@ import { Sale, DailySummary } from '@/types/api';
 import MetricCard from '@/components/MetricCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-const Sales = () => {
+export default function Sales() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   console.log('📊 Sales page rendering for date:', selectedDate);
 
-  const { data: salesData, isLoading: salesLoading } = useQuery({
+  const { data: sales, isLoading: salesLoading } = useQuery({
     queryKey: ['sales'],
-    queryFn: async () => {
-      console.log('🔄 Fetching sales data...');
-      const response = await apiService.getSales();
-      console.log('✅ Sales data fetched:', response.data?.length, 'records');
-      return response.data || [];
-    }
+    queryFn: () => apiService.getSales()
   });
 
-  const { data: summaryData, isLoading: summaryLoading } = useQuery({
-    queryKey: ['daily-summary', selectedDate],
-    queryFn: async () => {
-      console.log('🔄 Fetching daily summary for:', selectedDate);
-      const response = await apiService.getDailySummary(selectedDate);
-      console.log('✅ Daily summary fetched:', response.data);
-      return response.data;
-    }
+  const { data: dailySummary, isLoading: summaryLoading } = useQuery({
+    queryKey: ['daily-summary'],
+    queryFn: () => apiService.getDailySummary()
   });
 
   // Chart data from real sales data
-  const fuelTypeData = summaryData ? [
+  const fuelTypeData = dailySummary ? [
     { 
       name: 'Petrol', 
-      value: summaryData.fuelTypeBreakdown.petrol.revenue, 
-      litres: summaryData.fuelTypeBreakdown.petrol.litres,
-      transactions: summaryData.fuelTypeBreakdown.petrol.transactions
+      value: dailySummary.fuelTypeBreakdown.petrol.revenue, 
+      litres: dailySummary.fuelTypeBreakdown.petrol.litres,
+      transactions: dailySummary.fuelTypeBreakdown.petrol.transactions
     },
     { 
       name: 'Diesel', 
-      value: summaryData.fuelTypeBreakdown.diesel.revenue, 
-      litres: summaryData.fuelTypeBreakdown.diesel.litres,
-      transactions: summaryData.fuelTypeBreakdown.diesel.transactions
+      value: dailySummary.fuelTypeBreakdown.diesel.revenue, 
+      litres: dailySummary.fuelTypeBreakdown.diesel.litres,
+      transactions: dailySummary.fuelTypeBreakdown.diesel.transactions
     }
   ] : [];
 
   // Generate hourly data from sales transactions
   const hourlyData = React.useMemo(() => {
-    if (!salesData || salesData.length === 0) {
+    if (!sales || sales.length === 0) {
       return [];
     }
 
     const hourlyMap = {};
     
-    salesData.forEach((sale: Sale) => {
+    sales.forEach((sale: Sale) => {
       const hour = new Date(sale.timestamp).getHours();
       const hourRange = `${hour}:00-${hour + 1}:00`;
       
@@ -76,7 +65,7 @@ const Sales = () => {
       const bHour = parseInt(b.hour.split(':')[0]);
       return aHour - bHour;
     });
-  }, [salesData]);
+  }, [sales]);
 
   const COLORS = ['#ff6b35', '#1e3a8a'];
 
@@ -115,12 +104,12 @@ const Sales = () => {
       </div>
 
       {/* Summary Cards */}
-      {summaryData ? (
+      {dailySummary ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard
             title="Today's Revenue"
-            value={`₹${summaryData.totalRevenue.toLocaleString()}`}
-            subtitle={`${summaryData.totalLitres}L sold`}
+            value={`₹${dailySummary.totalRevenue.toLocaleString()}`}
+            subtitle={`${dailySummary.totalLitres}L sold`}
             icon="💰"
             trend={{ value: 12.5, label: 'vs yesterday', direction: 'up' }}
             gradient
@@ -128,7 +117,7 @@ const Sales = () => {
           
           <MetricCard
             title="Transactions"
-            value={summaryData.totalTransactions}
+            value={dailySummary.totalTransactions}
             subtitle="completed today"
             icon="🧾"
             trend={{ value: 8.3, label: 'vs yesterday', direction: 'up' }}
@@ -136,15 +125,15 @@ const Sales = () => {
           
           <MetricCard
             title="Petrol Sales"
-            value={`${summaryData.fuelTypeBreakdown.petrol.litres}L`}
-            subtitle={`₹${summaryData.fuelTypeBreakdown.petrol.revenue.toLocaleString()}`}
+            value={`${dailySummary.fuelTypeBreakdown.petrol.litres}L`}
+            subtitle={`₹${dailySummary.fuelTypeBreakdown.petrol.revenue.toLocaleString()}`}
             icon="⛽"
           />
           
           <MetricCard
             title="Diesel Sales"
-            value={`${summaryData.fuelTypeBreakdown.diesel.litres}L`}
-            subtitle={`₹${summaryData.fuelTypeBreakdown.diesel.revenue.toLocaleString()}`}
+            value={`${dailySummary.fuelTypeBreakdown.diesel.litres}L`}
+            subtitle={`₹${dailySummary.fuelTypeBreakdown.diesel.revenue.toLocaleString()}`}
             icon="🚛"
           />
         </div>
@@ -275,8 +264,8 @@ const Sales = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {salesData && salesData.length > 0 ? (
-                  salesData.map((sale: Sale) => (
+                {sales && sales.length > 0 ? (
+                  sales.map((sale: Sale) => (
                     <div key={sale.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{sale.fuelType === 'Petrol' ? '⛽' : '🚛'}</span>
@@ -314,5 +303,3 @@ const Sales = () => {
     </div>
   );
 };
-
-export default Sales;
