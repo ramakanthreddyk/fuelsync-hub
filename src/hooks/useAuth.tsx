@@ -1,13 +1,15 @@
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
+
+type UserRole = Database['public']['Enums']['user_role'];
 
 interface User {
   id: number;
   name: string | null;
   email: string;
   phone: string | null;
-  role: 'superadmin' | 'owner' | 'employee';
+  role: UserRole;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -79,14 +81,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           stations = stationsData;
         }
       } else if (userData.role === 'employee') {
-        // For employees, get stations via direct SQL query since user_stations table might not be properly set up
-        // For now, we'll get the first available station as a fallback
+        // For employees, get stations via user_stations table
+        const { data: userStationsData, error: userStationsError } = await supabase
+          .from('user_stations')
+          .select(`
+            stations (
+              id,
+              name,
+              brand,
+              address
+            )
+          `)
+          .eq('user_id', userData.id);
+
+        if (!userStationsError && userStationsData) {
+          stations = userStationsData.map((us: any) => us.stations).filter(Boolean);
+        }
+      } else if (userData.role === 'superadmin') {
+        // For superadmin, get all stations
         const { data: stationsData, error: stationsError } = await supabase
           .from('stations')
           .select('id, name, brand, address')
-          .limit(1);
+          .limit(5); // Limit for demo
 
-        if (!stationsError && stationsData && stationsData.length > 0) {
+        if (!stationsError && stationsData) {
           stations = stationsData;
         }
       }
@@ -119,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid credentials or account not found');
       }
 
+      // For demo purposes, we'll accept the passwords from the seed data
+      // In production, you'd verify the password hash
       console.log('Login attempt for:', email);
 
       setUser(userData);
