@@ -10,7 +10,6 @@ import {
   ApiResponse 
 } from '@/types/api';
 
-// API Service Class for multi-tenant fuel station management
 class ApiService {
   private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
   private token: string | null = null;
@@ -83,6 +82,98 @@ class ApiService {
     return !!this.token;
   }
 
+  // Basic API methods for backward compatibility
+  async getCurrentUser(): Promise<ApiResponse<User>> {
+    return this.request('/auth/me');
+  }
+
+  async getFuelPrices(): Promise<ApiResponse<FuelPrice[]>> {
+    return this.request('/fuel-prices');
+  }
+
+  async updateFuelPrice(fuelType: string, price: number): Promise<ApiResponse<FuelPrice>> {
+    return this.request('/fuel-prices', {
+      method: 'POST',
+      body: JSON.stringify({ fuel_type: fuelType, price }),
+    });
+  }
+
+  async getPumps(): Promise<ApiResponse<Pump[]>> {
+    return this.request('/pumps');
+  }
+
+  async updatePumpStatus(pumpId: string, status: string): Promise<ApiResponse<Pump>> {
+    return this.request(`/pumps/${pumpId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async updateNozzleFuelType(nozzleId: string, fuelType: string): Promise<ApiResponse<any>> {
+    return this.request(`/nozzles/${nozzleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fuel_type: fuelType }),
+    });
+  }
+
+  async getNozzleReadings(): Promise<ApiResponse<NozzleReading[]>> {
+    return this.request('/nozzle-readings');
+  }
+
+  async updateNozzleReading(id: string, data: any): Promise<ApiResponse<NozzleReading>> {
+    return this.request(`/nozzle-readings/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteNozzleReading(id: string): Promise<ApiResponse<void>> {
+    return this.request(`/nozzle-readings/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getSales(): Promise<ApiResponse<Sale[]>> {
+    return this.request('/sales');
+  }
+
+  async getDailySummary(): Promise<ApiResponse<DailySummary>> {
+    return this.request('/sales/daily-summary');
+  }
+
+  async getUploads(): Promise<ApiResponse<Upload[]>> {
+    return this.request('/uploads');
+  }
+
+  async uploadReceipt(file: File): Promise<ApiResponse<Upload>> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/uploads`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+        body: formData,
+      });
+
+      return await response.json();
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Upload failed'
+      };
+    }
+  }
+
+  async generateReport(type: string, startDate: string, endDate: string): Promise<ApiResponse<any>> {
+    return this.request('/reports/generate', {
+      method: 'POST',
+      body: JSON.stringify({ type, startDate, endDate }),
+    });
+  }
+
   // Multi-tenant station access methods
   async getUserStations(userId: number): Promise<ApiResponse<any[]>> {
     return this.request(`/users/${userId}/stations`);
@@ -102,23 +193,6 @@ class ApiService {
 
   async getPlanUsage(stationId: number): Promise<ApiResponse<any>> {
     return this.request(`/stations/${stationId}/plan-usage`);
-  }
-
-  // Fuel prices with historical tracking
-  async getFuelPrices(stationId: number): Promise<ApiResponse<FuelPrice[]>> {
-    return this.request(`/stations/${stationId}/fuel-prices`);
-  }
-
-  async updateFuelPrice(
-    stationId: number, 
-    fuelType: string, 
-    price: number,
-    userId: number
-  ): Promise<ApiResponse<FuelPrice>> {
-    return this.request(`/stations/${stationId}/fuel-prices`, {
-      method: 'POST',
-      body: JSON.stringify({ fuel_type: fuelType, price_per_litre: price, created_by: userId }),
-    });
   }
 
   // Tender entries
@@ -148,7 +222,6 @@ class ApiService {
 
   // OCR readings with plan enforcement
   async uploadOCRImage(stationId: number, file: File, nozzleId: number): Promise<ApiResponse<any>> {
-    // Check plan limits first
     const limitCheck = await this.checkPlanLimits(stationId, 'ocr_upload');
     if (!limitCheck.success || !limitCheck.data) {
       return {
@@ -181,7 +254,6 @@ class ApiService {
   }
 
   async createManualReading(stationId: number, readingData: any): Promise<ApiResponse<any>> {
-    // Check if manual entry is allowed
     const limitCheck = await this.checkPlanLimits(stationId, 'manual_entry');
     if (!limitCheck.success || !limitCheck.data) {
       return {

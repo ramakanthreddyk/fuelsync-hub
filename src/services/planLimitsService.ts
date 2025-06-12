@@ -2,112 +2,150 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PlanLimits {
-  max_pumps: number;
-  max_nozzles: number;
-  max_employees: number;
-  max_ocr_monthly: number;
-  allow_manual_entry: boolean;
-  edit_fuel_type: boolean;
-  export_reports: boolean;
+  maxPumps: number | null;
+  maxNozzles: number | null;
+  maxEmployees: number | null;
+  maxOcrMonthly: number | null;
+  allowManualEntry: boolean;
+  editFuelType: boolean;
+  exportReports: boolean;
 }
 
 export interface PlanUsage {
-  ocr_count: number;
-  pumps_used: number;
-  nozzles_used: number;
-  employees_count: number;
+  ocrCount: number;
+  pumpsUsed: number;
+  nozzlesUsed: number;
+  employeesCount: number;
+}
+
+export class PlanLimitsError extends Error {
+  constructor(message: string, public code: string = 'PLAN_LIMIT_EXCEEDED') {
+    super(message);
+    this.name = 'PlanLimitsError';
+  }
 }
 
 export const planLimitsService = {
-  async getPlanLimits(stationId: number): Promise<PlanLimits | null> {
-    try {
-      const { data, error } = await supabase
-        .from('stations')
-        .select(`
-          plans:current_plan_id(
-            max_pumps,
-            max_nozzles,
-            max_employees,
-            max_ocr_monthly,
-            allow_manual_entry,
-            edit_fuel_type,
-            export_reports
-          )
-        `)
-        .eq('id', stationId)
-        .single();
+  async getPlanLimits(stationId: number): Promise<PlanLimits> {
+    const { data, error } = await supabase
+      .from('stations')
+      .select(`
+        current_plan_id,
+        plans:current_plan_id(
+          max_pumps,
+          max_nozzles,
+          max_employees,
+          max_ocr_monthly,
+          allow_manual_entry,
+          edit_fuel_type,
+          export_reports
+        )
+      `)
+      .eq('id', stationId)
+      .single();
 
-      if (error || !data?.plans) {
-        throw new Error('Could not fetch plan limits');
-      }
-
-      return data.plans as PlanLimits;
-    } catch (error) {
-      console.error('Error fetching plan limits:', error);
-      return null;
+    if (error || !data) {
+      throw new Error('Station not found');
     }
+
+    const plan = data.plans as any;
+    return {
+      maxPumps: plan?.max_pumps || null,
+      maxNozzles: plan?.max_nozzles || null,
+      maxEmployees: plan?.max_employees || null,
+      maxOcrMonthly: plan?.max_ocr_monthly || null,
+      allowManualEntry: plan?.allow_manual_entry ?? true,
+      editFuelType: plan?.edit_fuel_type ?? true,
+      exportReports: plan?.export_reports ?? false,
+    };
   },
 
   async getCurrentUsage(stationId: number): Promise<PlanUsage> {
-    try {
-      const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
-      
-      const { data: usage, error } = await supabase
-        .from('plan_usage')
-        .select('*')
-        .eq('station_id', stationId)
-        .eq('month', currentMonth)
-        .single();
+    const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
+    
+    const { data, error } = await supabase
+      .from('plan_usage')
+      .select('*')
+      .eq('station_id', stationId)
+      .eq('month', currentMonth)
+      .single();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`Failed to fetch plan usage: ${error.message}`);
+    }
 
-      return usage || {
-        ocr_count: 0,
-        pumps_used: 0,
-        nozzles_used: 0,
-        employees_count: 0
-      };
-    } catch (error) {
-      console.error('Error fetching usage:', error);
-      return {
-        ocr_count: 0,
-        pumps_used: 0,
-        nozzles_used: 0,
-        employees_count: 0
-      };
+    return {
+      ocrCount: data?.ocr_count || 0,
+      pumpsUsed: data?.pumps_used || 0,
+      nozzlesUsed: data?.nozzles_used || 0,
+      employeesCount: data?.employees_count || 0,
+    };
+  },
+
+  async checkOCRLimit(stationId: number): Promise<void> {
+    const [limits, usage] = await Promise.all([
+      this.getPlanLimits(stationId),
+      this.getCurrentUsage(stationId)
+    ]);
+
+    if (limits.maxOcrMonthly && usage.ocrCount >= limits.maxOcrMonthly) {
+      throw new PlanLimitsError(
+        `OCR limit exceeded. Current usage: ${usage.ocrCount}/${limits.maxOcrMonthly}`,
+        'OCR_LIMIT_EXCEEDED'
+      );
     }
   },
 
-  async checkOCRLimit(stationId: number): Promise<boolean> {
+  async checkPumpLimit(stationId: number): Promise<void> {
     const limits = await this.getPlanLimits(stationId);
-    const usage = await this.getCurrentUsage(stationId);
     
-    if (!limits) return false;
-    
-    return usage.ocr_count < limits.max_ocr_monthly;
+    if (!limits.maxPumps) return;
+
+    const { count, error } = await supabase
+      .from('pumps')
+      .select('*', { count: 'exact' })
+      .eq('station_id', stationId)
+      .eq('is_active', true);
+
+    if (error) {
+      throw new Error(`Failed to check pump count: ${error.message}`);
+    }
+
+    if (count && count >= limits.maxPumps) {
+      throw new PlanLimitsError(
+        `Pump limit exceeded. Current: ${count}/${limits.maxPumps}`,
+        'PUMP_LIMIT_EXCEEDED'
+      );
+    }
   },
 
-  async checkPumpLimit(stationId: number): Promise<boolean> {
+  async checkEmployeeLimit(stationId: number): Promise<void> {
     const limits = await this.getPlanLimits(stationId);
-    const usage = await this.getCurrentUsage(stationId);
     
-    if (!limits) return false;
-    
-    return usage.pumps_used < limits.max_pumps;
-  },
+    if (!limits.maxEmployees) return;
 
-  async checkEmployeeLimit(stationId: number): Promise<boolean> {
-    const limits = await this.getPlanLimits(stationId);
-    const usage = await this.getCurrentUsage(stationId);
-    
-    if (!limits) return false;
-    
-    return usage.employees_count < limits.max_employees;
+    const { count, error } = await supabase
+      .from('user_stations')
+      .select('users!inner(*)', { count: 'exact' })
+      .eq('station_id', stationId)
+      .eq('users.role', 'employee')
+      .eq('users.is_active', true);
+
+    if (error) {
+      throw new Error(`Failed to check employee count: ${error.message}`);
+    }
+
+    if (count && count >= limits.maxEmployees) {
+      throw new PlanLimitsError(
+        `Employee limit exceeded. Current: ${count}/${limits.maxEmployees}`,
+        'EMPLOYEE_LIMIT_EXCEEDED'
+      );
+    }
   },
 
   async incrementOCRUsage(stationId: number): Promise<void> {
+    await this.checkOCRLimit(stationId);
+    
     const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
     
     const { error } = await supabase.rpc('increment_ocr_usage', {
@@ -116,29 +154,25 @@ export const planLimitsService = {
     });
 
     if (error) {
-      console.error('Error incrementing OCR usage:', error);
+      throw new Error(`Failed to increment OCR usage: ${error.message}`);
     }
   },
 
-  async updatePumpUsage(stationId: number): Promise<void> {
-    const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
-    
-    const { data: pumpCount } = await supabase
+  async updatePumpCount(stationId: number): Promise<void> {
+    const { count } = await supabase
       .from('pumps')
-      .select('id', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('station_id', stationId)
       .eq('is_active', true);
 
-    const { error } = await supabase
+    const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
+    
+    await supabase
       .from('plan_usage')
       .upsert({
         station_id: stationId,
         month: currentMonth,
-        pumps_used: pumpCount?.length || 0
+        pumps_used: count || 0
       });
-
-    if (error) {
-      console.error('Error updating pump usage:', error);
-    }
   }
 };

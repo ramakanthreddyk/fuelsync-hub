@@ -1,7 +1,23 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User } from '@/types/database';
+
+interface User {
+  id: number;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  role: 'superadmin' | 'owner' | 'employee';
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  stations: Array<{
+    id: number;
+    name: string;
+    brand: string;
+    address: string | null;
+  }>;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -41,8 +57,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('users')
         .select(`
           *,
-          user_stations!inner(station_id),
-          stations:user_stations(stations(*))
+          user_stations!inner(
+            stations(
+              id,
+              name,
+              brand,
+              address
+            )
+          )
         `)
         .eq('email', email)
         .eq('is_active', true)
@@ -53,7 +75,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      return data;
+      // Transform the data to match our User interface
+      const transformedUser: User = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+        is_active: data.is_active,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        stations: data.user_stations?.map((us: any) => us.stations) || []
+      };
+
+      return transformedUser;
     } catch (error) {
       console.error('Error fetching user data:', error);
       return null;
@@ -68,7 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid credentials or account not found');
       }
 
-      // For demo purposes, we'll skip password verification
       console.log('Login attempt for:', email);
 
       setUser(userData);

@@ -6,7 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 // Mock Supabase
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: vi.fn()
+    from: vi.fn(),
+    rpc: vi.fn()
   }
 }));
 
@@ -17,7 +18,7 @@ describe('PlanLimitsService', () => {
     vi.clearAllMocks();
   });
 
-  describe('checkPlanLimits', () => {
+  describe('getPlanLimits', () => {
     it('should return plan limits for a station', async () => {
       const mockPlan = {
         plans: {
@@ -39,7 +40,7 @@ describe('PlanLimitsService', () => {
         })
       });
 
-      const limits = await planLimitsService.checkPlanLimits(1);
+      const limits = await planLimitsService.getPlanLimits(1);
 
       expect(limits).toEqual({
         maxPumps: 5,
@@ -61,7 +62,7 @@ describe('PlanLimitsService', () => {
         })
       });
 
-      await expect(planLimitsService.checkPlanLimits(999)).rejects.toThrow('Station not found');
+      await expect(planLimitsService.getPlanLimits(999)).rejects.toThrow('Station not found');
     });
   });
 
@@ -89,7 +90,7 @@ describe('PlanLimitsService', () => {
       });
 
       await expect(planLimitsService.checkPumpLimit(1)).rejects.toThrow(PlanLimitsError);
-      await expect(planLimitsService.checkPumpLimit(1)).rejects.toThrow('PLAN_LIMIT_EXCEEDED');
+      await expect(planLimitsService.checkPumpLimit(1)).rejects.toThrow('PUMP_LIMIT_EXCEEDED');
     });
 
     it('should not throw error when under pump limit', async () => {

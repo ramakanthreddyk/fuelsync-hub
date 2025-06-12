@@ -1,254 +1,157 @@
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Station, OCRReading, Sale } from '@/types/database';
-import { Building2, Fuel, TrendingUp, Calendar } from 'lucide-react';
+import { fuelPriceService } from '@/services/fuelPriceService';
+import { tenderService } from '@/services/tenderService';
+import { Badge } from '@/components/ui/badge';
+import { Fuel, DollarSign, Clock, Users } from 'lucide-react';
 
-export default function EmployeeDashboard() {
+const EmployeeDashboard = () => {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [station, setStation] = useState<Station | null>(null);
-  const [recentReadings, setRecentReadings] = useState<OCRReading[]>([]);
-  const [todaysSales, setTodaysSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [fuelPrices, setFuelPrices] = useState<any[]>([]);
+  const [todaysTenders, setTodaysTenders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Get the first station for this employee
+  const currentStation = user?.stations?.[0];
 
   useEffect(() => {
-    if (user?.role === 'employee' && user?.station_id) {
-      loadEmployeeData();
-    }
-  }, [user]);
+    const fetchData = async () => {
+      if (!currentStation) return;
+      
+      try {
+        const [pricesData, tendersData] = await Promise.all([
+          fuelPriceService.getFuelPrices(currentStation.id),
+          tenderService.getTenderEntries(currentStation.id, new Date().toISOString().split('T')[0])
+        ]);
 
-  const loadEmployeeData = async () => {
-    try {
-      setLoading(true);
-      
-      // Load station details
-      const { data: stationData } = await supabase
-        .from('stations')
-        .select('*')
-        .eq('id', user?.station_id)
-        .single();
-      
-      // Load recent OCR readings for this station
-      const { data: readingsData } = await supabase
-        .from('ocr_readings')
-        .select('*')
-        .eq('station_id', user?.station_id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
-      // Load today's sales for this station
-      const today = new Date().toISOString().split('T')[0];
-      const { data: salesData } = await supabase
-        .from('sales')
-        .select('*')
-        .eq('station_id', user?.station_id)
-        .gte('created_at', today + 'T00:00:00')
-        .order('created_at', { ascending: false });
-      
-      setStation(stationData);
-      setRecentReadings(readingsData || []);
-      setTodaysSales(salesData || []);
-    } catch (error) {
-      console.error('Error loading employee data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load dashboard data',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+        setFuelPrices(pricesData);
+        setTodaysTenders(tendersData.data);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (user?.role !== 'employee') {
+    fetchData();
+  }, [currentStation]);
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Access Denied</h1>
-          <p className="text-muted-foreground">Only employees can access this dashboard</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  const totalSalesToday = todaysSales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
-  const totalLitresToday = todaysSales.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Employee Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {user?.name}
-          </p>
-        </div>
-      </div>
-
-      {/* Station Info */}
-      {station && (
+  if (!currentStation) {
+    return (
+      <div className="container mx-auto p-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              {station.name}
-            </CardTitle>
-            <CardDescription>
-              {station.address} • {station.brand} Station
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
-      {/* Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{totalSalesToday.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Total revenue today
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">
+              No station assigned to your account. Please contact your administrator.
             </p>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Employee Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back, {user?.name}</p>
+          <p className="text-sm text-muted-foreground">Station: {currentStation.name}</p>
+        </div>
+        <Badge variant="outline" className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          {user?.role.charAt(0).toUpperCase() + user?.role.slice(1)}
+        </Badge>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Fuel Sold</CardTitle>
+            <CardTitle className="text-sm font-medium">Current Fuel Prices</CardTitle>
             <Fuel className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalLitresToday.toFixed(1)}L</div>
+            <div className="space-y-2">
+              {fuelPrices.slice(0, 4).map((price) => (
+                <div key={price.id} className="flex justify-between items-center">
+                  <span className="text-sm">{price.fuel_type}</span>
+                  <span className="font-medium">₹{price.price_per_litre}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today's Collections</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              ₹{todaysTenders.reduce((sum, tender) => sum + tender.amount, 0).toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Total litres today
+              {todaysTenders.length} transactions
             </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Station Info</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{todaysSales.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Sales transactions today
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Readings</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{recentReadings.length}</div>
-            <p className="text-xs text-muted-foreground">
-              OCR readings recorded
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm"><strong>Brand:</strong> {currentStation.brand}</p>
+              <p className="text-sm"><strong>Address:</strong> {currentStation.address || 'Not specified'}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Sales */}
       <Card>
         <CardHeader>
-          <CardTitle>Today's Sales</CardTitle>
-          <CardDescription>
-            Recent fuel sales transactions at your station
-          </CardDescription>
+          <CardTitle>Recent Tender Entries</CardTitle>
+          <CardDescription>Today's payment collections</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Volume (L)</TableHead>
-                <TableHead>Rate (₹/L)</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {todaysSales.slice(0, 10).map((sale) => (
-                <TableRow key={sale.id}>
-                  <TableCell>
-                    {new Date(sale.created_at).toLocaleTimeString()}
-                  </TableCell>
-                  <TableCell>{sale.delta_volume_l?.toFixed(2) || '0.00'}</TableCell>
-                  <TableCell>₹{sale.price_per_litre?.toFixed(2) || '0.00'}</TableCell>
-                  <TableCell className="font-medium">₹{sale.total_amount?.toFixed(2) || '0.00'}</TableCell>
-                  <TableCell>
-                    <Badge variant="default">Completed</Badge>
-                  </TableCell>
-                </TableRow>
+          {todaysTenders.length > 0 ? (
+            <div className="space-y-3">
+              {todaysTenders.slice(0, 10).map((tender) => (
+                <div key={tender.id} className="flex justify-between items-center p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{tender.payer || 'Unknown Customer'}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {tender.type?.charAt(0).toUpperCase() + tender.type?.slice(1)} • {new Date(tender.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold">₹{tender.amount}</p>
+                  </div>
+                </div>
               ))}
-              {todaysSales.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No sales transactions today
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Recent OCR Readings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent OCR Readings</CardTitle>
-          <CardDescription>
-            Latest pump readings and data entries
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Cumulative Volume</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentReadings.map((reading) => (
-                <TableRow key={reading.id}>
-                  <TableCell>{reading.reading_date}</TableCell>
-                  <TableCell>{reading.reading_time}</TableCell>
-                  <TableCell>
-                    <Badge variant={reading.source === 'ocr' ? 'default' : 'secondary'}>
-                      {reading.source.toUpperCase()}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{reading.cumulative_vol.toFixed(2)}L</TableCell>
-                  <TableCell>
-                    <Badge variant="default">Processed</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {recentReadings.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No recent readings available
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">
+              No tender entries recorded today
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
   );
-}
+};
+
+export default EmployeeDashboard;
