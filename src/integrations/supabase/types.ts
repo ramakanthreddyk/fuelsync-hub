@@ -37,22 +37,7 @@ export type Database = {
           station_id?: number
           tender_total?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "daily_closure_closed_by_fkey"
-            columns: ["closed_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "daily_closure_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       event_log: {
         Row: {
@@ -79,22 +64,7 @@ export type Database = {
           station_id?: number | null
           user_id?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "event_log_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_log_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       fuel_prices: {
         Row: {
@@ -124,22 +94,7 @@ export type Database = {
           station_id?: number | null
           valid_from?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "fuel_prices_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fuel_prices_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       nozzles: {
         Row: {
@@ -169,15 +124,7 @@ export type Database = {
           pump_id?: number
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "nozzles_pump_id_fkey"
-            columns: ["pump_id"]
-            isOneToOne: false
-            referencedRelation: "pumps"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       ocr_readings: {
         Row: {
@@ -189,7 +136,7 @@ export type Database = {
           nozzle_id: number
           reading_date: string
           reading_time: string
-          source: Database["public"]["Enums"]["ocr_source"]
+          source: Database["public"]["Enums"]["reading_source"]
           station_id: number
         }
         Insert: {
@@ -201,7 +148,7 @@ export type Database = {
           nozzle_id: number
           reading_date: string
           reading_time: string
-          source: Database["public"]["Enums"]["ocr_source"]
+          source: Database["public"]["Enums"]["reading_source"]
           station_id: number
         }
         Update: {
@@ -213,32 +160,10 @@ export type Database = {
           nozzle_id?: number
           reading_date?: string
           reading_time?: string
-          source?: Database["public"]["Enums"]["ocr_source"]
+          source?: Database["public"]["Enums"]["reading_source"]
           station_id?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "ocr_readings_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ocr_readings_nozzle_id_fkey"
-            columns: ["nozzle_id"]
-            isOneToOne: false
-            referencedRelation: "nozzles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ocr_readings_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       plan_usage: {
         Row: {
@@ -265,15 +190,7 @@ export type Database = {
           pumps_used?: number | null
           station_id?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "plan_usage_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       plans: {
         Row: {
@@ -351,15 +268,7 @@ export type Database = {
           station_id?: number
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "pumps_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       sales: {
         Row: {
@@ -392,34 +301,12 @@ export type Database = {
           station_id?: number | null
           total_amount?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "sales_nozzle_id_fkey"
-            columns: ["nozzle_id"]
-            isOneToOne: false
-            referencedRelation: "nozzles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_reading_id_fkey"
-            columns: ["reading_id"]
-            isOneToOne: false
-            referencedRelation: "ocr_readings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       stations: {
         Row: {
           address: string | null
-          brand: Database["public"]["Enums"]["fuel_brand"]
+          brand: Database["public"]["Enums"]["brand"]
           created_at: string | null
           current_plan_id: number | null
           id: number
@@ -429,7 +316,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          brand: Database["public"]["Enums"]["fuel_brand"]
+          brand: Database["public"]["Enums"]["brand"]
           created_at?: string | null
           current_plan_id?: number | null
           id?: number
@@ -439,7 +326,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          brand?: Database["public"]["Enums"]["fuel_brand"]
+          brand?: Database["public"]["Enums"]["brand"]
           created_at?: string | null
           current_plan_id?: number | null
           id?: number
@@ -447,22 +334,7 @@ export type Database = {
           owner_id?: number | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "stations_current_plan_id_fkey"
-            columns: ["current_plan_id"]
-            isOneToOne: false
-            referencedRelation: "plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stations_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       tender_entries: {
         Row: {
@@ -495,22 +367,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["tender_type"] | null
           user_id?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "tender_entries_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_entries_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_stations: {
         Row: {
@@ -528,22 +385,7 @@ export type Database = {
           station_id?: number
           user_id?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_stations_station_id_fkey"
-            columns: ["station_id"]
-            isOneToOne: false
-            referencedRelation: "stations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_stations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       users: {
         Row: {
@@ -587,14 +429,17 @@ export type Database = {
     }
     Functions: {
       increment_ocr_usage: {
-        Args: { p_station_id: number; p_month: string }
+        Args: {
+          p_month: string
+          p_station_id: number
+        }
         Returns: undefined
       }
     }
     Enums: {
-      fuel_brand: "IOCL" | "BPCL" | "HPCL"
-      fuel_type: "PETROL" | "DIESEL" | "CNG" | "EV"
-      ocr_source: "ocr" | "manual"
+      brand: "IOCL" | "BPCL" | "HPCL"
+      fuel_type: "PETROL" | "DIESEL" | "CNG"
+      reading_source: "ocr" | "manual"
       tender_type: "cash" | "card" | "upi" | "credit"
       user_role: "superadmin" | "owner" | "employee"
     }
@@ -604,29 +449,25 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
-
 export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  PublicTableNameOrOptions extends
+    | keyof (Database["public"]["Tables"] & Database["public"]["Views"])
     | { schema: keyof Database },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
-  }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : PublicTableNameOrOptions extends keyof (Database["public"]["Tables"] &
+        Database["public"]["Views"])
+    ? (Database["public"]["Tables"] &
+        Database["public"]["Views"])[PublicTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -634,22 +475,20 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
+  PublicTableNameOrOptions extends
+    | keyof Database["public"]["Tables"]
     | { schema: keyof Database },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
-  }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : PublicTableNameOrOptions extends keyof Database["public"]["Tables"]
+    ? Database["public"]["Tables"][PublicTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -657,22 +496,20 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
+  PublicTableNameOrOptions extends
+    | keyof Database["public"]["Tables"]
     | { schema: keyof Database },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
-  }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : PublicTableNameOrOptions extends keyof Database["public"]["Tables"]
+    ? Database["public"]["Tables"][PublicTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -680,43 +517,14 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
+  PublicEnumNameOrOptions extends
+    | keyof Database["public"]["Enums"]
     | { schema: keyof Database },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database
-  }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+> = PublicEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : PublicEnumNameOrOptions extends keyof Database["public"]["Enums"]
+    ? Database["public"]["Enums"][PublicEnumNameOrOptions]
     : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
-  }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {
-      fuel_brand: ["IOCL", "BPCL", "HPCL"],
-      fuel_type: ["PETROL", "DIESEL", "CNG", "EV"],
-      ocr_source: ["ocr", "manual"],
-      tender_type: ["cash", "card", "upi", "credit"],
-      user_role: ["superadmin", "owner", "employee"],
-    },
-  },
-} as const
