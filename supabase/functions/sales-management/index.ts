@@ -97,13 +97,16 @@ serve(async (req) => {
 
     const url = new URL(req.url)
     const pathParts = url.pathname.split('/').filter(Boolean)
-    
+
     console.log('Sales Management API Request:', req.method, url.pathname)
 
     // POST /manual-entry - Create manual sale entry with calculations
     if (req.method === 'POST' && pathParts.length === 1 && pathParts[0] === 'manual-entry') {
       const body = await req.json()
-      const { station_id, nozzle_id, cumulative_volume, user_id } = body
+      const station_id = parseInt(body.station_id)
+      const nozzle_id = parseInt(body.nozzle_id)
+      const user_id = parseInt(body.user_id)
+      const cumulative_volume = parseFloat(body.cumulative_volume)
 
       console.log('Manual entry request:', { station_id, nozzle_id, cumulative_volume, user_id })
 
@@ -116,154 +119,118 @@ serve(async (req) => {
         })
       }
 
-      // Step 1: Get nozzle info to determine fuel type
-      const { data: nozzle, error: nozzleError } = await supabase
-        .from('nozzles')
-        .select('fuel_type')
-        .eq('id', nozzle_id)
-        .single()
-
-      if (nozzleError || !nozzle) {
-        console.error('Nozzle not found:', nozzleError)
-        return new Response(JSON.stringify({ error: 'Nozzle not found' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      // Step 2: Get last cumulative volume for this nozzle
-      const { data: lastReading, error: lastReadingError } = await supabase
-        .from('ocr_readings')
-        .select('cumulative_vol')
-        .eq('nozzle_id', nozzle_id)
-        .eq('station_id', station_id)
-        .order('reading_date', { ascending: false })
-        .order('reading_time', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (lastReadingError) {
-        console.error('Error fetching last reading:', lastReadingError)
-        return new Response(JSON.stringify({ error: 'Error fetching last reading' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      const previousVolume = lastReading?.cumulative_vol || 0
-      const deltaVolume = parseFloat(cumulative_volume) - previousVolume
-
-      console.log('Volume calculation:', { previousVolume, cumulative_volume, deltaVolume })
-
-      if (deltaVolume < 0) {
-        return new Response(JSON.stringify({ 
-          error: 'New cumulative volume cannot be less than previous reading' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      // Step 3: Get latest fuel price
-      const { data: fuelPrice, error: priceError } = await supabase
-        .from('fuel_prices')
-        .select('price_per_litre')
-        .eq('fuel_type', nozzle.fuel_type)
-        .or(`station_id.eq.${station_id},station_id.is.null`)
-        .lte('valid_from', new Date().toISOString())
-        .order('valid_from', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (priceError) {
-        console.error('Error fetching fuel price:', priceError)
-        return new Response(JSON.stringify({ error: 'Error fetching fuel price' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      if (!fuelPrice) {
-        return new Response(JSON.stringify({ 
-          error: `No fuel price found for ${nozzle.fuel_type}` 
-        }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      const pricePerLitre = parseFloat(fuelPrice.price_per_litre.toString())
-      const totalAmount = parseFloat((deltaVolume * pricePerLitre).toFixed(2))
-
-      console.log('Price calculation:', { pricePerLitre, deltaVolume, totalAmount })
-
-      // Step 4: Insert OCR reading
-      const now = new Date()
-      const { data: ocrReading, error: ocrError } = await supabase
-        .from('ocr_readings')
-        .insert({
-          station_id: parseInt(station_id),
-          nozzle_id: parseInt(nozzle_id),
-          source: 'manual',
-          reading_date: now.toISOString().split('T')[0],
-          reading_time: now.toTimeString().slice(0, 8),
-          cumulative_vol: parseFloat(cumulative_volume),
-          created_by: parseInt(user_id)
-        })
-        .select()
-        .single()
-
-      if (ocrError) {
-        console.error('Error creating OCR reading:', ocrError)
-        return new Response(JSON.stringify({ error: 'Error creating OCR reading' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      // Step 5: Insert sales record only if there's actual volume sold
-      if (deltaVolume > 0) {
-        const { data: sale, error: saleError } = await supabase
-          .from('sales')
-          .insert({
-            station_id: parseInt(station_id),
-            nozzle_id: parseInt(nozzle_id),
-            reading_id: ocrReading.id,
-            delta_volume_l: deltaVolume,
-            price_per_litre: pricePerLitre,
-            total_amount: totalAmount
-          })
-          .select()
+      try {
+        const { data: nozzle, error: nozzleError } = await supabase
+          .from('nozzles')
+          .select('fuel_type')
+          .eq('id', nozzle_id)
           .single()
 
-        if (saleError) {
-          console.error('Error creating sale:', saleError)
-          return new Response(JSON.stringify({ error: 'Error creating sale' }), {
-            status: 500,
+        if (nozzleError || !nozzle) throw new Error('Nozzle not found')
+
+        const { data: lastReading, error: lastReadingError } = await supabase
+          .from('ocr_readings')
+          .select('cumulative_vol')
+          .eq('nozzle_id', nozzle_id)
+          .eq('station_id', station_id)
+          .order('reading_date', { ascending: false })
+          .order('reading_time', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (lastReadingError) throw new Error('Error fetching last reading')
+
+        const previousVolume = lastReading?.cumulative_vol || 0
+        const deltaVolume = cumulative_volume - previousVolume
+
+        if (deltaVolume < 0) {
+          return new Response(JSON.stringify({ 
+            error: 'New cumulative volume cannot be less than previous reading' 
+          }), {
+            status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
 
-        console.log('Sale created successfully:', sale)
-        return new Response(JSON.stringify({ 
-          success: true, 
-          data: { sale, ocrReading, calculated: { deltaVolume, pricePerLitre, totalAmount } }
-        }), {
-          status: 201,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      } else {
-        console.log('No sale created - zero volume delta')
-        return new Response(JSON.stringify({ 
-          success: true, 
-          data: { ocrReading, message: 'Reading recorded, no sale created (zero volume delta)' }
-        }), {
-          status: 201,
+        const { data: fuelPrice, error: priceError } = await supabase
+          .from('fuel_prices')
+          .select('price_per_litre')
+          .eq('fuel_type', nozzle.fuel_type)
+          .or(`station_id.eq.${station_id},station_id.is.null`)
+          .lte('valid_from', new Date().toISOString())
+          .order('valid_from', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (priceError || !fuelPrice) throw new Error('Fuel price not found')
+
+        const pricePerLitre = parseFloat(fuelPrice.price_per_litre.toString())
+        const totalAmount = parseFloat((deltaVolume * pricePerLitre).toFixed(2))
+
+        const now = new Date()
+        const { data: ocrReading, error: ocrError } = await supabase
+          .from('ocr_readings')
+          .insert({
+            station_id,
+            nozzle_id,
+            source: 'manual',
+            reading_date: now.toISOString().split('T')[0],
+            reading_time: now.toTimeString().slice(0, 8),
+            cumulative_vol: cumulative_volume,
+            created_by: user_id
+          })
+          .select()
+          .single()
+
+        if (ocrError) throw new Error('Error creating OCR reading')
+
+        if (deltaVolume > 0) {
+          const { data: sale, error: saleError } = await supabase
+            .from('sales')
+            .insert({
+              station_id,
+              nozzle_id,
+              reading_id: ocrReading.id,
+              delta_volume_l: deltaVolume,
+              price_per_litre: pricePerLitre,
+              total_amount: totalAmount
+            })
+            .select()
+            .single()
+
+          if (saleError) throw new Error('Error creating sale')
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: {
+              sale,
+              ocrReading,
+              calculated: { deltaVolume, pricePerLitre, totalAmount }
+            }
+          }), {
+            status: 201,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        } else {
+          return new Response(JSON.stringify({
+            success: true,
+            data: {
+              ocrReading,
+              message: 'Reading recorded, no sale created (zero volume delta)'
+            }
+          }), {
+            status: 201,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      } catch (err) {
+        console.error('Error in manual-entry POST handler:', err)
+        return new Response(JSON.stringify({ error: err.message || 'Unexpected error' }), {
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
     }
-
     // GET /sales - Get sales with filters
     if (req.method === 'GET' && pathParts.length === 1 && pathParts[0] === 'sales') {
       const stationId = url.searchParams.get('station_id')
