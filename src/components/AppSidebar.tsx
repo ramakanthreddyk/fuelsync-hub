@@ -1,6 +1,5 @@
 
-import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { Home, Upload, Calculator, Settings, Users, Building2, BarChart3 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,147 +9,120 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-} from '@/components/ui/sidebar';
-import FuelSyncLogo from '@/components/FuelSyncLogo';
-import { Button } from '@/components/ui/button';
-import {
-  LayoutDashboard,
-  Building2,
-  Fuel,
-  FileText,
-  BarChart3,
-  Settings,
-  Users,
-  LogOut,
-  Upload,
-} from 'lucide-react';
+} from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/useAuth";
+import { useLocation, useNavigate } from "react-router-dom";
+
+const menuItems = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: Home,
+    roles: ['superadmin', 'owner', 'employee']
+  },
+  {
+    title: "Data Entry",
+    url: "/upload",
+    icon: Upload,
+    roles: ['superadmin', 'owner', 'employee']
+  },
+  {
+    title: "Daily Closure",
+    url: "/closure",
+    icon: Calculator,
+    roles: ['superadmin', 'owner', 'employee']
+  },
+];
+
+const adminItems = [
+  {
+    title: "Manage Users",
+    url: "/admin/users",
+    icon: Users,
+    roles: ['superadmin']
+  },
+  {
+    title: "Manage Stations",
+    url: "/admin/stations",
+    icon: Building2,
+    roles: ['superadmin']
+  },
+];
+
+const settingsItems = [
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+    roles: ['superadmin', 'owner', 'employee']
+  },
+];
 
 export function AppSidebar() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
+  const filterItemsByRole = (items: typeof menuItems) => {
+    return items.filter(item => user?.role && item.roles.includes(user.role));
   };
 
-  // Base menu items for all authenticated users
-  const baseMenuItems = [
-    {
-      title: 'Dashboard',
-      icon: LayoutDashboard,
-      url: '/dashboard',
-    },
-  ];
-
-  // Role-specific menu items
-  const getMenuItems = () => {
-    switch (user?.role) {
-      case 'superadmin':
-        return [
-          ...baseMenuItems,
-          {
-            title: 'Manage Users',
-            icon: Users,
-            url: '/admin/users',
-          },
-          {
-            title: 'Manage Stations',
-            icon: Building2,
-            url: '/admin/stations',
-          },
-          {
-            title: 'Reports',
-            icon: FileText,
-            url: '/reports',
-          },
-          {
-            title: 'Settings',
-            icon: Settings,
-            url: '/settings',
-          },
-        ];
-      case 'owner':
-        return [
-          ...baseMenuItems,
-          {
-            title: 'My Stations',
-            icon: Building2,
-            url: '/stations',
-          },
-          {
-            title: 'Pumps & Nozzles',
-            icon: Fuel,
-            url: '/pumps',
-          },
-          {
-            title: 'Sales',
-            icon: BarChart3,
-            url: '/sales',
-          },
-          {
-            title: 'Reports',
-            icon: FileText,
-            url: '/reports',
-          },
-          {
-            title: 'Settings',
-            icon: Settings,
-            url: '/settings',
-          },
-        ];
-      case 'employee':
-        return [
-          ...baseMenuItems,
-          {
-            title: 'OCR Readings',
-            icon: Upload,
-            url: '/readings',
-          },
-          {
-            title: 'Sales',
-            icon: BarChart3,
-            url: '/sales',
-          },
-          {
-            title: 'Settings',
-            icon: Settings,
-            url: '/settings',
-          },
-        ];
-      default:
-        return baseMenuItems;
-    }
-  };
-
-  const menuItems = getMenuItems();
+  const isActive = (url: string) => location.pathname === url;
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <FuelSyncLogo />
-          <div>
-            <h2 className="text-lg font-semibold">FuelSync</h2>
-            <p className="text-sm text-muted-foreground capitalize">{user?.role}</p>
-          </div>
-        </div>
-      </SidebarHeader>
-
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {filterItemsByRole(menuItems).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     onClick={() => navigate(item.url)}
-                    className="w-full justify-start"
+                    isActive={isActive(item.url)}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {user?.role === 'superadmin' && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filterItemsByRole(adminItems).map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      onClick={() => navigate(item.url)}
+                      isActive={isActive(item.url)}
+                    >
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Account</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {filterItemsByRole(settingsItems).map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    onClick={() => navigate(item.url)}
+                    isActive={isActive(item.url)}
+                  >
+                    <item.icon />
                     <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -159,24 +131,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="p-4">
-        <div className="space-y-2">
-          <div className="text-sm">
-            <p className="font-medium">{user?.name}</p>
-            <p className="text-muted-foreground">{user?.email}</p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleSignOut}
-            className="w-full justify-start"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   );
 }
