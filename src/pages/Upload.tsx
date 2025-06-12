@@ -106,7 +106,7 @@ export default function UploadPage() {
     }
 
     const result = await submitManualReading({
-      station_id: Number(currentStation),
+      station_id: currentStation,
       nozzle_id: parseInt(manualData.nozzle_id),
       cumulative_vol: parseFloat(manualData.cumulative_vol),
       reading_date: manualData.reading_date,
