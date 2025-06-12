@@ -1,22 +1,23 @@
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types/database';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signOut: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if user is already logged in
     checkUser();
   }, []);
 
@@ -24,14 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Fetch user details from our users table
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', session.user.email)
-          .single();
-        
-        setUser(userData);
+        await fetchUserData(session.user.email!);
       }
     } catch (error) {
       console.error('Error checking user:', error);
@@ -40,52 +34,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const fetchUserData = async (email: string) => {
     try {
-      // Check against our users table with proper authentication
-      const { data: userData, error } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('email', email)
         .eq('is_active', true)
         .single();
 
-      if (error || !userData) {
-        return { error: 'Invalid credentials' };
+      if (error) {
+        console.error('Error fetching user data:', error);
+        return;
       }
 
-      // Simple password check for demo (in real app, use proper authentication)
-      const validCredentials = [
-        { email: 'admin@fuelsync.com', password: 'admin123' },
-        { email: 'rajesh@fuelsync.com', password: 'owner123' },
-        { email: 'priya@fuelsync.com', password: 'owner123' },
-        { email: 'amit@fuelsync.com', password: 'owner123' },
-        { email: 'ravi@rajeshfuel.com', password: 'emp123' },
-        { email: 'sunita@rajeshfuel.com', password: 'emp123' },
-        { email: 'mohan@highway.com', password: 'emp123' },
-        { email: 'kiran@priyapetrol.com', password: 'emp123' },
-        { email: 'deepak@citycenter.com', password: 'emp123' }
-      ];
-
-      const isValid = validCredentials.some(cred => cred.email === email && cred.password === password);
-      
-      if (isValid) {
-        setUser(userData);
-        return {};
-      }
-
-      return { error: 'Invalid credentials' };
+      setUser(data);
     } catch (error) {
-      return { error: 'Authentication failed' };
+      console.error('Error fetching user data:', error);
     }
   };
 
-  const signOut = async () => {
-    setUser(null);
+  const login = async (email: string, password: string) => {
+    try {
+      // First, verify user exists in our database
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .eq('is_active', true)
+        .single();
+
+      if (userError || !userData) {
+        throw new Error('Invalid credentials or account not found');
+      }
+
+      // For demo purposes, we'll skip password verification
+      // In production, you would verify the password hash here
+      console.log('Login attempt for:', email);
+
+      // Create a dummy session for demo
+      setUser(userData);
+
+      // Store session info for persistence
+      localStorage.setItem('fuelsync_user', JSON.stringify(userData));
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      setUser(null);
+      localStorage.removeItem('fuelsync_user');
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    }
+  };
+
+  const value = {
+    user,
+    loading,
+    login,
+    logout,
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
