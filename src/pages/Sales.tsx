@@ -7,75 +7,63 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Plus, BarChart3, TrendingUp } from "lucide-react";
+import { Plus, BarChart3, TrendingUp, Filter, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useSalesData } from "@/hooks/useSalesData";
+import { usePumpsData } from "@/hooks/usePumpsData";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useAuth } from "@/hooks/useAuth";
+import { useSalesManagement } from "@/hooks/useSalesManagement";
 
 export default function Sales() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState('');
+  const [isToday, setIsToday] = useState(true);
+  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
+  const [selectedPumpId, setSelectedPumpId] = useState<number | null>(null);
+  const [selectedNozzleId, setSelectedNozzleId] = useState<number | null>(null);
   const [isAddSaleOpen, setIsAddSaleOpen] = useState(false);
-  const [manualSale, setManualSale] = useState({
+  const [manualEntry, setManualEntry] = useState({
+    station_id: '',
+    pump_id: '',
     nozzle_id: '',
-    delta_volume_l: '',
-    price_per_litre: '',
-    total_amount: ''
+    cumulative_volume: ''
   });
 
   const { toast } = useToast();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { data: sales, isLoading } = useSalesData(selectedDate);
-  const { currentStation, isOwner, isAdmin, isEmployee } = useRoleAccess();
+  const { data: sales, isLoading } = useSalesData(isToday ? selectedDate : undefined);
+  const { data: pumps } = usePumpsData();
+  const { currentStation, canAccessAllStations, stations } = useRoleAccess();
+  const { createManualEntry, getSales, getSalesSummary } = useSalesManagement();
 
-  // Calculate totals
-  const todayTotal = sales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
-  const todayVolume = sales?.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0) || 0;
+  // Filter sales based on selections
+  const filteredSales = sales?.filter(sale => {
+    if (selectedStationId && sale.station_id !== selectedStationId) return false;
+    if (selectedPumpId) {
+      // Find nozzle's pump_id through pumps data
+      const pump = pumps?.find(p => p.id === selectedPumpId);
+      if (!pump?.nozzles.some(n => n.id === sale.nozzle_id)) return false;
+    }
+    if (selectedNozzleId && sale.nozzle_id !== selectedNozzleId) return false;
+    return true;
+  }) || [];
 
-  // Add manual sale mutation
-  const addSaleMutation = useMutation({
-    mutationFn: async (saleData: typeof manualSale) => {
-      if (!currentStation?.id) throw new Error('No station selected');
+  // Calculate totals from filtered sales
+  const todayTotal = filteredSales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+  const todayVolume = filteredSales.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0);
 
-      const { data, error } = await supabase
-        .from('sales')
-        .insert({
-          station_id: currentStation.id,
-          nozzle_id: parseInt(saleData.nozzle_id),
-          delta_volume_l: parseFloat(saleData.delta_volume_l),
-          price_per_litre: parseFloat(saleData.price_per_litre),
-          total_amount: parseFloat(saleData.total_amount),
-          reading_id: null // Manual entry
-        })
-        .select()
-        .single();
+  // Get available pumps for selected station
+  const availablePumps = pumps?.filter(pump => 
+    !manualEntry.station_id || pump.station_id === parseInt(manualEntry.station_id)
+  ) || [];
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      setIsAddSaleOpen(false);
-      setManualSale({ nozzle_id: '', delta_volume_l: '', price_per_litre: '', total_amount: '' });
-      toast({
-        title: "Success",
-        description: "Manual sale recorded successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to record sale",
-        variant: "destructive",
-      });
-    },
-  });
+  // Get available nozzles for selected pump
+  const availableNozzles = availablePumps
+    .find(pump => pump.id === parseInt(manualEntry.pump_id))?.nozzles || [];
 
-  const handleAddSale = () => {
-    if (!manualSale.nozzle_id || !manualSale.delta_volume_l || !manualSale.price_per_litre || !manualSale.total_amount) {
+  const handleManualEntry = async () => {
+    if (!manualEntry.station_id || !manualEntry.nozzle_id || !manualEntry.cumulative_volume) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields",
@@ -84,27 +72,40 @@ export default function Sales() {
       return;
     }
 
-    addSaleMutation.mutate(manualSale);
-  };
+    try {
+      await createManualEntry.mutateAsync({
+        station_id: parseInt(manualEntry.station_id),
+        nozzle_id: parseInt(manualEntry.nozzle_id),
+        cumulative_volume: parseFloat(manualEntry.cumulative_volume),
+        user_id: user?.id || 0
+      });
 
-  // Auto-calculate total amount when volume or price changes
-  const handleVolumeOrPriceChange = (field: 'delta_volume_l' | 'price_per_litre', value: string) => {
-    const updatedSale = { ...manualSale, [field]: value };
-    
-    if (updatedSale.delta_volume_l && updatedSale.price_per_litre) {
-      const volume = parseFloat(updatedSale.delta_volume_l);
-      const price = parseFloat(updatedSale.price_per_litre);
-      if (!isNaN(volume) && !isNaN(price)) {
-        updatedSale.total_amount = (volume * price).toFixed(2);
-      }
+      setIsAddSaleOpen(false);
+      setManualEntry({ station_id: '', pump_id: '', nozzle_id: '', cumulative_volume: '' });
+      toast({
+        title: "Success",
+        description: "Manual entry recorded successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record manual entry",
+        variant: "destructive",
+      });
     }
-    
-    setManualSale(updatedSale);
   };
 
-  if (!currentStation && !isAdmin) {
+  const handleDateFilter = (filterType: 'today' | 'range') => {
+    setIsToday(filterType === 'today');
+    if (filterType === 'today') {
+      setSelectedDate(new Date().toISOString().split('T')[0]);
+      setEndDate('');
+    }
+  };
+
+  if (!currentStation && !canAccessAllStations) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4 md:p-6">
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
@@ -118,106 +119,242 @@ export default function Sales() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4 md:p-6">
         <div className="text-center">Loading sales data...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Sales Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Sales Management</h1>
           <p className="text-muted-foreground">
             Track and manage sales {currentStation ? `for ${currentStation.name}` : 'across all stations'}
           </p>
         </div>
         
-        {(isOwner || isAdmin || isEmployee) && (
-          <Dialog open={isAddSaleOpen} onOpenChange={setIsAddSaleOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Manual Sale
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Record Manual Sale</DialogTitle>
-                <DialogDescription>
-                  Manually record a sale transaction
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
+        <Dialog open={isAddSaleOpen} onOpenChange={setIsAddSaleOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full md:w-auto">
+              <Plus className="w-4 h-4 mr-2" />
+              Manual Entry
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Manual Sales Entry</DialogTitle>
+              <DialogDescription>
+                Enter cumulative volume reading for automatic calculation
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {canAccessAllStations && (
                 <div>
-                  <Label htmlFor="nozzle_id">Nozzle ID</Label>
-                  <Input
-                    id="nozzle_id"
-                    type="number"
-                    value={manualSale.nozzle_id}
-                    onChange={(e) => setManualSale(prev => ({ ...prev, nozzle_id: e.target.value }))}
-                    placeholder="e.g., 1"
-                  />
+                  <Label htmlFor="station_select">Station</Label>
+                  <Select value={manualEntry.station_id} onValueChange={(value) => {
+                    setManualEntry(prev => ({ ...prev, station_id: value, pump_id: '', nozzle_id: '' }));
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stations.map((station) => (
+                        <SelectItem key={station.id} value={station.id.toString()}>
+                          {station.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div>
-                  <Label htmlFor="delta_volume_l">Volume (Litres)</Label>
-                  <Input
-                    id="delta_volume_l"
-                    type="number"
-                    step="0.001"
-                    value={manualSale.delta_volume_l}
-                    onChange={(e) => handleVolumeOrPriceChange('delta_volume_l', e.target.value)}
-                    placeholder="e.g., 25.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="price_per_litre">Price per Litre (₹)</Label>
-                  <Input
-                    id="price_per_litre"
-                    type="number"
-                    step="0.01"
-                    value={manualSale.price_per_litre}
-                    onChange={(e) => handleVolumeOrPriceChange('price_per_litre', e.target.value)}
-                    placeholder="e.g., 102.50"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="total_amount">Total Amount (₹)</Label>
-                  <Input
-                    id="total_amount"
-                    type="number"
-                    step="0.01"
-                    value={manualSale.total_amount}
-                    onChange={(e) => setManualSale(prev => ({ ...prev, total_amount: e.target.value }))}
-                    placeholder="Auto-calculated"
-                    readOnly
-                  />
-                </div>
-                <Button onClick={handleAddSale} disabled={addSaleMutation.isPending} className="w-full">
-                  {addSaleMutation.isPending ? 'Recording...' : 'Record Sale'}
-                </Button>
+              )}
+              
+              <div>
+                <Label htmlFor="pump_select">Pump</Label>
+                <Select 
+                  value={manualEntry.pump_id} 
+                  onValueChange={(value) => {
+                    setManualEntry(prev => ({ ...prev, pump_id: value, nozzle_id: '' }));
+                  }}
+                  disabled={!manualEntry.station_id && !currentStation}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select pump" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePumps.map((pump) => (
+                      <SelectItem key={pump.id} value={pump.id.toString()}>
+                        {pump.name || `Pump ${pump.pump_sno}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </DialogContent>
-          </Dialog>
-        )}
+
+              <div>
+                <Label htmlFor="nozzle_select">Nozzle</Label>
+                <Select 
+                  value={manualEntry.nozzle_id} 
+                  onValueChange={(value) => setManualEntry(prev => ({ ...prev, nozzle_id: value }))}
+                  disabled={!manualEntry.pump_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select nozzle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableNozzles.map((nozzle) => (
+                      <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
+                        #{nozzle.nozzle_number} - {nozzle.fuel_type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="cumulative_volume">Cumulative Volume (L)</Label>
+                <Input
+                  id="cumulative_volume"
+                  type="number"
+                  step="0.001"
+                  value={manualEntry.cumulative_volume}
+                  onChange={(e) => setManualEntry(prev => ({ ...prev, cumulative_volume: e.target.value }))}
+                  placeholder="e.g., 1234.567"
+                />
+              </div>
+
+              <Button 
+                onClick={handleManualEntry} 
+                disabled={createManualEntry.isPending} 
+                className="w-full"
+              >
+                {createManualEntry.isPending ? 'Processing...' : 'Record Entry'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Date filter */}
+      {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Filter Sales</CardTitle>
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            <CardTitle>Filters</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 items-end">
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Date Filter */}
+            <div className="space-y-2">
+              <Label>Date Filter</Label>
+              <div className="flex gap-2">
+                <Button 
+                  variant={isToday ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => handleDateFilter('today')}
+                >
+                  Today
+                </Button>
+                <Button 
+                  variant={!isToday ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => handleDateFilter('range')}
+                >
+                  Range
+                </Button>
+              </div>
+              {!isToday && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    placeholder="From"
+                  />
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    placeholder="To"
+                  />
+                </div>
+              )}
+              {isToday && (
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              )}
+            </div>
+
+            {/* Station Filter */}
+            {canAccessAllStations && (
+              <div>
+                <Label>Station</Label>
+                <Select value={selectedStationId?.toString() || ''} onValueChange={(value) => {
+                  setSelectedStationId(value ? parseInt(value) : null);
+                  setSelectedPumpId(null);
+                  setSelectedNozzleId(null);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All stations" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All stations</SelectItem>
+                    {stations.map((station) => (
+                      <SelectItem key={station.id} value={station.id.toString()}>
+                        {station.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Pump Filter */}
             <div>
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
+              <Label>Pump</Label>
+              <Select value={selectedPumpId?.toString() || ''} onValueChange={(value) => {
+                setSelectedPumpId(value ? parseInt(value) : null);
+                setSelectedNozzleId(null);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All pumps" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All pumps</SelectItem>
+                  {pumps?.map((pump) => (
+                    <SelectItem key={pump.id} value={pump.id.toString()}>
+                      {pump.name || `Pump ${pump.pump_sno}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Nozzle Filter */}
+            <div>
+              <Label>Nozzle</Label>
+              <Select value={selectedNozzleId?.toString() || ''} onValueChange={(value) => {
+                setSelectedNozzleId(value ? parseInt(value) : null);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All nozzles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All nozzles</SelectItem>
+                  {pumps?.flatMap(pump => 
+                    pump.nozzles.map(nozzle => (
+                      <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
+                        Pump {pump.pump_sno} - #{nozzle.nozzle_number} ({nozzle.fuel_type})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -233,7 +370,7 @@ export default function Sales() {
           <CardContent>
             <div className="text-2xl font-bold">₹{todayTotal.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">
-              {new Date(selectedDate).toLocaleDateString()}
+              {isToday ? 'Today' : `${selectedDate}${endDate ? ` to ${endDate}` : ''}`}
             </p>
           </CardContent>
         </Card>
@@ -257,7 +394,7 @@ export default function Sales() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sales?.length || 0}</div>
+            <div className="text-2xl font-bold">{filteredSales.length}</div>
             <p className="text-xs text-muted-foreground">
               Total transactions
             </p>
@@ -270,19 +407,20 @@ export default function Sales() {
         <CardHeader>
           <CardTitle>Sales Transactions</CardTitle>
           <CardDescription>
-            Recent sales for {new Date(selectedDate).toLocaleDateString()}
+            {isToday ? `Today's sales` : `Sales from ${selectedDate}${endDate ? ` to ${endDate}` : ''}`}
+            {(selectedStationId || selectedPumpId || selectedNozzleId) && ' (filtered)'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {sales && sales.length > 0 ? (
+          {filteredSales && filteredSales.length > 0 ? (
             <div className="space-y-4">
-              {sales.map((sale) => (
-                <div key={sale.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
+              {filteredSales.map((sale) => (
+                <div key={sale.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-4">
                     <div>
                       <p className="font-medium">Nozzle #{sale.nozzle_id}</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(sale.created_at).toLocaleTimeString()}
+                        {new Date(sale.created_at).toLocaleString()}
                       </p>
                     </div>
                     <div>
@@ -295,7 +433,7 @@ export default function Sales() {
                   <div className="text-right">
                     <p className="font-bold text-lg">₹{sale.total_amount.toFixed(2)}</p>
                     <Badge variant="outline">
-                      {sale.reading_id ? 'OCR' : 'Manual'}
+                      {sale.reading_id ? 'Auto' : 'Manual'}
                     </Badge>
                   </div>
                 </div>
@@ -306,7 +444,7 @@ export default function Sales() {
               <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No sales found</h3>
               <p className="text-muted-foreground mb-4">
-                No sales transactions for {new Date(selectedDate).toLocaleDateString()}
+                No sales transactions found for the selected filters
               </p>
             </div>
           )}
