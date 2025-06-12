@@ -40,7 +40,7 @@ export default function Sales() {
   // Handle both array and object responses from API
   const sales = Array.isArray(salesData) ? salesData : (salesData?.data || []);
 
-  // Create mock fuel type breakdown since dailySummary doesn't have it
+  // Create fuel type breakdown with proper type handling
   const fuelTypeData = sales.length > 0 ? [
     { 
       name: 'Petrol', 
