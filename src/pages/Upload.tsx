@@ -160,20 +160,6 @@ export default function UploadPage() {
     }
   };
 
-  if (!currentStation) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              No station assigned to your account. Please contact your administrator.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
@@ -202,25 +188,42 @@ export default function UploadPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="pump_sno">Pump Serial Number</Label>
-                  <Input
-                    id="pump_sno"
-                    value={manualData.pump_sno}
-                    onChange={(e) => setManualData(prev => ({ ...prev, pump_sno: e.target.value }))}
-                    placeholder="e.g., P001"
-                  />
+                  <Label htmlFor="pump_id">Pump Serial Number</Label>
+                  <Select
+                    value={manualData.pump_id}
+                    onValueChange={(value) => setManualData(prev => ({ ...prev, pump_id: value, nozzle_id: '' }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pump" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pumps.map(pump => (
+                        <SelectItem key={pump.id} value={pump.id.toString()}>
+                          {pump.pump_sno}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="nozzle_number">Nozzle Number</Label>
-                  <Input
-                    id="nozzle_number"
-                    value={manualData.nozzle_number}
-                    onChange={(e) => setManualData(prev => ({ ...prev, nozzle_number: e.target.value }))}
-                    placeholder="e.g., 1"
-                  />
+                  <Label htmlFor="nozzle_id">Nozzle Number</Label>
+                  <Select
+                    value={manualData.nozzle_id}
+                    onValueChange={(value) => setManualData(prev => ({ ...prev, nozzle_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select nozzle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nozzles.map(nozzle => (
+                        <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
+                          {nozzle.nozzle_number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-
               <div>
                 <Label htmlFor="cumulative_vol">Cumulative Volume (Litres)</Label>
                 <Input
@@ -232,7 +235,6 @@ export default function UploadPage() {
                   placeholder="e.g., 12345.678"
                 />
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="reading_date">Reading Date</Label>
@@ -253,7 +255,6 @@ export default function UploadPage() {
                   />
                 </div>
               </div>
-
               <Button onClick={handleManualEntry} disabled={loading} className="w-full">
                 {loading ? 'Recording...' : 'Record Reading'}
               </Button>
