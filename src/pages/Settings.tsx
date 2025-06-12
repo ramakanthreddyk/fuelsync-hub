@@ -1,115 +1,100 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Station, Plan } from '@/types/database';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { LogOut, User, Building2, Shield } from "lucide-react";
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [stations, setStations] = useState<Station[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
 
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user]);
-
-  const loadData = async () => {
+  const handleLogout = async () => {
     try {
-      // Load stations
-      const { data: stationsData } = await supabase.from('stations').select('*');
-      setStations(stationsData || []);
-
-      // Load plans
-      const { data: plansData } = await supabase.from('plans').select('*');
-      // Type cast features from Json to Record<string, any>
-      setPlans((plansData || []).map(plan => ({
-        ...plan,
-        features: (plan.features as Record<string, any>) || {}
-      })));
+      await logout();
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
     } catch (error) {
-      console.error('Error loading data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive",
+      });
     }
   };
-
-  if (!user) {
-    return <div>Loading...</div>;
-  }
 
   const currentStation = user?.stations?.[0];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account and system settings
+        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <p className="text-muted-foreground mt-1">
+          Manage your account and application preferences
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              User Information
+            </CardTitle>
             <CardDescription>
               Your account details and role
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Name</Label>
-              <Input value={user.name || ''} disabled />
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">Name:</span>
+              <span className="text-sm">{user?.name || 'Not set'}</span>
             </div>
-            <div>
-              <Label>Email</Label>
-              <Input value={user.email} disabled />
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">Email:</span>
+              <span className="text-sm">{user?.email}</span>
             </div>
-            <div>
-              <Label>Role</Label>
-              <Badge variant="outline" className="capitalize">
-                {user.role}
-              </Badge>
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">Phone:</span>
+              <span className="text-sm">{user?.phone || 'Not set'}</span>
             </div>
-            <div>
-              <Label>Account Created</Label>
-              <Input value={new Date(user.created_at).toLocaleDateString()} disabled />
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">Role:</span>
+              <span className="text-sm capitalize flex items-center gap-2">
+                <Shield className="h-3 w-3" />
+                {user?.role?.replace('_', ' ')}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Station Information</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Station Information
+            </CardTitle>
             <CardDescription>
-              {user.role === 'superadmin' ? 'System overview' : 'Your station details'}
+              Current station assignment
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {user.role === 'superadmin' ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Total Stations: {stations.length}</p>
-                <p className="text-sm font-medium">Available Plans: {plans.length}</p>
-                <p className="text-sm text-muted-foreground">
-                  You have full system access
-                </p>
-              </div>
-            ) : currentStation ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Station: {currentStation.name}</p>
-                <p className="text-sm font-medium">Brand: {currentStation.brand}</p>
-                <p className="text-sm text-muted-foreground">
-                  {currentStation.address || 'No address specified'}
-                </p>
-              </div>
+          <CardContent className="space-y-3">
+            {currentStation ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Station:</span>
+                  <span className="text-sm">{currentStation.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Brand:</span>
+                  <span className="text-sm">{currentStation.brand}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Address:</span>
+                  <span className="text-sm text-right max-w-[200px]">{currentStation.address || 'Not set'}</span>
+                </div>
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">
                 No station assigned
@@ -119,29 +104,24 @@ export default function Settings() {
         </Card>
       </div>
 
-      {user.role === 'superadmin' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>System Management</CardTitle>
-            <CardDescription>
-              Superadmin tools and controls
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <Button variant="outline" onClick={() => window.location.href = '/admin/users'}>
-                Manage Users
-              </Button>
-              <Button variant="outline" onClick={() => window.location.href = '/admin/stations'}>
-                Manage Stations
-              </Button>
-              <Button variant="outline" onClick={() => window.location.href = '/admin/plans'}>
-                Manage Plans
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Actions</CardTitle>
+          <CardDescription>
+            Manage your session and account
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            onClick={handleLogout}
+            variant="destructive"
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
