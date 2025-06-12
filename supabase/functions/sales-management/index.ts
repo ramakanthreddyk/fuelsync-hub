@@ -101,7 +101,7 @@ serve(async (req) => {
     console.log('Sales Management API Request:', req.method, url.pathname)
 
     // POST /manual-entry - Create manual sale entry with calculations
-    if (req.method === 'POST' && pathParts.length === 1 && pathParts[0] === 'manual-entry') {
+    if (req.method === 'POST' && pathParts.length === 1 && pathParts[0] === 'sales-management') {
       const body = await req.json()
       const station_id = parseInt(body.station_id)
       const nozzle_id = parseInt(body.nozzle_id)
@@ -141,7 +141,7 @@ serve(async (req) => {
         if (lastReadingError) throw new Error('Error fetching last reading')
 
         const previousVolume = lastReading?.cumulative_vol || 0
-        const deltaVolume = cumulative_volume - previousVolume
+        const deltaVolume = parseFloat((cumulative_volume - previousVolume).toFixed(2))
 
         if (deltaVolume < 0) {
           return new Response(JSON.stringify({ 
@@ -191,9 +191,9 @@ serve(async (req) => {
               station_id,
               nozzle_id,
               reading_id: ocrReading.id,
-              delta_volume_l: deltaVolume,
-              price_per_litre: pricePerLitre,
-              total_amount: totalAmount
+              delta_volume_l: parseFloat(deltaVolume.toFixed(2)),
+              price_per_litre: parseFloat(pricePerLitre.toFixed(2)),
+              total_amount: parseFloat(totalAmount.toFixed(2))
             })
             .select()
             .single()
@@ -231,6 +231,7 @@ serve(async (req) => {
         })
       }
     }
+    
     // GET /sales - Get sales with filters
     if (req.method === 'GET' && pathParts.length === 1 && pathParts[0] === 'sales') {
       const stationId = url.searchParams.get('station_id')
