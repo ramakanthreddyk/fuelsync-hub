@@ -70,13 +70,11 @@ const adminMenuItems = [
     title: 'Manage Users',
     icon: Users,
     url: '/admin/users',
-    adminOnly: true,
   },
   {
     title: 'Manage Stations',
     icon: Building2,
     url: '/admin/stations',
-    adminOnly: true,
   },
 ];
 
@@ -88,14 +86,6 @@ export function AppSidebar() {
     await signOut();
     navigate('/login');
   };
-
-  const filteredMenuItems = menuItems.filter(item => 
-    !item.adminOnly || user?.role === 'superadmin'
-  );
-
-  const filteredAdminItems = adminMenuItems.filter(item => 
-    user?.role === 'superadmin'
-  );
 
   return (
     <Sidebar>
@@ -114,7 +104,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredMenuItems.map((item) => (
+              {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     onClick={() => navigate(item.url)}
@@ -129,12 +119,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {user?.role === 'superadmin' && filteredAdminItems.length > 0 && (
+        {user?.role === 'superadmin' && (
           <SidebarGroup>
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {filteredAdminItems.map((item) => (
+                {adminMenuItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton 
                       onClick={() => navigate(item.url)}

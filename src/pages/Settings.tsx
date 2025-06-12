@@ -32,7 +32,11 @@ export default function Settings() {
 
       // Load plans
       const { data: plansData } = await supabase.from('plans').select('*');
-      setPlans(plansData || []);
+      // Type cast features from Json to Record<string, any>
+      setPlans((plansData || []).map(plan => ({
+        ...plan,
+        features: (plan.features as Record<string, any>) || {}
+      })));
     } catch (error) {
       console.error('Error loading data:', error);
     }

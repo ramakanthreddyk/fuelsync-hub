@@ -66,7 +66,11 @@ export default function AdminStations() {
       
       setStations(stationsData || []);
       setUsers(usersData || []);
-      setPlans(plansData || []);
+      // Type cast features from Json to Record<string, any>
+      setPlans((plansData || []).map(plan => ({
+        ...plan,
+        features: (plan.features as Record<string, any>) || {}
+      })));
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
