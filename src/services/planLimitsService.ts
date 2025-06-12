@@ -124,11 +124,12 @@ export const planLimitsService = {
     
     if (!limits.maxEmployees) return;
 
-    // Count employees for this specific station using the user_stations table
+    // Count employees for this specific station using the users table filtered by station_id
     const { count, error } = await supabase
-      .from('user_stations')
+      .from('users')
       .select('*', { count: 'exact' })
-      .eq('station_id', stationId);
+      .eq('station_id', stationId)
+      .eq('is_active', true);
 
     if (error) {
       throw new Error(`Failed to check employee count: ${error.message}`);

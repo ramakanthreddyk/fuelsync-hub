@@ -44,15 +44,15 @@ export default function Sales() {
   const fuelTypeData = sales.length > 0 ? [
     { 
       name: 'Petrol', 
-      value: sales.filter(s => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.totalAmount, 0),
-      litres: sales.filter(s => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.litres, 0),
-      transactions: sales.filter(s => s.fuelType === 'Petrol').length
+      value: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.totalAmount, 0),
+      litres: sales.filter((s: Sale) => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.litres, 0),
+      transactions: sales.filter((s: Sale) => s.fuelType === 'Petrol').length
     },
     { 
       name: 'Diesel', 
-      value: sales.filter(s => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.totalAmount, 0),
-      litres: sales.filter(s => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.litres, 0),
-      transactions: sales.filter(s => s.fuelType === 'Diesel').length
+      value: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.totalAmount, 0),
+      litres: sales.filter((s: Sale) => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.litres, 0),
+      transactions: sales.filter((s: Sale) => s.fuelType === 'Diesel').length
     }
   ] : [];
 
