@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, BarChart3, TrendingUp, Filter } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
 import { useSalesData } from "@/hooks/useSalesData";
 import { usePumpsData } from "@/hooks/usePumpsData";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -128,9 +147,8 @@ export default function Sales() {
     );
   }
 
-  // Render logic continues (filters, dialog, summary, sales list)...
   return (
-   <div className="container mx-auto p-4 md:p-6 space-y-6">Add commentMore actions
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Sales Management</h1>
@@ -138,7 +156,7 @@ export default function Sales() {
             Track and manage sales {currentStation ? `for ${currentStation.name}` : 'across all stations'}
           </p>
         </div>
-        
+
         <Dialog open={isAddSaleOpen} onOpenChange={setIsAddSaleOpen}>
           <DialogTrigger asChild>
             <Button className="w-full md:w-auto">
@@ -154,17 +172,21 @@ export default function Sales() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              {canAccessAllStations && (
+              {canAccessAllStations || currentStation ? (
                 <div>
                   <Label htmlFor="station_select">Station</Label>
-                  <Select value={manualEntry.station_id} onValueChange={(value) => {
-                    setManualEntry(prev => ({ ...prev, station_id: value, pump_id: '', nozzle_id: '' }));
-                  }}>
+                  <Select
+                    value={manualEntry.station_id}
+                    onValueChange={(value) => {
+                      setManualEntry(prev => ({ ...prev, station_id: value, pump_id: '', nozzle_id: '' }));
+                    }}
+                    disabled={!canAccessAllStations}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select station" />
                     </SelectTrigger>
                     <SelectContent>
-                      {stations.map((station) => (
+                      {(canAccessAllStations ? stations : currentStation ? [currentStation] : []).map((station) => (
                         <SelectItem key={station.id} value={station.id.toString()}>
                           {station.name}
                         </SelectItem>
@@ -172,16 +194,16 @@ export default function Sales() {
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-              
+              ) : null}
+
               <div>
                 <Label htmlFor="pump_select">Pump</Label>
-                <Select 
-                  value={manualEntry.pump_id} 
+                <Select
+                  value={manualEntry.pump_id}
                   onValueChange={(value) => {
                     setManualEntry(prev => ({ ...prev, pump_id: value, nozzle_id: '' }));
                   }}
-                  disabled={!manualEntry.station_id && !currentStation}
+                  disabled={!manualEntry.station_id}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select pump" />
@@ -198,8 +220,8 @@ export default function Sales() {
 
               <div>
                 <Label htmlFor="nozzle_select">Nozzle</Label>
-                <Select 
-                  value={manualEntry.nozzle_id} 
+                <Select
+                  value={manualEntry.nozzle_id}
                   onValueChange={(value) => setManualEntry(prev => ({ ...prev, nozzle_id: value }))}
                   disabled={!manualEntry.pump_id}
                 >
@@ -228,9 +250,9 @@ export default function Sales() {
                 />
               </div>
 
-              <Button 
-                onClick={handleManualEntry} 
-                disabled={createManualEntry.isPending} 
+              <Button
+                onClick={handleManualEntry}
+                disabled={createManualEntry.isPending}
                 className="w-full"
               >
                 {createManualEntry.isPending ? 'Processing...' : 'Record Entry'}
@@ -239,7 +261,6 @@ export default function Sales() {
           </DialogContent>
         </Dialog>
       </div>
-
       {/* Filters */}
       <Card>
         <CardHeader>
