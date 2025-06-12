@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -94,11 +95,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signOut = logout; // Alias for logout
+
   const value = {
     user,
     loading,
     login,
     logout,
+    signOut,
   };
 
   return (

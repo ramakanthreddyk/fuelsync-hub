@@ -31,7 +31,7 @@ export const fuelPriceService = {
     return data || [];
   },
 
-  async getCurrentPrice(stationId: number, fuelType: string): Promise<number> {
+  async getCurrentPrice(stationId: number, fuelType: 'PETROL' | 'DIESEL' | 'CNG' | 'EV'): Promise<number> {
     const { data, error } = await supabase
       .from('fuel_prices')
       .select('price_per_litre')
@@ -51,7 +51,7 @@ export const fuelPriceService = {
 
   async updateFuelPrice(
     stationId: number,
-    fuelType: string,
+    fuelType: 'PETROL' | 'DIESEL' | 'CNG' | 'EV',
     price: number,
     userId: number
   ): Promise<FuelPrice> {
@@ -76,7 +76,7 @@ export const fuelPriceService = {
 
   async getPriceHistory(
     stationId: number,
-    fuelType?: string,
+    fuelType?: 'PETROL' | 'DIESEL' | 'CNG' | 'EV',
     limit: number = 10
   ): Promise<FuelPrice[]> {
     let query = supabase
