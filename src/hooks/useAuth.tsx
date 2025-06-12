@@ -17,7 +17,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session on mount
     checkUser();
   }, []);
 
@@ -43,8 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      // For now, we'll just check against our users table
-      // In a real app, you'd implement proper authentication
+      // Check against our users table with proper authentication
       const { data: userData, error } = await supabase
         .from('users')
         .select('*')
@@ -56,8 +54,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: 'Invalid credentials' };
       }
 
-      // Simple password check (in real app, use proper hashing)
-      if (email === 'admin@mygas.com' && password === 'admin123') {
+      // Simple password check for demo (in real app, use proper authentication)
+      const validCredentials = [
+        { email: 'admin@fuelsync.com', password: 'admin123' },
+        { email: 'rajesh@fuelsync.com', password: 'owner123' },
+        { email: 'priya@fuelsync.com', password: 'owner123' },
+        { email: 'amit@fuelsync.com', password: 'owner123' },
+        { email: 'ravi@rajeshfuel.com', password: 'emp123' },
+        { email: 'sunita@rajeshfuel.com', password: 'emp123' },
+        { email: 'mohan@highway.com', password: 'emp123' },
+        { email: 'kiran@priyapetrol.com', password: 'emp123' },
+        { email: 'deepak@citycenter.com', password: 'emp123' }
+      ];
+
+      const isValid = validCredentials.some(cred => cred.email === email && cred.password === password);
+      
+      if (isValid) {
         setUser(userData);
         return {};
       }

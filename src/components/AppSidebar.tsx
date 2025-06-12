@@ -27,57 +27,6 @@ import {
   Upload,
 } from 'lucide-react';
 
-const menuItems = [
-  {
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    url: '/dashboard',
-  },
-  {
-    title: 'Stations',
-    icon: Building2,
-    url: '/stations',
-  },
-  {
-    title: 'Pumps & Nozzles',
-    icon: Fuel,
-    url: '/pumps',
-  },
-  {
-    title: 'OCR Readings',
-    icon: Upload,
-    url: '/readings',
-  },
-  {
-    title: 'Sales',
-    icon: BarChart3,
-    url: '/sales',
-  },
-  {
-    title: 'Reports',
-    icon: FileText,
-    url: '/reports',
-  },
-  {
-    title: 'Settings',
-    icon: Settings,
-    url: '/settings',
-  },
-];
-
-const adminMenuItems = [
-  {
-    title: 'Manage Users',
-    icon: Users,
-    url: '/admin/users',
-  },
-  {
-    title: 'Manage Stations',
-    icon: Building2,
-    url: '/admin/stations',
-  },
-];
-
 export function AppSidebar() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -86,6 +35,97 @@ export function AppSidebar() {
     await signOut();
     navigate('/login');
   };
+
+  // Base menu items for all authenticated users
+  const baseMenuItems = [
+    {
+      title: 'Dashboard',
+      icon: LayoutDashboard,
+      url: '/dashboard',
+    },
+  ];
+
+  // Role-specific menu items
+  const getMenuItems = () => {
+    switch (user?.role) {
+      case 'superadmin':
+        return [
+          ...baseMenuItems,
+          {
+            title: 'Manage Users',
+            icon: Users,
+            url: '/admin/users',
+          },
+          {
+            title: 'Manage Stations',
+            icon: Building2,
+            url: '/admin/stations',
+          },
+          {
+            title: 'Reports',
+            icon: FileText,
+            url: '/reports',
+          },
+          {
+            title: 'Settings',
+            icon: Settings,
+            url: '/settings',
+          },
+        ];
+      case 'owner':
+        return [
+          ...baseMenuItems,
+          {
+            title: 'My Stations',
+            icon: Building2,
+            url: '/stations',
+          },
+          {
+            title: 'Pumps & Nozzles',
+            icon: Fuel,
+            url: '/pumps',
+          },
+          {
+            title: 'Sales',
+            icon: BarChart3,
+            url: '/sales',
+          },
+          {
+            title: 'Reports',
+            icon: FileText,
+            url: '/reports',
+          },
+          {
+            title: 'Settings',
+            icon: Settings,
+            url: '/settings',
+          },
+        ];
+      case 'employee':
+        return [
+          ...baseMenuItems,
+          {
+            title: 'OCR Readings',
+            icon: Upload,
+            url: '/readings',
+          },
+          {
+            title: 'Sales',
+            icon: BarChart3,
+            url: '/sales',
+          },
+          {
+            title: 'Settings',
+            icon: Settings,
+            url: '/settings',
+          },
+        ];
+      default:
+        return baseMenuItems;
+    }
+  };
+
+  const menuItems = getMenuItems();
 
   return (
     <Sidebar>
@@ -118,27 +158,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {user?.role === 'superadmin' && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Administration</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminMenuItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      onClick={() => navigate(item.url)}
-                      className="w-full justify-start"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
 
       <SidebarFooter className="p-4">
