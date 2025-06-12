@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,7 +69,7 @@ export default function Pumps() {
 
   // Add nozzle mutation
   const addNozzleMutation = useMutation({
-    mutationFn: async (nozzleData: { nozzle_number: number; fuel_type: string; pump_id: number }) => {
+    mutationFn: async (nozzleData: { nozzle_number: number; fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV'; pump_id: number }) => {
       const { data, error } = await supabase
         .from('nozzles')
         .insert(nozzleData)
@@ -271,7 +270,7 @@ export default function Pumps() {
                           </div>
                           <div>
                             <Label htmlFor="fuel_type">Fuel Type</Label>
-                            <Select value={newNozzle.fuel_type} onValueChange={(value: any) => setNewNozzle(prev => ({ ...prev, fuel_type: value }))}>
+                            <Select value={newNozzle.fuel_type} onValueChange={(value: 'PETROL' | 'DIESEL' | 'CNG' | 'EV') => setNewNozzle(prev => ({ ...prev, fuel_type: value }))}>
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
