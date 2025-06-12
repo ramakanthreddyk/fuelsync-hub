@@ -70,7 +70,7 @@ export default function Pumps() {
 
   // Add nozzle mutation
   const addNozzleMutation = useMutation({
-    mutationFn: async (nozzleData: typeof newNozzle & { pump_id: number }) => {
+    mutationFn: async (nozzleData: { nozzle_number: number; fuel_type: string; pump_id: number }) => {
       const { data, error } = await supabase
         .from('nozzles')
         .insert(nozzleData)
@@ -121,9 +121,9 @@ export default function Pumps() {
       return;
     }
     addNozzleMutation.mutate({
-      ...newNozzle,
-      pump_id: selectedPumpId,
-      nozzle_number: parseInt(newNozzle.nozzle_number)
+      nozzle_number: parseInt(newNozzle.nozzle_number),
+      fuel_type: newNozzle.fuel_type,
+      pump_id: selectedPumpId
     });
   };
 
