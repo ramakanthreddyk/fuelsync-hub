@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +34,16 @@ export default function Dashboard() {
 
       // Load plans
       const { data: plansData } = await supabase.from('plans').select('*').eq('is_active', true);
-      setPlans(plansData || []);
+      if (plansData) {
+        // Convert Json type to Record<string, any>
+        const convertedPlans = plansData.map(plan => ({
+          ...plan,
+          features: typeof plan.features === 'string' 
+            ? JSON.parse(plan.features) 
+            : plan.features || {}
+        }));
+        setPlans(convertedPlans);
+      }
 
       // Load pumps for user's station(s)
       if (stationsData && stationsData.length > 0) {

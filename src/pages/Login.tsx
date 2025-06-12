@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { FuelSyncLogo } from '@/components/FuelSyncLogo';
+import FuelSyncLogo from '@/components/FuelSyncLogo';
 
 export default function Login() {
   const [email, setEmail] = useState('admin@mygas.com');

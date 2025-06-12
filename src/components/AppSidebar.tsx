@@ -13,7 +13,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from '@/components/ui/sidebar';
-import { FuelSyncLogo } from '@/components/FuelSyncLogo';
+import FuelSyncLogo from '@/components/FuelSyncLogo';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
