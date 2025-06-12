@@ -24,7 +24,7 @@ export default function Pumps() {
   });
   const [newNozzle, setNewNozzle] = useState({
     nozzle_number: '',
-    fuel_type: 'PETROL' as const
+    fuel_type: 'PETROL' as 'PETROL' | 'DIESEL' | 'CNG' | 'EV'
   });
 
   const { toast } = useToast();
