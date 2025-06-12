@@ -7,27 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Settings, Trash2, Fuel, Gauge } from "lucide-react";
+import { Plus, Settings, Fuel, Gauge } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-
-interface Pump {
-  id: number;
-  pump_sno: string;
-  name: string;
-  status: 'active' | 'inactive' | 'maintenance';
-  location: string;
-  installation_date: string;
-  nozzles: Array<{
-    id: number;
-    nozzle_number: number;
-    fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
-    status: 'active' | 'inactive';
-    max_flow_rate: number;
-  }>;
-}
+import { usePumpsData } from "@/hooks/usePumpsData";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 
 export default function Pumps() {
   const [isAddPumpOpen, setIsAddPumpOpen] = useState(false);
@@ -36,65 +21,39 @@ export default function Pumps() {
   const [newPump, setNewPump] = useState({
     pump_sno: '',
     name: '',
-    location: '',
-    status: 'active' as const
+    is_active: true
   });
   const [newNozzle, setNewNozzle] = useState({
     nozzle_number: '',
-    fuel_type: 'PETROL' as const,
-    max_flow_rate: '35.0',
-    status: 'active' as const
+    fuel_type: 'PETROL' as const
   });
 
   const { toast } = useToast();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  const currentStation = user?.stations?.[0];
-
-  // Fetch pumps
-  const { data: pumps, isLoading } = useQuery({
-    queryKey: ['pumps', currentStation?.id],
-    queryFn: async () => {
-      if (!currentStation?.id) return [];
-      
-      const { data, error } = await supabase.functions.invoke('pumps-api', {
-        method: 'GET',
-        body: null,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      
-      return data.data as Pump[];
-    },
-    enabled: !!currentStation?.id,
-  });
+  const { data: pumps, isLoading } = usePumpsData();
+  const { currentStation, isOwner, isAdmin } = useRoleAccess();
 
   // Add pump mutation
   const addPumpMutation = useMutation({
     mutationFn: async (pumpData: typeof newPump) => {
-      const { data, error } = await supabase.functions.invoke('pumps-api', {
-        method: 'POST',
-        body: {
-          stationId: currentStation?.id,
+      if (!currentStation?.id) throw new Error('No station selected');
+
+      const { data, error } = await supabase
+        .from('pumps')
+        .insert({
           ...pumpData,
-          created_by: user?.id
-        },
-      });
+          station_id: currentStation.id
+        })
+        .select()
+        .single();
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      
-      return data.data;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pumps'] });
       setIsAddPumpOpen(false);
-      setNewPump({ pump_sno: '', name: '', location: '', status: 'active' });
+      setNewPump({ pump_sno: '', name: '', is_active: true });
       toast({
         title: "Success",
         description: "Pump added successfully",
@@ -111,25 +70,21 @@ export default function Pumps() {
 
   // Add nozzle mutation
   const addNozzleMutation = useMutation({
-    mutationFn: async (nozzleData: typeof newNozzle) => {
-      const { data, error } = await supabase.functions.invoke('pumps-api', {
-        method: 'POST',
-        body: nozzleData,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    mutationFn: async (nozzleData: typeof newNozzle & { pump_id: number }) => {
+      const { data, error } = await supabase
+        .from('nozzles')
+        .insert(nozzleData)
+        .select()
+        .single();
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      
-      return data.data;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pumps'] });
       setIsAddNozzleOpen(false);
       setSelectedPumpId(null);
-      setNewNozzle({ nozzle_number: '', fuel_type: 'PETROL', max_flow_rate: '35.0', status: 'active' });
+      setNewNozzle({ nozzle_number: '', fuel_type: 'PETROL' });
       toast({
         title: "Success",
         description: "Nozzle added successfully",
@@ -165,16 +120,15 @@ export default function Pumps() {
       });
       return;
     }
-    addNozzleMutation.mutate(newNozzle);
+    addNozzleMutation.mutate({
+      ...newNozzle,
+      pump_id: selectedPumpId,
+      nozzle_number: parseInt(newNozzle.nozzle_number)
+    });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getStatusColor = (status: boolean) => {
+    return status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
   };
 
   const getFuelTypeColor = (fuelType: string) => {
@@ -187,7 +141,7 @@ export default function Pumps() {
     }
   };
 
-  if (!currentStation) {
+  if (!currentStation && !isAdmin) {
     return (
       <div className="container mx-auto p-6">
         <Card>
@@ -214,70 +168,52 @@ export default function Pumps() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Pump Management</h1>
-          <p className="text-muted-foreground">Manage pumps and nozzles for {currentStation.name}</p>
+          <p className="text-muted-foreground">
+            Manage pumps and nozzles {currentStation ? `for ${currentStation.name}` : 'across all stations'}
+          </p>
         </div>
         
-        <Dialog open={isAddPumpOpen} onOpenChange={setIsAddPumpOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Pump
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Pump</DialogTitle>
-              <DialogDescription>
-                Add a new pump to your station
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="pump_sno">Pump Serial Number</Label>
-                <Input
-                  id="pump_sno"
-                  value={newPump.pump_sno}
-                  onChange={(e) => setNewPump(prev => ({ ...prev, pump_sno: e.target.value }))}
-                  placeholder="e.g., P001"
-                />
-              </div>
-              <div>
-                <Label htmlFor="name">Pump Name</Label>
-                <Input
-                  id="name"
-                  value={newPump.name}
-                  onChange={(e) => setNewPump(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., Main Pump 1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={newPump.location}
-                  onChange={(e) => setNewPump(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="e.g., Front - Left Side"
-                />
-              </div>
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select value={newPump.status} onValueChange={(value: any) => setNewPump(prev => ({ ...prev, status: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleAddPump} disabled={addPumpMutation.isPending} className="w-full">
-                {addPumpMutation.isPending ? 'Adding...' : 'Add Pump'}
+        {(isOwner || isAdmin) && (
+          <Dialog open={isAddPumpOpen} onOpenChange={setIsAddPumpOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Pump
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Pump</DialogTitle>
+                <DialogDescription>
+                  Add a new pump to the station
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="pump_sno">Pump Serial Number</Label>
+                  <Input
+                    id="pump_sno"
+                    value={newPump.pump_sno}
+                    onChange={(e) => setNewPump(prev => ({ ...prev, pump_sno: e.target.value }))}
+                    placeholder="e.g., P001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="name">Pump Name</Label>
+                  <Input
+                    id="name"
+                    value={newPump.name}
+                    onChange={(e) => setNewPump(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Main Pump 1"
+                  />
+                </div>
+                <Button onClick={handleAddPump} disabled={addPumpMutation.isPending} className="w-full">
+                  {addPumpMutation.isPending ? 'Adding...' : 'Add Pump'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -291,82 +227,69 @@ export default function Pumps() {
                     {pump.name}
                   </CardTitle>
                   <CardDescription>
-                    Serial: {pump.pump_sno} • {pump.location}
+                    Serial: {pump.pump_sno}
                   </CardDescription>
                 </div>
-                <Badge className={getStatusColor(pump.status)}>
-                  {pump.status}
+                <Badge className={getStatusColor(pump.is_active)}>
+                  {pump.is_active ? 'Active' : 'Inactive'}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Installed: {new Date(pump.installation_date).toLocaleDateString()}
-              </div>
-              
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-medium">Nozzles ({pump.nozzles?.length || 0})</h4>
-                  <Dialog open={isAddNozzleOpen && selectedPumpId === pump.id} onOpenChange={(open) => {
-                    setIsAddNozzleOpen(open);
-                    if (open) setSelectedPumpId(pump.id);
-                    else setSelectedPumpId(null);
-                  }}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Plus className="w-3 h-3 mr-1" />
-                        Add Nozzle
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add Nozzle to {pump.name}</DialogTitle>
-                        <DialogDescription>
-                          Add a new nozzle to this pump
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="nozzle_number">Nozzle Number</Label>
-                          <Input
-                            id="nozzle_number"
-                            type="number"
-                            value={newNozzle.nozzle_number}
-                            onChange={(e) => setNewNozzle(prev => ({ ...prev, nozzle_number: e.target.value }))}
-                            placeholder="e.g., 1"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="fuel_type">Fuel Type</Label>
-                          <Select value={newNozzle.fuel_type} onValueChange={(value: any) => setNewNozzle(prev => ({ ...prev, fuel_type: value }))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="PETROL">Petrol</SelectItem>
-                              <SelectItem value="DIESEL">Diesel</SelectItem>
-                              <SelectItem value="CNG">CNG</SelectItem>
-                              <SelectItem value="EV">EV Charging</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="max_flow_rate">Max Flow Rate (L/min)</Label>
-                          <Input
-                            id="max_flow_rate"
-                            type="number"
-                            step="0.1"
-                            value={newNozzle.max_flow_rate}
-                            onChange={(e) => setNewNozzle(prev => ({ ...prev, max_flow_rate: e.target.value }))}
-                            placeholder="35.0"
-                          />
-                        </div>
-                        <Button onClick={handleAddNozzle} disabled={addNozzleMutation.isPending} className="w-full">
-                          {addNozzleMutation.isPending ? 'Adding...' : 'Add Nozzle'}
+                  {(isOwner || isAdmin) && (
+                    <Dialog open={isAddNozzleOpen && selectedPumpId === pump.id} onOpenChange={(open) => {
+                      setIsAddNozzleOpen(open);
+                      if (open) setSelectedPumpId(pump.id);
+                      else setSelectedPumpId(null);
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add Nozzle
                         </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Nozzle to {pump.name}</DialogTitle>
+                          <DialogDescription>
+                            Add a new nozzle to this pump
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="nozzle_number">Nozzle Number</Label>
+                            <Input
+                              id="nozzle_number"
+                              type="number"
+                              value={newNozzle.nozzle_number}
+                              onChange={(e) => setNewNozzle(prev => ({ ...prev, nozzle_number: e.target.value }))}
+                              placeholder="e.g., 1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="fuel_type">Fuel Type</Label>
+                            <Select value={newNozzle.fuel_type} onValueChange={(value: any) => setNewNozzle(prev => ({ ...prev, fuel_type: value }))}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PETROL">Petrol</SelectItem>
+                                <SelectItem value="DIESEL">Diesel</SelectItem>
+                                <SelectItem value="CNG">CNG</SelectItem>
+                                <SelectItem value="EV">EV Charging</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button onClick={handleAddNozzle} disabled={addNozzleMutation.isPending} className="w-full">
+                            {addNozzleMutation.isPending ? 'Adding...' : 'Add Nozzle'}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -379,14 +302,9 @@ export default function Pumps() {
                           {nozzle.fuel_type}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {nozzle.max_flow_rate} L/min
-                        </span>
-                        <Badge className={getStatusColor(nozzle.status)}>
-                          {nozzle.status}
-                        </Badge>
-                      </div>
+                      <Badge className={getStatusColor(nozzle.is_active)}>
+                        {nozzle.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -404,10 +322,12 @@ export default function Pumps() {
             <p className="text-muted-foreground mb-4">
               Get started by adding your first pump to the station.
             </p>
-            <Button onClick={() => setIsAddPumpOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Your First Pump
-            </Button>
+            {(isOwner || isAdmin) && (
+              <Button onClick={() => setIsAddPumpOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Your First Pump
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

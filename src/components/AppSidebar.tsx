@@ -1,3 +1,4 @@
+
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 import FuelSyncLogo from "./FuelSyncLogo";
 import {
   Home,
@@ -31,6 +33,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { isAdmin, isOwner, isEmployee } = useRoleAccess();
 
   const handleLogout = async () => {
     try {
@@ -41,27 +44,42 @@ export function AppSidebar() {
     }
   };
 
+  const handleNavigation = (url: string) => {
+    navigate(url);
+  };
+
   // Define navigation items based on user role
   const getNavigationItems = () => {
-    const commonItems = [
+    if (isAdmin) {
+      return [
+        { title: "Dashboard", url: "/dashboard", icon: Home },
+        { title: "Users", url: "/admin/users", icon: Users },
+        { title: "Stations", url: "/admin/stations", icon: Building2 },
+        { title: "Settings", url: "/settings", icon: Settings },
+      ];
+    }
+
+    if (isOwner) {
+      return [
+        { title: "Dashboard", url: "/dashboard", icon: Home },
+        { title: "Pumps", url: "/pumps", icon: Fuel },
+        { title: "Sales", url: "/sales", icon: BarChart3 },
+        { title: "Daily Closure", url: "/daily-closure", icon: ClipboardCheck },
+        { title: "Fuel Prices", url: "/prices", icon: DollarSign },
+        { title: "Reports", url: "/reports", icon: FileText },
+        { title: "Settings", url: "/settings", icon: Settings },
+      ];
+    }
+
+    // Employee
+    return [
       { title: "Dashboard", url: "/dashboard", icon: Home },
       { title: "Upload Data", url: "/upload", icon: Upload },
       { title: "Sales", url: "/sales", icon: BarChart3 },
       { title: "Daily Closure", url: "/daily-closure", icon: ClipboardCheck },
-      { title: "Fuel Prices", url: "/prices", icon: DollarSign },
-      { title: "Pumps", url: "/pumps", icon: Fuel },
       { title: "Reports", url: "/reports", icon: FileText },
       { title: "Settings", url: "/settings", icon: Settings },
     ];
-
-    const adminItems = [
-      { title: "Dashboard", url: "/dashboard", icon: Home },
-      { title: "Users", url: "/admin/users", icon: Users },
-      { title: "Stations", url: "/admin/stations", icon: Building2 },
-      { title: "Settings", url: "/settings", icon: Settings },
-    ];
-
-    return user?.role === 'superadmin' ? adminItems : commonItems;
   };
 
   const navigationItems = getNavigationItems();
@@ -78,13 +96,11 @@ export function AppSidebar() {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
-                    asChild
                     isActive={location.pathname === item.url}
+                    onClick={() => handleNavigation(item.url)}
                   >
-                    <a href={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

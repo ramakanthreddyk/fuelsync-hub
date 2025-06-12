@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -10,6 +11,9 @@ import AdminStations from '@/pages/AdminStations';
 import Upload from '@/pages/Upload';
 import Sales from '@/pages/Sales';
 import DailyClosure from '@/pages/DailyClosure';
+import Pumps from '@/pages/Pumps';
+import Prices from '@/pages/Prices';
+import Reports from '@/pages/Reports';
 import AppLayout from '@/components/AppLayout';
 
 const queryClient = new QueryClient();
@@ -74,6 +78,9 @@ function App() {
                       <Route path="/upload" element={<Upload />} />
                       <Route path="/sales" element={<Sales />} />
                       <Route path="/daily-closure" element={<DailyClosure />} />
+                      <Route path="/pumps" element={<Pumps />} />
+                      <Route path="/prices" element={<Prices />} />
+                      <Route path="/reports" element={<Reports />} />
                       <Route path="/admin/users" element={<AdminUsers />} />
                       <Route path="/admin/stations" element={<AdminStations />} />
                       <Route path="/settings" element={<Settings />} />
