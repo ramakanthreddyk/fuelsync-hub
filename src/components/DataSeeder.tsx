@@ -4,83 +4,105 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Database, CheckCircle } from 'lucide-react';
+import { Loader2, Database, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function DataSeeder() {
   const [isSeeding, setIsSeeding] = useState(false);
-  const [seedingStatus, setSeedingStatus] = useState<'idle' | 'seeding' | 'success' | 'error'>('idle');
+  const [seedStatus, setSeedStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const { toast } = useToast();
 
   const seedDatabase = async () => {
     try {
       setIsSeeding(true);
-      setSeedingStatus('seeding');
-
-      const { data, error } = await supabase.functions.invoke('seed-data');
-
-      if (error) throw error;
-
-      setSeedingStatus('success');
-      toast({
-        title: 'Success',
-        description: 'Database seeded successfully with sample data',
+      setSeedStatus('idle');
+      
+      console.log('🌱 Starting database seeding...');
+      
+      const { data, error } = await supabase.functions.invoke('seed-data', {
+        body: { action: 'seed' }
       });
 
-      console.log('Seeding result:', data);
+      if (error) {
+        console.error('Seeding error:', error);
+        throw new Error(error.message || 'Failed to seed database');
+      }
+
+      console.log('✅ Seeding response:', data);
+      
+      if (data?.success) {
+        setSeedStatus('success');
+        toast({
+          title: 'Success!',
+          description: data.message || 'Database seeded successfully',
+          variant: 'default'
+        });
+      } else {
+        throw new Error(data?.error || 'Seeding failed');
+      }
+      
     } catch (error) {
-      console.error('Seeding error:', error);
-      setSeedingStatus('error');
+      console.error('❌ Seeding failed:', error);
+      setSeedStatus('error');
       toast({
-        title: 'Error',
-        description: 'Failed to seed database',
-        variant: 'destructive',
+        title: 'Seeding Failed',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive'
       });
     } finally {
       setIsSeeding(false);
     }
   };
 
+  const getStatusIcon = () => {
+    switch (seedStatus) {
+      case 'success':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <Database className="h-4 w-4 text-blue-600" />;
+    }
+  };
+
+  const getButtonText = () => {
+    if (isSeeding) return 'Seeding...';
+    if (seedStatus === 'success') return 'Database Ready';
+    return 'Seed Database';
+  };
+
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Database className="h-5 w-5" />
+    <Card className="w-full">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          {getStatusIcon()}
           Database Setup
         </CardTitle>
-        <CardDescription>
-          Initialize the database with sample data for testing
+        <CardDescription className="text-xs">
+          Initialize the database with sample fuel station data
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Button 
-          onClick={seedDatabase} 
-          disabled={isSeeding || seedingStatus === 'success'}
+      <CardContent>
+        <Button
+          onClick={seedDatabase}
+          disabled={isSeeding || seedStatus === 'success'}
+          size="sm"
           className="w-full"
+          variant={seedStatus === 'success' ? 'secondary' : 'default'}
         >
-          {isSeeding ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Seeding Database...
-            </>
-          ) : seedingStatus === 'success' ? (
-            <>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Database Seeded
-            </>
-          ) : (
-            'Seed Database'
-          )}
+          {isSeeding && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+          {getButtonText()}
         </Button>
         
-        {seedingStatus === 'success' && (
-          <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md">
-            <p className="font-medium">Sample accounts created:</p>
-            <ul className="mt-2 space-y-1">
-              <li>• Admin: admin@fuelsync.com (admin123)</li>
-              <li>• Owner: rajesh@fuelsync.com (owner123)</li>
-              <li>• Employee: ravi@fuelsync.com (emp123)</li>
-            </ul>
-          </div>
+        {seedStatus === 'success' && (
+          <p className="text-xs text-green-600 mt-2 text-center">
+            ✅ Ready to login with demo accounts
+          </p>
+        )}
+        
+        {seedStatus === 'error' && (
+          <p className="text-xs text-red-600 mt-2 text-center">
+            ❌ Check console for details
+          </p>
         )}
       </CardContent>
     </Card>

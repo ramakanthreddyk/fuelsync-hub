@@ -18,15 +18,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
     checkUser();
   }, []);
 
   const checkUser = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await fetchUserData(session.user.email!);
+      const storedUser = localStorage.getItem('fuelsync_user');
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
       }
     } catch (error) {
       console.error('Error checking user:', error);
@@ -39,44 +39,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          user_stations!inner(station_id),
+          stations:user_stations(stations(*))
+        `)
         .eq('email', email)
         .eq('is_active', true)
         .single();
 
       if (error) {
         console.error('Error fetching user data:', error);
-        return;
+        return null;
       }
 
-      setUser(data);
+      return data;
     } catch (error) {
       console.error('Error fetching user data:', error);
+      return null;
     }
   };
 
   const login = async (email: string, password: string) => {
     try {
-      // First, verify user exists in our database
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('is_active', true)
-        .single();
+      const userData = await fetchUserData(email);
 
-      if (userError || !userData) {
+      if (!userData) {
         throw new Error('Invalid credentials or account not found');
       }
 
       // For demo purposes, we'll skip password verification
-      // In production, you would verify the password hash here
       console.log('Login attempt for:', email);
 
-      // Create a dummy session for demo
       setUser(userData);
-
-      // Store session info for persistence
       localStorage.setItem('fuelsync_user', JSON.stringify(userData));
       
     } catch (error) {
@@ -95,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signOut = logout; // Alias for logout
+  const signOut = logout;
 
   const value = {
     user,

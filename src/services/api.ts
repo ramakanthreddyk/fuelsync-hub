@@ -10,17 +10,15 @@ import {
   ApiResponse 
 } from '@/types/api';
 
-// API Service Class
+// API Service Class for multi-tenant fuel station management
 class ApiService {
   private baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
   private token: string | null = null;
 
   constructor() {
-    // Get token from localStorage on initialization
     this.token = localStorage.getItem('fuelsync_token');
   }
 
-  // Helper method to set authorization headers
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -33,7 +31,6 @@ class ApiService {
     return headers;
   }
 
-  // Helper method for API requests
   private async request<T>(
     endpoint: string, 
     options: RequestInit = {}
@@ -49,7 +46,6 @@ class ApiService {
 
       const data = await response.json();
 
-      // Handle 401 errors by logging out the user
       if (response.status === 401) {
         this.clearToken();
         window.location.href = '/login';
@@ -73,108 +69,101 @@ class ApiService {
     }
   }
 
-  // Set token for authenticated requests
   setToken(token: string) {
     this.token = token;
     localStorage.setItem('fuelsync_token', token);
   }
 
-  // Clear token
   clearToken() {
     this.token = null;
     localStorage.removeItem('fuelsync_token');
   }
 
-  // Check if user is authenticated
   isAuthenticated(): boolean {
     return !!this.token;
   }
 
-  // Auth endpoints
-  async login(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
-    console.log('API: Login attempt', { email });
-    const response = await this.request<{ user: User; token: string }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+  // Multi-tenant station access methods
+  async getUserStations(userId: number): Promise<ApiResponse<any[]>> {
+    return this.request(`/users/${userId}/stations`);
+  }
 
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token);
+  async getStationData(stationId: number): Promise<ApiResponse<any>> {
+    return this.request(`/stations/${stationId}`);
+  }
+
+  // Plan limits and enforcement
+  async checkPlanLimits(stationId: number, action: string): Promise<ApiResponse<boolean>> {
+    return this.request(`/stations/${stationId}/plan-limits/check`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+  }
+
+  async getPlanUsage(stationId: number): Promise<ApiResponse<any>> {
+    return this.request(`/stations/${stationId}/plan-usage`);
+  }
+
+  // Fuel prices with historical tracking
+  async getFuelPrices(stationId: number): Promise<ApiResponse<FuelPrice[]>> {
+    return this.request(`/stations/${stationId}/fuel-prices`);
+  }
+
+  async updateFuelPrice(
+    stationId: number, 
+    fuelType: string, 
+    price: number,
+    userId: number
+  ): Promise<ApiResponse<FuelPrice>> {
+    return this.request(`/stations/${stationId}/fuel-prices`, {
+      method: 'POST',
+      body: JSON.stringify({ fuel_type: fuelType, price_per_litre: price, created_by: userId }),
+    });
+  }
+
+  // Tender entries
+  async getTenderEntries(stationId: number, date?: string): Promise<ApiResponse<any[]>> {
+    const params = date ? `?date=${date}` : '';
+    return this.request(`/stations/${stationId}/tender-entries${params}`);
+  }
+
+  async createTenderEntry(stationId: number, entryData: any): Promise<ApiResponse<any>> {
+    return this.request(`/stations/${stationId}/tender-entries`, {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    });
+  }
+
+  // Daily closure
+  async getDailyClosure(stationId: number, date: string): Promise<ApiResponse<any>> {
+    return this.request(`/stations/${stationId}/daily-closure/${date}`);
+  }
+
+  async createDailyClosure(stationId: number, date: string, userId: number): Promise<ApiResponse<any>> {
+    return this.request(`/stations/${stationId}/daily-closure`, {
+      method: 'POST',
+      body: JSON.stringify({ date, closed_by: userId }),
+    });
+  }
+
+  // OCR readings with plan enforcement
+  async uploadOCRImage(stationId: number, file: File, nozzleId: number): Promise<ApiResponse<any>> {
+    // Check plan limits first
+    const limitCheck = await this.checkPlanLimits(stationId, 'ocr_upload');
+    if (!limitCheck.success || !limitCheck.data) {
+      return {
+        success: false,
+        error: 'OCR upload limit exceeded for current plan'
+      };
     }
 
-    return response;
-  }
-
-  async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.request<User>('/auth/me');
-  }
-
-  async refreshToken(): Promise<ApiResponse<{ token: string }>> {
-    const response = await this.request<{ token: string }>('/auth/refresh', {
-      method: 'POST',
-    });
-
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token);
-    }
-
-    return response;
-  }
-
-  async logout(): Promise<ApiResponse<unknown>> {
-    const response = await this.request('/auth/logout', {
-      method: 'POST',
-    });
-
-    this.clearToken();
-    return response;
-  }
-
-  // User management endpoints (Super Admin)
-  async getAllUsers(): Promise<ApiResponse<User[]>> {
-    console.log('API: Fetching all users');
-    return this.request<User[]>('/users');
-  }
-
-  async createEmployee(employeeData: { name: string; email: string; password: string }): Promise<ApiResponse<User>> {
-    console.log('API: Creating employee', employeeData.email);
-    return this.request<User>('/users/employees', {
-      method: 'POST',
-      body: JSON.stringify(employeeData),
-    });
-  }
-
-  async updateUserPlan(userId: string, planName: string): Promise<ApiResponse<unknown>> {
-    console.log('API: Updating user plan', userId, planName);
-    return this.request(`/users/${userId}/plan`, {
-      method: 'PUT',
-      body: JSON.stringify({ planName }),
-    });
-  }
-
-  async deleteUser(userId: string, confirmed: boolean = false): Promise<ApiResponse<unknown>> {
-    console.log('API: Deleting user', userId);
-    return this.request(`/users/${userId}`, {
-      method: 'DELETE',
-      body: JSON.stringify({ confirmed }),
-    });
-  }
-
-  // Upload endpoints
-  async getUploads(page = 1, limit = 20): Promise<ApiResponse<Upload[]>> {
-    console.log('API: Fetching uploads');
-    return this.request<Upload[]>(`/uploads?page=${page}&limit=${limit}`);
-  }
-
-  async uploadReceipt(file: File, pumpSno: string): Promise<ApiResponse<Upload>> {
-    console.log('API: Uploading receipt', file.name, 'for pump', pumpSno);
-    
     const formData = new FormData();
-    formData.append('receipt', file);
-    formData.append('pump_sno', pumpSno);
+    formData.append('image', file);
+    formData.append('nozzle_id', nozzleId.toString());
+    formData.append('station_id', stationId.toString());
 
     try {
-      const response = await fetch(`${this.baseUrl}/uploads`, {
+      const response = await fetch(`${this.baseUrl}/stations/${stationId}/ocr-upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.token}`,
@@ -182,24 +171,8 @@ class ApiService {
         body: formData,
       });
 
-      const data = await response.json();
-
-      if (response.status === 401) {
-        this.clearToken();
-        window.location.href = '/login';
-        return {
-          success: false,
-          error: 'Session expired. Please login again.'
-        };
-      }
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
-      }
-
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error('Upload error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Upload failed'
@@ -207,141 +180,44 @@ class ApiService {
     }
   }
 
-  async updateOcrData(uploadId: string, ocrData: Record<string, unknown>): Promise<ApiResponse<Upload>> {
-    console.log('API: Updating OCR data', uploadId, ocrData);
-    return this.request<Upload>(`/uploads/${uploadId}`, {
-      method: 'PUT',
-      body: JSON.stringify(ocrData),
-    });
-  }
+  async createManualReading(stationId: number, readingData: any): Promise<ApiResponse<any>> {
+    // Check if manual entry is allowed
+    const limitCheck = await this.checkPlanLimits(stationId, 'manual_entry');
+    if (!limitCheck.success || !limitCheck.data) {
+      return {
+        success: false,
+        error: 'Manual entry not allowed for current plan'
+      };
+    }
 
-  async deleteUpload(uploadId: string): Promise<ApiResponse<unknown>> {
-    console.log('API: Deleting upload', uploadId);
-    return this.request(`/uploads/${uploadId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Nozzle reading endpoints
-  async getNozzleReadings(page = 1, limit = 20, pump_sno?: string, date?: string): Promise<ApiResponse<NozzleReading[]>> {
-    console.log('API: Fetching nozzle readings');
-    
-    const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-    if (pump_sno) params.append('pump_sno', pump_sno);
-    if (date) params.append('date', date);
-
-    return this.request<NozzleReading[]>(`/nozzle-readings?${params.toString()}`);
-  }
-
-  async createManualReading(readingData: {
-    pump_sno: string;
-    nozzle_id: number;
-    cumulative_volume: number;
-    reading_date: string;
-    reading_time?: string;
-    fuel_type: 'Petrol' | 'Diesel';
-  }): Promise<ApiResponse<NozzleReading>> {
-    console.log('API: Creating manual reading', readingData);
-    return this.request<NozzleReading>('/nozzle-readings/manual', {
+    return this.request(`/stations/${stationId}/ocr-readings/manual`, {
       method: 'POST',
       body: JSON.stringify(readingData),
     });
   }
 
-  async updateNozzleReading(readingId: string, updateData: {
-    cumulative_volume: number;
-    fuel_type: 'Petrol' | 'Diesel';
-  }): Promise<ApiResponse<NozzleReading>> {
-    console.log('API: Updating nozzle reading', readingId, updateData);
-    return this.request<NozzleReading>(`/nozzle-readings/${readingId}`, {
-      method: 'PUT',
-      body: JSON.stringify(updateData),
-    });
-  }
+  // Export reports (plan dependent)
+  async exportReport(stationId: number, reportType: string, format: string): Promise<ApiResponse<any>> {
+    const limitCheck = await this.checkPlanLimits(stationId, 'export_reports');
+    if (!limitCheck.success || !limitCheck.data) {
+      return {
+        success: false,
+        error: 'Report export not available for current plan'
+      };
+    }
 
-  async deleteNozzleReading(readingId: string): Promise<ApiResponse<unknown>> {
-    console.log('API: Deleting nozzle reading', readingId);
-    return this.request(`/nozzle-readings/${readingId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Sales endpoints
-  async getSales(startDate?: string, endDate?: string, page = 1, limit = 20): Promise<ApiResponse<Sale[]>> {
-    console.log('API: Fetching sales', { startDate, endDate });
-    
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-
-    return this.request<Sale[]>(`/sales?${params.toString()}`);
-  }
-
-  async getDailySummary(date: string): Promise<ApiResponse<DailySummary>> {
-    console.log('API: Fetching daily summary', date);
-    return this.request<DailySummary>(`/sales/daily/${date}`);
-  }
-
-  // Fuel price endpoints
-  async getFuelPrices(): Promise<ApiResponse<FuelPrice[]>> {
-    console.log('API: Fetching fuel prices');
-    return this.request<FuelPrice[]>('/prices');
-  }
-
-  async updateFuelPrice(fuelType: string, price: number): Promise<ApiResponse<FuelPrice>> {
-    console.log('API: Updating fuel price', fuelType, price);
-    return this.request<FuelPrice>('/prices', {
-      method: 'PUT',
-      body: JSON.stringify({ fuelType, price }),
-    });
-  }
-
-  // Pump endpoints
-  async getPumps(): Promise<ApiResponse<Pump[]>> {
-    console.log('API: Fetching pumps');
-    return this.request<Pump[]>('/pumps');
-  }
-
-  async createPump(pumpData: { name: string; location: string }): Promise<ApiResponse<Pump>> {
-    console.log('API: Creating pump', pumpData);
-    return this.request<Pump>('/pumps', {
+    return this.request(`/stations/${stationId}/reports/export`, {
       method: 'POST',
-      body: JSON.stringify(pumpData),
+      body: JSON.stringify({ type: reportType, format }),
     });
   }
 
-  async updatePumpStatus(pumpId: string, status: string): Promise<ApiResponse<Pump>> {
-    console.log('API: Updating pump status', pumpId, status);
-    return this.request<Pump>(`/pumps/${pumpId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    });
-  }
-
-  async updateNozzleFuelType(nozzleId: string, fuelType: string): Promise<ApiResponse<unknown>> {
-    console.log('API: Updating nozzle fuel type', nozzleId, fuelType);
-    return this.request(`/pumps/nozzles/${nozzleId}/fuel-type`, {
-      method: 'PUT',
-      body: JSON.stringify({ fuelType }),
-    });
-  }
-
-  // Report endpoints
-  async generateReport(type: string, startDate: string, endDate: string): Promise<ApiResponse<unknown>> {
-    console.log('API: Generating report', type, startDate, endDate);
-    return this.request('/reports/generate', {
+  // Event logging
+  async logEvent(stationId: number, eventType: string, payload: any): Promise<ApiResponse<any>> {
+    return this.request(`/stations/${stationId}/events`, {
       method: 'POST',
-      body: JSON.stringify({ type, startDate, endDate }),
+      body: JSON.stringify({ event_type: eventType, payload }),
     });
-  }
-
-  // Health check
-  async healthCheck(): Promise<ApiResponse<unknown>> {
-    return this.request('/health');
   }
 }
 

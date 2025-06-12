@@ -1,5 +1,5 @@
 
-// Database types matching the new fuel station schema
+// Database types matching the new multi-tenant fuel station schema
 export interface User {
   id: number;
   name: string | null;
@@ -7,10 +7,16 @@ export interface User {
   phone: string | null;
   password: string;
   role: 'superadmin' | 'owner' | 'employee';
-  station_id: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  user_stations?: UserStation[];
+  stations?: Station[];
+}
+
+export interface UserStation {
+  user_id: number;
+  station_id: number;
 }
 
 export interface Station {
@@ -35,7 +41,7 @@ export interface Plan {
   allow_manual_entry: boolean;
   edit_fuel_type: boolean;
   export_reports: boolean;
-  features: any; // Changed from Record<string, any> to any to match Supabase Json type
+  features: any;
   is_active: boolean;
   created_at: string;
 }
@@ -122,4 +128,13 @@ export interface PlanUsage {
   pumps_used: number;
   nozzles_used: number;
   employees_count: number;
+}
+
+export interface EventLog {
+  id: number;
+  user_id: number | null;
+  station_id: number | null;
+  event_type: string;
+  payload: any;
+  occurred_at: string;
 }
