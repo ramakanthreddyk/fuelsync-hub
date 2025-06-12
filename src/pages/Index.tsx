@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
@@ -9,6 +8,7 @@ import Prices from './Prices';
 import Pumps from './Pumps';
 import Reports from './Reports';
 import Settings from './Settings';
+import DailyClosure from './DailyClosure';
 
 const Index = () => {
   const location = useLocation();
@@ -27,6 +27,8 @@ const Index = () => {
         return <Reports />;
       case '/settings':
         return <Settings />;
+      case '/daily-closure':
+        return <DailyClosure />;
       case '/dashboard':
       case '/':
       default:
