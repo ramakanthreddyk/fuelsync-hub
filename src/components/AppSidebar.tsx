@@ -1,107 +1,139 @@
 
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
+  SidebarHeader,
+  SidebarFooter,
+} from '@/components/ui/sidebar';
+import { FuelSyncLogo } from '@/components/FuelSyncLogo';
+import { Button } from '@/components/ui/button';
 import {
-  BarChart3,
-  Upload,
-  DollarSign,
+  LayoutDashboard,
+  Building2,
   Fuel,
   FileText,
+  BarChart3,
   Settings,
+  Users,
   LogOut,
-  Home
-} from "lucide-react";
-import FuelSyncLogo from './FuelSyncLogo';
-import { apiService } from '@/services/api';
-import { useToast } from "@/hooks/use-toast";
+  Upload,
+} from 'lucide-react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/app/dashboard', icon: Home },
-  { name: 'Upload Receipt', href: '/app/upload', icon: Upload },
-  { name: 'Sales Analytics', href: '/app/sales', icon: BarChart3 },
-  { name: 'Fuel Prices', href: '/app/prices', icon: DollarSign },
-  { name: 'Pump Management', href: '/app/pumps', icon: Fuel },
-  { name: 'Reports', href: '/app/reports', icon: FileText },
-  { name: 'Settings', href: '/app/settings', icon: Settings },
+const menuItems = [
+  {
+    title: 'Dashboard',
+    icon: LayoutDashboard,
+    url: '/dashboard',
+  },
+  {
+    title: 'Stations',
+    icon: Building2,
+    url: '/stations',
+  },
+  {
+    title: 'Pumps & Nozzles',
+    icon: Fuel,
+    url: '/pumps',
+  },
+  {
+    title: 'OCR Readings',
+    icon: Upload,
+    url: '/readings',
+  },
+  {
+    title: 'Sales',
+    icon: BarChart3,
+    url: '/sales',
+  },
+  {
+    title: 'Reports',
+    icon: FileText,
+    url: '/reports',
+  },
+  {
+    title: 'Users',
+    icon: Users,
+    url: '/users',
+    adminOnly: true,
+  },
+  {
+    title: 'Settings',
+    icon: Settings,
+    url: '/settings',
+  },
 ];
 
-const AppSidebar = () => {
-  const location = useLocation();
-  const { toast } = useToast();
+export function AppSidebar() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    try {
-      await apiService.logout();
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
-      });
-      window.location.href = '/';
-    } catch (error) {
-      toast({
-        title: "Logout Error",
-        description: "Something went wrong during logout.",
-        variant: "destructive",
-      });
-    }
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
   };
+
+  const filteredMenuItems = menuItems.filter(item => 
+    !item.adminOnly || user?.role === 'superadmin'
+  );
 
   return (
     <Sidebar>
+      <SidebarHeader className="p-4">
+        <div className="flex items-center gap-2">
+          <FuelSyncLogo />
+          <div>
+            <h2 className="text-lg font-semibold">FuelSync</h2>
+            <p className="text-sm text-muted-foreground capitalize">{user?.role}</p>
+          </div>
+        </div>
+      </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
-          <div className="flex items-center gap-3 px-4 py-6 border-b">
-            <FuelSyncLogo className="h-8 w-8" />
-            <span className="text-xl font-bold">FuelSync</span>
-          </div>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigation.map((item) => {
-                const isActive = location.pathname === item.href;
-                
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive}
-                      className="w-full justify-start"
-                    >
-                      <Link to={item.href} className="flex items-center gap-3">
-                        <item.icon className="h-5 w-5" />
-                        {item.name}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {filteredMenuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    onClick={() => navigate(item.url)}
+                    className="w-full justify-start"
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      
-      <SidebarFooter>
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={handleLogout}
-        >
-          <LogOut className="h-5 w-5 mr-3" />
-          Logout
-        </Button>
+
+      <SidebarFooter className="p-4">
+        <div className="space-y-2">
+          <div className="text-sm">
+            <p className="font-medium">{user?.name}</p>
+            <p className="text-muted-foreground">{user?.email}</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleSignOut}
+            className="w-full justify-start"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
-};
-
-export default AppSidebar;
+}

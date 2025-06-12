@@ -1,45 +1,49 @@
 
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from "@/components/ui/toaster";
-import AuthGuard from '@/components/AuthGuard';
-import AppLayout from '@/components/AppLayout';
-import Landing from '@/pages/Landing';
+import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import Upload from '@/pages/Upload';
-import Sales from '@/pages/Sales';
-import Pumps from '@/pages/Pumps';
-import Prices from '@/pages/Prices';
-import Reports from '@/pages/Reports';
-import Settings from '@/pages/Settings';
-import { AuthProvider, useAuth } from '@/hooks/useAuth';
-import './App.css';
+import AppLayout from '@/components/AppLayout';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
-// Role-based route component
-const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
-  const { user } = useAuth();
-  
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
-  if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/app/dashboard" replace />;
-  }
-  
+
   return <>{children}</>;
-};
+}
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 function App() {
   return (
@@ -47,56 +51,27 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/app" element={
-              <AuthGuard>
-                <AppLayout>
-                  <Outlet />
-                </AppLayout>
-              </AuthGuard>
-            }>
-              <Route index element={<Navigate to="/app/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              
-              {/* Employee: Upload only */}
-              <Route path="upload" element={
-                <ProtectedRoute allowedRoles={['Employee', 'Pump Owner', 'Manager', 'Super Admin']}>
-                  <Upload />
+            <Route 
+              path="/login" 
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              } 
+            />
+            <Route 
+              path="/*" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Routes>
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
+                  </AppLayout>
                 </ProtectedRoute>
-              } />
-              
-              {/* Owner and above: Sales, Pumps, Prices */}
-              <Route path="sales" element={
-                <ProtectedRoute allowedRoles={['Pump Owner', 'Manager', 'Super Admin']}>
-                  <Sales />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="pumps" element={
-                <ProtectedRoute allowedRoles={['Pump Owner', 'Manager', 'Super Admin']}>
-                  <Pumps />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="prices" element={
-                <ProtectedRoute allowedRoles={['Pump Owner', 'Manager', 'Super Admin']}>
-                  <Prices />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="reports" element={
-                <ProtectedRoute allowedRoles={['Pump Owner', 'Manager', 'Super Admin']}>
-                  <Reports />
-                </ProtectedRoute>
-              } />
-              
-              {/* All roles can access settings */}
-              <Route path="settings" element={<Settings />} />
-            </Route>
-            
-            {/* Catch all route */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+              } 
+            />
           </Routes>
           <Toaster />
         </Router>

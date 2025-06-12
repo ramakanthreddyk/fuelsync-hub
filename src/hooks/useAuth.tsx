@@ -1,73 +1,88 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiService } from '@/services/api';
-import { User } from '@/types/api';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@/types/database';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  isLoading: boolean;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (apiService.isAuthenticated()) {
-          const response = await apiService.getCurrentUser();
-          if (response.success && response.data) {
-            setUser(response.data);
-          } else {
-            apiService.clearToken();
-          }
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        apiService.clearToken();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
+    // Check for existing session on mount
+    checkUser();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const checkUser = async () => {
     try {
-      const response = await apiService.login(email, password);
-      if (response.success && response.data) {
-        setUser(response.data.user);
-        return true;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // Fetch user details from our users table
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+        
+        setUser(userData);
       }
-      return false;
     } catch (error) {
-      console.error('Login error:', error);
-      return false;
+      console.error('Error checking user:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const logout = () => {
-    apiService.logout();
+  const signIn = async (email: string, password: string) => {
+    try {
+      // For now, we'll just check against our users table
+      // In a real app, you'd implement proper authentication
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !userData) {
+        return { error: 'Invalid credentials' };
+      }
+
+      // Simple password check (in real app, use proper hashing)
+      if (email === 'admin@mygas.com' && password === 'admin123') {
+        setUser(userData);
+        return {};
+      }
+
+      return { error: 'Invalid credentials' };
+    } catch (error) {
+      return { error: 'Authentication failed' };
+    }
+  };
+
+  const signOut = async () => {
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}
