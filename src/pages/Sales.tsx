@@ -96,8 +96,8 @@ export default function Sales() {
     );
   }
 
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-  const totalLitres = sales.reduce((sum, sale) => sum + sale.litres, 0);
+  const totalRevenue = sales.reduce((sum: number, sale: Sale) => sum + sale.totalAmount, 0);
+  const totalLitres = sales.reduce((sum: number, sale: Sale) => sum + sale.litres, 0);
   const totalTransactions = sales.length;
   const petrolData = fuelTypeData[0] || { litres: 0, value: 0 };
   const dieselData = fuelTypeData[1] || { litres: 0, value: 0 };
