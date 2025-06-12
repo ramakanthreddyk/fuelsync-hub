@@ -59,15 +59,24 @@ const menuItems = [
     url: '/reports',
   },
   {
-    title: 'Users',
-    icon: Users,
-    url: '/users',
-    adminOnly: true,
-  },
-  {
     title: 'Settings',
     icon: Settings,
     url: '/settings',
+  },
+];
+
+const adminMenuItems = [
+  {
+    title: 'Manage Users',
+    icon: Users,
+    url: '/admin/users',
+    adminOnly: true,
+  },
+  {
+    title: 'Manage Stations',
+    icon: Building2,
+    url: '/admin/stations',
+    adminOnly: true,
   },
 ];
 
@@ -82,6 +91,10 @@ export function AppSidebar() {
 
   const filteredMenuItems = menuItems.filter(item => 
     !item.adminOnly || user?.role === 'superadmin'
+  );
+
+  const filteredAdminItems = adminMenuItems.filter(item => 
+    user?.role === 'superadmin'
   );
 
   return (
@@ -115,6 +128,27 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {user?.role === 'superadmin' && filteredAdminItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredAdminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      onClick={() => navigate(item.url)}
+                      className="w-full justify-start"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-4">

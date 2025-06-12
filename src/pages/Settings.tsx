@@ -1,317 +1,141 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { useQuery } from "@tanstack/react-query";
-import { apiService } from '@/services/api';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Station, Plan } from '@/types/database';
 
-const Settings = () => {
+export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [notifications, setNotifications] = useState(true);
-  const [autoReports, setAutoReports] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
 
-  // Fetch user details with plan information
-  const { data: userDetails } = useQuery({
-    queryKey: ['user-details'],
-    queryFn: async () => {
-      const response = await apiService.getCurrentUser();
-      return response.data;
+  useEffect(() => {
+    if (user) {
+      loadData();
     }
-  });
+  }, [user]);
 
-  const handleSaveProfile = () => {
-    // TODO: Implement profile update API
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been updated successfully.",
-    });
+  const loadData = async () => {
+    try {
+      // Load stations
+      const { data: stationsData } = await supabase.from('stations').select('*');
+      setStations(stationsData || []);
+
+      // Load plans
+      const { data: plansData } = await supabase.from('plans').select('*');
+      setPlans(plansData || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
   };
 
-  const handleChangePassword = () => {
-    // TODO: Implement password change API
-    toast({
-      title: "Password Changed",
-      description: "Your password has been updated successfully.",
-    });
-  };
-
-  // Get plan details with fallback - plan is a string, not an object
-  const planName = user?.plan || 'Basic';
-  const customLimits = user?.customLimits || {};
-
-  // Define plan limits with defaults
-  const defaultLimits = {
-    Basic: { maxUploadsPerDay: 5, maxEmployees: 2, maxPumps: 3, maxStations: 1 },
-    Premium: { maxUploadsPerDay: 10, maxEmployees: 5, maxPumps: 5, maxStations: 1 },
-    Enterprise: { maxUploadsPerDay: -1, maxEmployees: -1, maxPumps: -1, maxStations: -1 }
-  };
-
-  const planLimits = defaultLimits[planName] || defaultLimits.Basic;
-  const effectiveLimits = { ...planLimits, ...customLimits };
+  if (!user) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your account settings and preferences.
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground">
+          Manage your account and system settings
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile Settings */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>👤</span>
-                Profile Information
-              </CardTitle>
-              <CardDescription>
-                Update your personal information and contact details
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your full name"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                  />
-                </div>
-              </div>
-              
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Information</CardTitle>
+            <CardDescription>
+              Your account details and role
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={user.name || ''} disabled />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input value={user.email} disabled />
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Badge variant="outline" className="capitalize">
+                {user.role}
+              </Badge>
+            </div>
+            <div>
+              <Label>Account Created</Label>
+              <Input value={new Date(user.created_at).toLocaleDateString()} disabled />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Station Information</CardTitle>
+            <CardDescription>
+              {user.role === 'superadmin' ? 'System overview' : 'Your station details'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {user.role === 'superadmin' ? (
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Input
-                  id="role"
-                  value={user?.role || 'Employee'}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Contact your administrator to change your role
+                <p className="text-sm font-medium">Total Stations: {stations.length}</p>
+                <p className="text-sm font-medium">Available Plans: {plans.length}</p>
+                <p className="text-sm text-muted-foreground">
+                  You have full system access
                 </p>
               </div>
-              
-              <Button onClick={handleSaveProfile} className="w-full md:w-auto">
-                Save Changes
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Security Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>🔒</span>
-                Security
-              </CardTitle>
-              <CardDescription>
-                Manage your password and security preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            ) : user.station_id ? (
               <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
-                <Input
-                  id="current-password"
-                  type="password"
-                  placeholder="Enter current password"
-                />
+                <p className="text-sm font-medium">Station ID: {user.station_id}</p>
+                <p className="text-sm text-muted-foreground">
+                  Station details and settings
+                </p>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    placeholder="Enter new password"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Confirm new password"
-                  />
-                </div>
-              </div>
-              
-              <Button onClick={handleChangePassword} variant="outline" className="w-full md:w-auto">
-                Update Password
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Preferences */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>⚙️</span>
-                Preferences
-              </CardTitle>
-              <CardDescription>
-                Configure your app preferences and notifications
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label htmlFor="notifications">Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive email notifications for important updates
-                  </p>
-                </div>
-                <Switch
-                  id="notifications"
-                  checked={notifications}
-                  onCheckedChange={setNotifications}
-                />
-              </div>
-              
-              <Separator />
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label htmlFor="auto-reports">Auto Reports</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically generate daily reports
-                  </p>
-                </div>
-                <Switch
-                  id="auto-reports"
-                  checked={autoReports}
-                  onCheckedChange={setAutoReports}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Account Summary */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>📊</span>
-                Account Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center">
-                <Badge variant="outline" className="px-3 py-1 text-lg">
-                  {planName} Plan
-                </Badge>
-                {customLimits && Object.keys(customLimits).length > 0 && (
-                  <p className="text-xs text-orange-600 mt-1">Custom limits applied</p>
-                )}
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Daily Uploads</span>
-                  <span className="font-medium">
-                    {effectiveLimits.maxUploadsPerDay === -1 ? 'Unlimited' : effectiveLimits.maxUploadsPerDay}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Max Employees</span>
-                  <span className="font-medium">
-                    {effectiveLimits.maxEmployees === -1 ? 'Unlimited' : effectiveLimits.maxEmployees}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Max Pumps</span>
-                  <span className="font-medium">
-                    {effectiveLimits.maxPumps === -1 ? 'Unlimited' : effectiveLimits.maxPumps}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Max Stations</span>
-                  <span className="font-medium">
-                    {effectiveLimits.maxStations === -1 ? 'Unlimited' : effectiveLimits.maxStations}
-                  </span>
-                </div>
-              </div>
-              
-              <Separator />
-              
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-2">Need to upgrade?</p>
-                <Button variant="outline" size="sm" className="w-full">
-                  Contact Support
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Usage Stats */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>📈</span>
-                Usage Statistics
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Uploads Today</span>
-                  <span className="font-medium">0</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Uploads</span>
-                  <span className="font-medium">0</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Active Since</span>
-                  <span className="font-medium">
-                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No station assigned
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {user.role === 'superadmin' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>System Management</CardTitle>
+            <CardDescription>
+              Superadmin tools and controls
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Button variant="outline" onClick={() => window.location.href = '/admin/users'}>
+                Manage Users
+              </Button>
+              <Button variant="outline" onClick={() => window.location.href = '/admin/stations'}>
+                Manage Stations
+              </Button>
+              <Button variant="outline" onClick={() => window.location.href = '/admin/plans'}>
+                Manage Plans
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
-};
-
-export default Settings;
+}

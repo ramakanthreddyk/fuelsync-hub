@@ -5,6 +5,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
+import Settings from '@/pages/Settings';
+import AdminUsers from '@/pages/AdminUsers';
+import AdminStations from '@/pages/AdminStations';
 import AppLayout from '@/components/AppLayout';
 
 const queryClient = new QueryClient();
@@ -66,6 +69,9 @@ function App() {
                   <AppLayout>
                     <Routes>
                       <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/admin/users" element={<AdminUsers />} />
+                      <Route path="/admin/stations" element={<AdminStations />} />
+                      <Route path="/settings" element={<Settings />} />
                       <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </AppLayout>
