@@ -137,7 +137,7 @@ export default function UploadPage() {
     
     try {
       const { error } = await supabase.from('tender_entries').insert({
-        station_id: currentStation,
+        station_id: Number(currentStation),
         user_id: user?.id,
         amount: parseFloat(tenderData.amount),
         type: tenderData.type,
