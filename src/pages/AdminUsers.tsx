@@ -254,12 +254,12 @@ export default function AdminUsers() {
               </div>
               <div>
                 <Label htmlFor="station">Station</Label>
-                <Select value={newUser.station_id?.toString() || ''} onValueChange={(value) => setNewUser({ ...newUser, station_id: value ? parseInt(value) : null })}>
+                <Select value={newUser.station_id?.toString() || 'no-station'} onValueChange={(value) => setNewUser({ ...newUser, station_id: value === 'no-station' ? null : parseInt(value) })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select station" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No station</SelectItem>
+                    <SelectItem value="no-station">No station</SelectItem>
                     {stations.map((station) => (
                       <SelectItem key={station.id} value={station.id.toString()}>
                         {station.name}
