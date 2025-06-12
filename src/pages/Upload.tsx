@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,41 +32,25 @@ export default function UploadPage() {
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      if (file.type.startsWith('image/')) {
-        setSelectedFile(file);
-      } else {
-        toast({
-          title: "Invalid File Type",
-          description: "Please select an image file (JPG, PNG, etc.)",
-          variant: "destructive",
-        });
-      }
+    if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file);
+    } else {
+      toast({
+        title: "Invalid File Type",
+        description: "Please select an image file (JPG, PNG, etc.)",
+        variant: "destructive",
+      });
     }
   };
 
   const handleOCRUpload = async () => {
     if (!selectedFile || !currentStation) return;
-
-    try {
-      setLoading(true);
-      
-      // For now, we'll create a manual entry since OCR processing isn't implemented
-      toast({
-        title: "OCR Processing",
-        description: "OCR processing would happen here. For demo, please use manual entry.",
-      });
-
-    } catch (error) {
-      console.error('OCR upload error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process OCR upload",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    toast({
+      title: "OCR Processing",
+      description: "OCR processing would happen here. For demo, please use manual entry.",
+    });
+    setLoading(false);
   };
 
   const handleManualEntry = async () => {
@@ -91,50 +74,38 @@ export default function UploadPage() {
         .eq('pump_sno', manualData.pump_sno)
         .single();
 
-      if (pumpError || !pumps) {
-        throw new Error('Pump not found');
-      }
+      if (pumpError || !pumps) throw new Error('Pump not found');
 
-      const { data: nozzles, error: nozzleError } = await supabase
+      const { data: nozzle, error: nozzleError } = await supabase
         .from('nozzles')
         .select('id')
         .eq('pump_id', pumps.id)
         .eq('nozzle_number', parseInt(manualData.nozzle_number))
         .single();
 
-      if (nozzleError || !nozzles) {
-        throw new Error('Nozzle not found');
-      }
+      if (nozzleError || !nozzle) throw new Error('Nozzle not found');
 
       // Create OCR reading with correct enum value
       const { error: readingError } = await supabase
         .from('ocr_readings')
         .insert({
           station_id: currentStation.id,
-          nozzle_id: nozzles.id,
+          nozzle_id: nozzle.id,
           cumulative_vol: parseFloat(manualData.cumulative_vol),
           reading_date: manualData.reading_date,
           reading_time: manualData.reading_time,
-          source: 'manual', // Fixed: was 'manual_entry', now matches enum
+          source: 'manual',
           created_by: user?.id
         });
 
       if (readingError) throw readingError;
 
-      toast({
-        title: "Success",
-        description: "Manual reading recorded successfully",
-      });
-
-      // Reset form
+      toast({ title: "Success", description: "Manual reading recorded successfully" });
       setManualData({
-        pump_sno: '',
-        nozzle_number: '',
-        cumulative_vol: '',
+        pump_sno: '', nozzle_number: '', cumulative_vol: '',
         reading_date: new Date().toISOString().split('T')[0],
         reading_time: new Date().toTimeString().slice(0, 5)
       });
-
     } catch (error) {
       console.error('Manual entry error:', error);
       toast({
@@ -156,35 +127,20 @@ export default function UploadPage() {
       });
       return;
     }
-
     try {
       setLoading(true);
-
-      const { error } = await supabase
-        .from('tender_entries')
-        .insert({
-          station_id: currentStation.id,
-          user_id: user?.id,
-          amount: parseFloat(tenderData.amount),
-          type: tenderData.type,
-          payer: tenderData.payer || null,
-          entry_date: new Date().toISOString().split('T')[0]
-        });
-
+      const { error } = await supabase.from('tender_entries').insert({
+        station_id: currentStation.id,
+        user_id: user?.id,
+        amount: parseFloat(tenderData.amount),
+        type: tenderData.type,
+        payer: tenderData.payer || null,
+        entry_date: new Date().toISOString().split('T')[0]
+      });
       if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Tender entry recorded successfully",
-      });
-
-      // Reset form
-      setTenderData({
-        amount: '',
-        type: 'cash',
-        payer: ''
-      });
-
+      toast({ title: "Success", description: "Tender entry recorded successfully" });
+      setTenderData({ amount: '', type: 'cash', payer: '' });
     } catch (error) {
       console.error('Tender entry error:', error);
       toast({
