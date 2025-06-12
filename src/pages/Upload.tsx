@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService } from '@/services/api';
 import { Upload as UploadType } from '@/types/api';
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Upload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -261,4 +262,4 @@ export default function Upload() {
       </Card>
     </div>
   );
-};
+}

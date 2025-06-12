@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { apiService } from '@/services/api';
 import { Sale, DailySummary } from '@/types/api';
 import MetricCard from '@/components/MetricCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { useAuth } from '@/hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Sales() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -21,7 +22,7 @@ export default function Sales() {
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ['sales', currentStation?.id],
     queryFn: async () => {
-      if (!currentStation) return [];
+      if (!currentStation) return { data: [] };
       return await apiService.getSales(currentStation.id);
     },
     enabled: !!currentStation
@@ -36,7 +37,8 @@ export default function Sales() {
     enabled: !!currentStation
   });
 
-  const sales = salesData?.data || [];
+  // Handle both array and object responses from API
+  const sales = Array.isArray(salesData) ? salesData : (salesData?.data || []);
 
   // Create mock fuel type breakdown since dailySummary doesn't have it
   const fuelTypeData = sales.length > 0 ? [
@@ -293,4 +295,4 @@ export default function Sales() {
       </Tabs>
     </div>
   );
-};
+}

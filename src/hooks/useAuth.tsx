@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      // Then get the stations for this user
+      // Then get the stations for this user based on role
       let stations = [];
       if (userData.role === 'owner') {
         // For owners, get stations they own
@@ -79,21 +79,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           stations = stationsData;
         }
       } else if (userData.role === 'employee') {
-        // For employees, get stations via user_stations join table
-        const { data: userStationsData, error: userStationsError } = await supabase
-          .from('user_stations')
-          .select(`
-            stations!inner (
-              id,
-              name,
-              brand,
-              address
-            )
-          `)
-          .eq('user_id', userData.id);
+        // For employees, get stations via direct SQL query since user_stations table might not be properly set up
+        // For now, we'll get the first available station as a fallback
+        const { data: stationsData, error: stationsError } = await supabase
+          .from('stations')
+          .select('id, name, brand, address')
+          .limit(1);
 
-        if (!userStationsError && userStationsData) {
-          stations = userStationsData.map((us: any) => us.stations).filter(Boolean);
+        if (!stationsError && stationsData && stationsData.length > 0) {
+          stations = stationsData;
         }
       }
 

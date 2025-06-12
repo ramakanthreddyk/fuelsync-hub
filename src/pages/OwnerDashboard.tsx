@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,14 +54,6 @@ const OwnerDashboard = () => {
         .single();
 
       if (error) throw error;
-
-      // Link employee to station
-      await supabase
-        .from('user_stations')
-        .insert([{
-          user_id: data.id,
-          station_id: currentStation.id
-        }]);
 
       toast({
         title: 'Success',
@@ -137,187 +130,153 @@ const OwnerDashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Owner Dashboard</h1>
-          <p className="text-muted-foreground">Manage your station</p>
+          <p className="text-muted-foreground">Manage your fuel station operations</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setEmployeeDialogOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Add Employee
+          </Button>
+          <Button onClick={() => setPumpDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Pump
+          </Button>
         </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Station Information
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5" />
+              Station Info
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Name: {currentStation.name}</p>
-              <p className="text-sm font-medium">Brand: {currentStation.brand}</p>
-              <p className="text-sm text-muted-foreground">
-                {currentStation.address || 'No address specified'}
-              </p>
+              <p><strong>Name:</strong> {currentStation.name}</p>
+              <p><strong>Brand:</strong> {currentStation.brand}</p>
+              <p><strong>Address:</strong> {currentStation.address || 'Not specified'}</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Add Employee
-              </CardTitle>
-              <Button size="sm" onClick={() => setEmployeeDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            </div>
+            <CardTitle>Quick Stats</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Create and manage employee accounts
-            </p>
+            <div className="space-y-2">
+              <p>Employees: 0</p>
+              <p>Active Pumps: 0</p>
+              <p>Today's Sales: ₹0</p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Add Pump
-              </CardTitle>
-              <Button size="sm" onClick={() => setPumpDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            </div>
+            <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Add and manage fuel pumps
-            </p>
+            <p className="text-muted-foreground">No recent activity</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Employee Dialog */}
-      <div className={`fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity ${employeeDialogOpen ? '' : 'hidden'}`}>
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-            <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-              <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                <h3 className="text-base font-semibold leading-6 text-gray-900">
-                  Create New Employee
-                </h3>
-                <div className="mt-2">
-                  <div className="grid gap-4">
-                    <div>
-                      <Label htmlFor="name">Name</Label>
-                      <Input
-                        id="name"
-                        value={newEmployee.name}
-                        onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
-                        placeholder="Full name"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={newEmployee.email}
-                        onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
-                        placeholder="email@example.com"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        value={newEmployee.phone}
-                        onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
-                        placeholder="+91-9999999999"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={newEmployee.password}
-                        onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
-                        placeholder="Password"
-                      />
-                    </div>
-                  </div>
-                </div>
+      {/* Add Employee Dialog */}
+      {employeeDialogOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Add New Employee</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={newEmployee.name}
+                  onChange={(e) => setNewEmployee(prev => ({ ...prev, name: e.target.value }))}
+                />
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                <Button onClick={handleCreateEmployee} disabled={loading} className="ml-3">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newEmployee.email}
+                  onChange={(e) => setNewEmployee(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={newEmployee.phone}
+                  onChange={(e) => setNewEmployee(prev => ({ ...prev, phone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newEmployee.password}
+                  onChange={(e) => setNewEmployee(prev => ({ ...prev, password: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleCreateEmployee} disabled={loading}>
                   {loading ? 'Creating...' : 'Create Employee'}
                 </Button>
-                <Button
-                  type="button"
-                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                  onClick={() => setEmployeeDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setEmployeeDialogOpen(false)}>
                   Cancel
                 </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      )}
 
-      {/* Pump Dialog */}
-      <div className={`fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity ${pumpDialogOpen ? '' : 'hidden'}`}>
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-            <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-              <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                <h3 className="text-base font-semibold leading-6 text-gray-900">
-                  Create New Pump
-                </h3>
-                <div className="mt-2">
-                  <div className="grid gap-4">
-                    <div>
-                      <Label htmlFor="pumpSno">Pump SNO</Label>
-                      <Input
-                        id="pumpSno"
-                        value={newPump.pumpSno}
-                        onChange={(e) => setNewPump({ ...newPump, pumpSno: e.target.value })}
-                        placeholder="Pump SNO"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="name">Name</Label>
-                      <Input
-                        id="name"
-                        value={newPump.name}
-                        onChange={(e) => setNewPump({ ...newPump, name: e.target.value })}
-                        placeholder="Name"
-                      />
-                    </div>
-                  </div>
-                </div>
+      {/* Add Pump Dialog */}
+      {pumpDialogOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Add New Pump</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="pumpSno">Pump Serial Number</Label>
+                <Input
+                  id="pumpSno"
+                  value={newPump.pumpSno}
+                  onChange={(e) => setNewPump(prev => ({ ...prev, pumpSno: e.target.value }))}
+                  placeholder="e.g., P001"
+                />
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                <Button onClick={handleCreatePump} disabled={loading} className="ml-3">
+              <div>
+                <Label htmlFor="pumpName">Pump Name</Label>
+                <Input
+                  id="pumpName"
+                  value={newPump.name}
+                  onChange={(e) => setNewPump(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Main Pump 1"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleCreatePump} disabled={loading}>
                   {loading ? 'Creating...' : 'Create Pump'}
                 </Button>
-                <Button
-                  type="button"
-                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                  onClick={() => setPumpDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setPumpDialogOpen(false)}>
                   Cancel
                 </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 };
