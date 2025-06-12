@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Building2, MapPin, Fuel, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-interface Station {
+interface StationWithDetails {
   id: number;
   name: string;
   brand: 'IOCL' | 'BPCL' | 'HPCL';
@@ -22,8 +22,8 @@ interface Station {
   current_plan_id: number;
   created_at: string;
   updated_at: string;
-  users: Array<{ id: number; name: string; email: string; role: string }>;
-  plans: { id: number; name: string };
+  users: { id: number; name: string; email: string; role: string } | null;
+  plans: { id: number; name: string; price_monthly: number } | null;
 }
 
 interface User {
@@ -82,7 +82,7 @@ export default function AdminStations() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Station[];
+      return data as StationWithDetails[];
     },
   });
 

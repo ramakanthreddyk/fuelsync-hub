@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Users, Settings, Trash2, Shield } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-interface User {
+interface UserWithStations {
   id: number;
   name: string;
   email: string;
@@ -21,7 +21,7 @@ interface User {
   role: 'superadmin' | 'owner' | 'employee';
   is_active: boolean;
   created_at: string;
-  station_id: number | null;
+  stations?: Array<{ id: number; name: string; brand: string; address: string }>;
 }
 
 interface Station {
@@ -61,7 +61,7 @@ export default function AdminUsers() {
     );
   }
 
-  // Fetch users
+  // Fetch users - for employees get their station, for owners get their owned stations
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
@@ -69,12 +69,12 @@ export default function AdminUsers() {
         .from('users')
         .select(`
           *,
-          stations (id, name, brand, address)
+          stations!users_station_id_fkey (id, name, brand, address)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as User[];
+      return data as UserWithStations[];
     },
   });
 
@@ -95,17 +95,23 @@ export default function AdminUsers() {
   // Add user mutation
   const addUserMutation = useMutation({
     mutationFn: async (userData: typeof newUser) => {
+      const insertData: any = {
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone,
+        password: userData.password,
+        role: userData.role,
+        is_active: true
+      };
+
+      // Only add station_id for employees
+      if (userData.role === 'employee' && userData.station_id) {
+        insertData.station_id = parseInt(userData.station_id);
+      }
+
       const { data, error } = await supabase
         .from('users')
-        .insert({
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone,
-          password: userData.password, // In production, this should be hashed
-          role: userData.role,
-          station_id: userData.role === 'employee' && userData.station_id ? parseInt(userData.station_id) : null,
-          is_active: true
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -345,10 +351,10 @@ export default function AdminUsers() {
                 <div>{userItem.phone || 'Not provided'}</div>
               </div>
               
-              {userItem.station_id && (
+              {userItem.stations && userItem.stations.length > 0 && (
                 <div className="text-sm">
                   <div className="text-muted-foreground">Station:</div>
-                  <div>{(userItem as any).stations?.name || 'Unknown Station'}</div>
+                  <div>{userItem.stations[0]?.name || 'Unknown Station'}</div>
                 </div>
               )}
               

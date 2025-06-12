@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,7 @@ export default function UploadPage() {
         throw new Error('Nozzle not found');
       }
 
-      // Create OCR reading
+      // Create OCR reading with correct enum value
       const { error: readingError } = await supabase
         .from('ocr_readings')
         .insert({
@@ -114,7 +115,7 @@ export default function UploadPage() {
           cumulative_vol: parseFloat(manualData.cumulative_vol),
           reading_date: manualData.reading_date,
           reading_time: manualData.reading_time,
-          source: 'manual_entry',
+          source: 'manual', // Fixed: was 'manual_entry', now matches enum
           created_by: user?.id
         });
 
