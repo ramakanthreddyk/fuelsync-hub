@@ -63,6 +63,7 @@ export default function Sales() {
     .find(pump => pump.id === parseInt(manualEntry.pump_id))?.nozzles || [];
 
   const handleManualEntry = async () => {
+      console.log("Manual Entry Data:", manualEntry);
     if (!manualEntry.station_id || !manualEntry.nozzle_id || !manualEntry.cumulative_volume) {
       toast({
         title: "Missing Information",
