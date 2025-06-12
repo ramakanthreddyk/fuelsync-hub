@@ -37,10 +37,13 @@ The FuelSync database is designed with a multi-tenant architecture supporting fu
 │ id (PK)     │    │ id (PK)     │   │
 │ station_id  │◄───┼─station_id  │◄──┘
 │ nozzle_id   │    │ fuel_type   │
-│ reading_date│    │ price_per_l │
-│ cumulative_vol│  │ valid_from  │
-│ ...         │    │ ...         │
-└─────────────┘    └─────────────┘
+│ pump_sno    │    │ price_per_l │
+│ reading_date│    │ valid_from  │
+│ cumulative_vol│  │ ...         │
+│ source      │    └─────────────┘
+│ ocr_json    │
+│ ...         │
+└─────────────┘
        │
        ▼
 ┌─────────────┐
@@ -173,24 +176,32 @@ CREATE TABLE nozzles (
 );
 ```
 
-### 7. OCR_Readings
+### 7. OCR_Readings (Updated Schema)
 Fuel meter readings captured via OCR or manual entry.
 
 ```sql
 CREATE TABLE ocr_readings (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   station_id INT NOT NULL REFERENCES stations(id),
   nozzle_id INT NOT NULL REFERENCES nozzles(id),
-  source reading_source NOT NULL, -- 'ocr', 'manual'
+  pump_sno TEXT NOT NULL,
   reading_date DATE NOT NULL,
   reading_time TIME NOT NULL,
   cumulative_vol NUMERIC(12,2) NOT NULL,
-  image_url TEXT,
-  created_by INT REFERENCES users(id),
+  source TEXT DEFAULT 'ocr' CHECK (source IN ('ocr', 'manual')),
+  ocr_json JSONB,
+  created_by UUID,
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (nozzle_id, reading_date, reading_time)
 );
 ```
+
+**Key Changes:**
+- Removed `fuel_type`, `litres_sold`, `price_per_litre`, `total_amount`, `cum_sale` columns
+- Added `pump_sno` for reference and validation
+- Added `source` to distinguish between 'ocr' and 'manual' entries
+- Added `ocr_json` to store raw OCR processing results
+- Changed `id` to UUID type
 
 ### 8. Fuel_Prices
 Current fuel pricing at each station.
@@ -280,6 +291,31 @@ CREATE TYPE reading_source AS ENUM ('ocr', 'manual');
 CREATE TYPE tender_type AS ENUM ('cash', 'card', 'upi', 'credit');
 ```
 
+## API Endpoints
+
+### OCR Upload API
+**Endpoint:** `POST /functions/v1/ocr-upload`
+- **Content-Type:** `multipart/form-data`
+- **Parameters:**
+  - `file`: Image file (required)
+  - `pump_sno`: Pump serial number override (optional)
+- **Response:** JSON with OCR results and inserted readings count
+
+### Manual Reading API
+**Endpoint:** `POST /functions/v1/manual-reading`
+- **Content-Type:** `application/json`
+- **Body:**
+  ```json
+  {
+    "station_id": 1,
+    "nozzle_id": 1,
+    "cumulative_vol": 12345.678,
+    "reading_date": "2023-12-15",
+    "reading_time": "14:30"
+  }
+  ```
+- **Response:** JSON with success status and saved reading data
+
 ## Business Rules & Constraints
 
 ### User Role Constraints
@@ -291,6 +327,11 @@ CREATE TYPE tender_type AS ENUM ('cash', 'card', 'upi', 'credit');
 1. **Superadmin**: Access to all data
 2. **Owner**: Access only to owned stations and their data
 3. **Employee**: Access only to assigned station data
+
+### OCR vs Manual Reading Flow
+1. **OCR Flow**: Image → Azure OCR → Parse nozzle readings → Insert multiple records
+2. **Manual Flow**: Form input → Validate → Insert single record
+3. **Both flows** populate the same `ocr_readings` table with appropriate `source` value
 
 ### Referential Integrity
 - Stations must have valid owner (owner role user)
@@ -314,75 +355,11 @@ CREATE INDEX idx_pumps_station ON pumps(station_id);
 CREATE INDEX idx_nozzles_pump ON nozzles(pump_id);
 CREATE INDEX idx_ocr_readings_station_date ON ocr_readings(station_id, reading_date);
 CREATE INDEX idx_ocr_readings_nozzle_date ON ocr_readings(nozzle_id, reading_date);
+CREATE INDEX idx_ocr_readings_pump_sno ON ocr_readings(pump_sno);
+CREATE INDEX idx_ocr_readings_source ON ocr_readings(source);
 CREATE INDEX idx_sales_station_date ON sales(station_id, created_at);
 CREATE INDEX idx_tender_entries_station_date ON tender_entries(station_id, entry_date);
 CREATE INDEX idx_fuel_prices_station_fuel ON fuel_prices(station_id, fuel_type, valid_from);
 ```
 
-## Triggers & Functions
-
-### Update Timestamp Trigger
-```sql
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Apply to relevant tables
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users 
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_stations_updated_at BEFORE UPDATE ON stations 
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
--- ... etc for other tables
-```
-
-### Employee Station Validation
-```sql
-CREATE OR REPLACE FUNCTION check_employee_station()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.role = 'employee' AND NEW.station_id IS NULL THEN
-        RAISE EXCEPTION 'Employees must be assigned to a station';
-    END IF;
-    
-    IF NEW.role = 'owner' AND NEW.station_id IS NOT NULL THEN
-        NEW.station_id := NULL;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_check_employee_station
-    BEFORE INSERT OR UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION check_employee_station();
-```
-
-## Sample Data
-
-The database includes comprehensive sample data:
-
-### Users
-- **Super Admin**: admin@fuelsync.com (password: admin123)
-- **Owners**: 
-  - rajesh@fuelsync.com (password: owner123) - 2 stations
-  - priya@fuelsync.com (password: owner123) - 1 station  
-  - amit@fuelsync.com (password: owner123) - 1 station
-- **Employees**: 5 employees across different stations (password: emp123)
-
-### Stations
-- Rajesh Fuel Center (IOCL, Basic plan)
-- Highway Express (IOCL, Basic plan) 
-- Priya Petrol Pump (BPCL, Premium plan)
-- City Center Fuel (HPCL, Free plan)
-
-### Operational Data
-- Pumps and nozzles for each station
-- Sample OCR readings and sales data
-- Fuel pricing for each station
-- Tender entries and usage tracking
-
-This schema supports the complete multi-tenant fuel station management system with proper data isolation and role-based access control.
+This schema supports the complete multi-tenant fuel station management system with proper data isolation, role-based access control, and dual OCR/manual reading capabilities.

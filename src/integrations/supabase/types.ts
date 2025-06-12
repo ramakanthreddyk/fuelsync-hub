@@ -187,6 +187,7 @@ export type Database = {
           id: number
           image_url: string | null
           nozzle_id: number
+          pump_sno: string
           reading_date: string
           reading_time: string
           source: Database["public"]["Enums"]["ocr_source"]
@@ -199,6 +200,7 @@ export type Database = {
           id?: number
           image_url?: string | null
           nozzle_id: number
+          pump_sno?: string
           reading_date: string
           reading_time: string
           source: Database["public"]["Enums"]["ocr_source"]
@@ -211,6 +213,7 @@ export type Database = {
           id?: number
           image_url?: string | null
           nozzle_id?: number
+          pump_sno?: string
           reading_date?: string
           reading_time?: string
           source?: Database["public"]["Enums"]["ocr_source"]

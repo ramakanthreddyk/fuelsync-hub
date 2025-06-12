@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useReadingManagement } from "@/hooks/useReadingManagement";
 import { Upload, Camera, Plus } from "lucide-react";
 
 export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [ocrPumpSno, setOcrPumpSno] = useState('');
   const [manualData, setManualData] = useState({
     pump_id: '',
     nozzle_id: '',
@@ -26,10 +29,10 @@ export default function UploadPage() {
   });
   const [pumps, setPumps] = useState<any[]>([]);
   const [nozzles, setNozzles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const currentStation = user?.stations?.[0]?.id;
+  const { isLoading, uploadImageForOCR, submitManualReading } = useReadingManagement();
 
   useEffect(() => {
     const fetchPumps = async () => {
@@ -71,13 +74,25 @@ export default function UploadPage() {
   };
 
   const handleOCRUpload = async () => {
-    if (!selectedFile || !currentStation) return;
-    setLoading(true);
-    toast({
-      title: "OCR Processing",
-      description: "OCR processing would happen here. For demo, please use manual entry.",
-    });
-    setLoading(false);
+    if (!selectedFile) {
+      toast({
+        title: "No File Selected",
+        description: "Please select an image file first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const result = await uploadImageForOCR(selectedFile, ocrPumpSno || undefined);
+    
+    if (result?.success) {
+      // Reset form on success
+      setSelectedFile(null);
+      setOcrPumpSno('');
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    }
   };
 
   const handleManualEntry = async () => {
@@ -90,38 +105,23 @@ export default function UploadPage() {
       return;
     }
 
-    try {
-      setLoading(true);
+    const result = await submitManualReading({
+      station_id: currentStation,
+      nozzle_id: parseInt(manualData.nozzle_id),
+      cumulative_vol: parseFloat(manualData.cumulative_vol),
+      reading_date: manualData.reading_date,
+      reading_time: manualData.reading_time
+    });
 
-      const { error: readingError } = await supabase
-        .from('ocr_readings')
-        .insert({
-          station_id: currentStation,
-          nozzle_id: parseInt(manualData.nozzle_id),
-          cumulative_vol: parseFloat(manualData.cumulative_vol),
-          reading_date: manualData.reading_date,
-          reading_time: manualData.reading_time,
-          source: 'manual',
-          created_by: user?.id
-        });
-
-      if (readingError) throw readingError;
-
-      toast({ title: "Success", description: "Manual reading recorded successfully" });
+    if (result?.success) {
+      // Reset form on success
       setManualData({
-        pump_id: '', nozzle_id: '', cumulative_vol: '',
+        pump_id: '', 
+        nozzle_id: '', 
+        cumulative_vol: '',
         reading_date: new Date().toISOString().split('T')[0],
         reading_time: new Date().toTimeString().slice(0, 5)
       });
-    } catch (error) {
-      console.error('Manual entry error:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to record reading",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -134,8 +134,8 @@ export default function UploadPage() {
       });
       return;
     }
+    
     try {
-      setLoading(true);
       const { error } = await supabase.from('tender_entries').insert({
         station_id: currentStation,
         user_id: user?.id,
@@ -144,6 +144,7 @@ export default function UploadPage() {
         payer: tenderData.payer || null,
         entry_date: new Date().toISOString().split('T')[0]
       });
+      
       if (error) throw error;
 
       toast({ title: "Success", description: "Tender entry recorded successfully" });
@@ -155,8 +156,6 @@ export default function UploadPage() {
         description: "Failed to record tender entry",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -255,8 +254,8 @@ export default function UploadPage() {
                   />
                 </div>
               </div>
-              <Button onClick={handleManualEntry} disabled={loading} className="w-full">
-                {loading ? 'Recording...' : 'Record Reading'}
+              <Button onClick={handleManualEntry} disabled={isLoading} className="w-full">
+                {isLoading ? 'Recording...' : 'Record Reading'}
               </Button>
             </CardContent>
           </Card>
@@ -270,7 +269,7 @@ export default function UploadPage() {
                 OCR Image Upload
               </CardTitle>
               <CardDescription>
-                Upload an image of pump display for automatic reading
+                Upload an image of pump display for automatic reading extraction
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -285,6 +284,17 @@ export default function UploadPage() {
                 />
               </div>
 
+              <div>
+                <Label htmlFor="pump_sno_override">Pump Serial Number (Optional Override)</Label>
+                <Input
+                  id="pump_sno_override"
+                  type="text"
+                  value={ocrPumpSno}
+                  onChange={(e) => setOcrPumpSno(e.target.value)}
+                  placeholder="e.g., P001 (leave empty for auto-detection)"
+                />
+              </div>
+
               {selectedFile && (
                 <div className="p-4 border rounded-lg">
                   <p className="font-medium">{selectedFile.name}</p>
@@ -294,8 +304,8 @@ export default function UploadPage() {
                 </div>
               )}
 
-              <Button onClick={handleOCRUpload} disabled={!selectedFile || loading} className="w-full">
-                {loading ? 'Processing...' : 'Process Image'}
+              <Button onClick={handleOCRUpload} disabled={!selectedFile || isLoading} className="w-full">
+                {isLoading ? 'Processing...' : 'Process Image'}
               </Button>
             </CardContent>
           </Card>
@@ -350,8 +360,8 @@ export default function UploadPage() {
                 />
               </div>
 
-              <Button onClick={handleTenderEntry} disabled={loading} className="w-full">
-                {loading ? 'Recording...' : 'Record Tender'}
+              <Button onClick={handleTenderEntry} disabled={isLoading} className="w-full">
+                {isLoading ? 'Recording...' : 'Record Tender'}
               </Button>
             </CardContent>
           </Card>
