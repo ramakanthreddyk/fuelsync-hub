@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: userStationsData, error: userStationsError } = await supabase
           .from('user_stations')
           .select(`
-            stations (
+            stations!inner (
               id,
               name,
               brand,

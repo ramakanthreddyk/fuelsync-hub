@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +8,30 @@ import { Badge } from "@/components/ui/badge";
 import { useMutation } from "@tanstack/react-query";
 import { apiService } from '@/services/api';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 
 const Reports = () => {
+  const { user } = useAuth();
+  const currentStation = user?.stations?.[0];
+
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['reports', currentStation?.id],
+    queryFn: async () => {
+      if (!currentStation) return { data: [] };
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const endDate = new Date();
+      
+      return await apiService.generateReport(
+        currentStation.id,
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+    },
+    enabled: !!currentStation
+  });
+
   const [reportType, setReportType] = useState('daily');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);

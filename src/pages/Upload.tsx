@@ -9,30 +9,46 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService } from '@/services/api';
 import { Upload as UploadType } from '@/types/api';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Upload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pumpSno, setPumpSno] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const currentStation = user?.stations?.[0];
+
   const { data: uploadsData, isLoading } = useQuery({
-    queryKey: ['uploads'],
+    queryKey: ['uploads', currentStation?.id],
     queryFn: async () => {
-      const response = await apiService.getUploads();
+      if (!currentStation) return [];
+      const response = await apiService.getUploads(currentStation.id);
       return response.data || [];
-    }
+    },
+    enabled: !!currentStation
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => apiService.uploadReceipt(file),
+    mutationFn: (file: File) => {
+      if (!currentStation) throw new Error('No station selected');
+      return apiService.uploadReceipt(file, currentStation.id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['uploads'] });
-      toast.success('File uploaded successfully');
+      toast({
+        title: "Success",
+        description: 'File uploaded successfully',
+      });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to upload file');
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to upload file',
+        variant: "destructive",
+      });
     }
   });
 
@@ -201,7 +217,7 @@ export default function Upload() {
             </div>
           ) : (
             <div className="space-y-4">
-              {uploadsData?.map((upload: UploadType) => (
+              {uploadsData?.map((upload) => (
                 <div key={upload.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">📄</span>

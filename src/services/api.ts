@@ -1,12 +1,12 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { NozzleReading } from '@/types/api';
 
 export class ApiService {
-  async getNozzleReadings() {
+  async getNozzleReadings(stationId: number) {
     const { data, error } = await supabase
       .from('ocr_readings')
       .select('*')
+      .eq('station_id', stationId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -14,13 +14,16 @@ export class ApiService {
     return {
       data: data?.map(reading => ({
         id: reading.id.toString(),
+        userId: reading.created_by?.toString() || '',
         pumpSno: reading.station_id.toString(),
         nozzleId: reading.nozzle_id,
         fuelType: reading.source === 'ocr' ? 'Petrol' : 'Diesel',
         cumulativeVolume: reading.cumulative_vol,
         readingDate: reading.reading_date,
         readingTime: reading.reading_time,
-        isManualEntry: reading.source === 'manual'
+        isManualEntry: reading.source === 'manual',
+        createdAt: reading.created_at || '',
+        updatedAt: reading.created_at || ''
       })) || []
     };
   }
@@ -32,11 +35,11 @@ export class ApiService {
     reading_date: string;
     reading_time: string;
     fuel_type: 'Petrol' | 'Diesel';
-  }) {
+  }, stationId: number) {
     const { data: result, error } = await supabase
       .from('ocr_readings')
       .insert([{
-        station_id: parseInt(data.pump_sno),
+        station_id: stationId,
         nozzle_id: data.nozzle_id,
         source: 'manual' as const,
         reading_date: data.reading_date,
@@ -73,14 +76,34 @@ export class ApiService {
     if (error) throw error;
   }
 
-  async getPumps() {
+  async getPumps(stationId: number) {
     const { data, error } = await supabase
       .from('pumps')
-      .select('*')
+      .select(`
+        *,
+        nozzles (*)
+      `)
+      .eq('station_id', stationId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return { data: data || [] };
+    
+    return { 
+      data: data?.map(pump => ({
+        id: pump.id.toString(),
+        name: pump.name || `Pump ${pump.pump_sno}`,
+        status: pump.is_active ? 'active' : 'inactive',
+        nozzles: (pump.nozzles || []).map((nozzle: any) => ({
+          id: nozzle.id.toString(),
+          pumpId: pump.id.toString(),
+          number: nozzle.nozzle_number,
+          fuelType: nozzle.fuel_type === 'PETROL' ? 'Petrol' : 'Diesel',
+          status: nozzle.is_active ? 'active' : 'inactive'
+        })),
+        lastMaintenanceDate: pump.updated_at,
+        totalSalesToday: 0
+      })) || []
+    };
   }
 
   async updatePumpStatus(id: string, isActive: boolean) {
@@ -107,22 +130,37 @@ export class ApiService {
     return data;
   }
 
-  async getSales() {
+  async getSales(stationId: number) {
     const { data, error } = await supabase
       .from('sales')
       .select('*')
+      .eq('station_id', stationId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return { data: data || [] };
+    
+    return {
+      data: data?.map(sale => ({
+        id: sale.id.toString(),
+        pumpId: `P${sale.nozzle_id}`,
+        fuelType: 'Petrol' as const,
+        litres: sale.delta_volume_l || 0,
+        pricePerLitre: sale.price_per_litre || 0,
+        totalAmount: sale.total_amount || 0,
+        timestamp: sale.created_at,
+        shift: 'morning' as const,
+        nozzleId: sale.nozzle_id
+      })) || []
+    };
   }
 
-  async getDailySummary() {
+  async getDailySummary(stationId: number) {
     const today = new Date().toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('tender_entries')
       .select('*')
-      .eq('entry_date', today);
+      .eq('entry_date', today)
+      .eq('station_id', stationId);
 
     if (error) throw error;
 
@@ -146,10 +184,13 @@ export class ApiService {
     return summary;
   }
 
-  async generateReport() {
+  async generateReport(stationId: number, startDate: string, endDate: string) {
     const { data, error } = await supabase
       .from('sales')
       .select('*')
+      .eq('station_id', stationId)
+      .gte('created_at', startDate)
+      .lte('created_at', endDate)
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -157,23 +198,39 @@ export class ApiService {
     return { data: data || [] };
   }
 
-  async getUploads() {
+  async getUploads(stationId: number) {
     const { data, error } = await supabase
       .from('ocr_readings')
       .select('*')
+      .eq('station_id', stationId)
       .not('image_url', 'is', null)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return { data: data || [] };
+    
+    return { 
+      data: data?.map(reading => ({
+        id: reading.id.toString(),
+        userId: reading.created_by?.toString() || '',
+        filename: `reading_${reading.id}.jpg`,
+        status: 'success' as const,
+        amount: 0,
+        litres: reading.cumulative_vol,
+        fuelType: 'Petrol' as const,
+        uploadedAt: reading.created_at || '',
+        ocrData: {
+          pump_sno: reading.station_id.toString()
+        }
+      })) || []
+    };
   }
 
-  async uploadReceipt(file: File) {
+  async uploadReceipt(file: File, stationId: number) {
     // For now, just create a manual reading entry
     const { data, error } = await supabase
       .from('ocr_readings')
       .insert([{
-        station_id: 1,
+        station_id: stationId,
         nozzle_id: 1,
         source: 'ocr' as const,
         reading_date: new Date().toISOString().split('T')[0],

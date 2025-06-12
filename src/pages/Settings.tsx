@@ -104,9 +104,10 @@ export default function Settings() {
               </div>
             ) : currentStation ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Station ID: {currentStation.id}</p>
+                <p className="text-sm font-medium">Station: {currentStation.name}</p>
+                <p className="text-sm font-medium">Brand: {currentStation.brand}</p>
                 <p className="text-sm text-muted-foreground">
-                  Station details and settings
+                  {currentStation.address || 'No address specified'}
                 </p>
               </div>
             ) : (

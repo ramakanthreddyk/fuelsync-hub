@@ -8,35 +8,49 @@ import { apiService } from '@/services/api';
 import { Sale, DailySummary } from '@/types/api';
 import MetricCard from '@/components/MetricCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useAuth } from '@/hooks/auth';
 
 export default function Sales() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const { user } = useAuth();
+
+  const currentStation = user?.stations?.[0];
 
   console.log('📊 Sales page rendering for date:', selectedDate);
 
-  const { data: sales, isLoading: salesLoading } = useQuery({
-    queryKey: ['sales'],
-    queryFn: () => apiService.getSales()
+  const { data: salesData, isLoading: salesLoading } = useQuery({
+    queryKey: ['sales', currentStation?.id],
+    queryFn: async () => {
+      if (!currentStation) return [];
+      return await apiService.getSales(currentStation.id);
+    },
+    enabled: !!currentStation
   });
 
   const { data: dailySummary, isLoading: summaryLoading } = useQuery({
-    queryKey: ['daily-summary'],
-    queryFn: () => apiService.getDailySummary()
+    queryKey: ['daily-summary', currentStation?.id],
+    queryFn: async () => {
+      if (!currentStation) return null;
+      return await apiService.getDailySummary(currentStation.id);
+    },
+    enabled: !!currentStation
   });
 
-  // Chart data from real sales data
-  const fuelTypeData = dailySummary ? [
+  const sales = salesData?.data || [];
+
+  // Create mock fuel type breakdown since dailySummary doesn't have it
+  const fuelTypeData = sales.length > 0 ? [
     { 
       name: 'Petrol', 
-      value: dailySummary.fuelTypeBreakdown.petrol.revenue, 
-      litres: dailySummary.fuelTypeBreakdown.petrol.litres,
-      transactions: dailySummary.fuelTypeBreakdown.petrol.transactions
+      value: sales.filter(s => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.totalAmount, 0),
+      litres: sales.filter(s => s.fuelType === 'Petrol').reduce((sum, s) => sum + s.litres, 0),
+      transactions: sales.filter(s => s.fuelType === 'Petrol').length
     },
     { 
       name: 'Diesel', 
-      value: dailySummary.fuelTypeBreakdown.diesel.revenue, 
-      litres: dailySummary.fuelTypeBreakdown.diesel.litres,
-      transactions: dailySummary.fuelTypeBreakdown.diesel.transactions
+      value: sales.filter(s => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.totalAmount, 0),
+      litres: sales.filter(s => s.fuelType === 'Diesel').reduce((sum, s) => sum + s.litres, 0),
+      transactions: sales.filter(s => s.fuelType === 'Diesel').length
     }
   ] : [];
 
@@ -48,7 +62,7 @@ export default function Sales() {
 
     const hourlyMap = {};
     
-    sales.forEach((sale: Sale) => {
+    sales.forEach((sale) => {
       const hour = new Date(sale.timestamp).getHours();
       const hourRange = `${hour}:00-${hour + 1}:00`;
       
@@ -80,6 +94,12 @@ export default function Sales() {
     );
   }
 
+  const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+  const totalLitres = sales.reduce((sum, sale) => sum + sale.litres, 0);
+  const totalTransactions = sales.length;
+  const petrolData = fuelTypeData[0] || { litres: 0, value: 0 };
+  const dieselData = fuelTypeData[1] || { litres: 0, value: 0 };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -104,67 +124,38 @@ export default function Sales() {
       </div>
 
       {/* Summary Cards */}
-      {dailySummary ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard
-            title="Today's Revenue"
-            value={`₹${dailySummary.totalRevenue.toLocaleString()}`}
-            subtitle={`${dailySummary.totalLitres}L sold`}
-            icon="💰"
-            trend={{ value: 12.5, label: 'vs yesterday', direction: 'up' }}
-            gradient
-          />
-          
-          <MetricCard
-            title="Transactions"
-            value={dailySummary.totalTransactions}
-            subtitle="completed today"
-            icon="🧾"
-            trend={{ value: 8.3, label: 'vs yesterday', direction: 'up' }}
-          />
-          
-          <MetricCard
-            title="Petrol Sales"
-            value={`${dailySummary.fuelTypeBreakdown.petrol.litres}L`}
-            subtitle={`₹${dailySummary.fuelTypeBreakdown.petrol.revenue.toLocaleString()}`}
-            icon="⛽"
-          />
-          
-          <MetricCard
-            title="Diesel Sales"
-            value={`${dailySummary.fuelTypeBreakdown.diesel.litres}L`}
-            subtitle={`₹${dailySummary.fuelTypeBreakdown.diesel.revenue.toLocaleString()}`}
-            icon="🚛"
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard
-            title="Today's Revenue"
-            value="₹0"
-            subtitle="0L sold"
-            icon="💰"
-          />
-          <MetricCard
-            title="Transactions"
-            value="0"
-            subtitle="completed today"
-            icon="🧾"
-          />
-          <MetricCard
-            title="Petrol Sales"
-            value="0L"
-            subtitle="₹0"
-            icon="⛽"
-          />
-          <MetricCard
-            title="Diesel Sales"
-            value="0L"
-            subtitle="₹0"
-            icon="🚛"
-          />
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <MetricCard
+          title="Today's Revenue"
+          value={`₹${totalRevenue.toLocaleString()}`}
+          subtitle={`${totalLitres}L sold`}
+          icon="💰"
+          trend={{ value: 12.5, label: 'vs yesterday', direction: 'up' }}
+          gradient
+        />
+        
+        <MetricCard
+          title="Transactions"
+          value={totalTransactions}
+          subtitle="completed today"
+          icon="🧾"
+          trend={{ value: 8.3, label: 'vs yesterday', direction: 'up' }}
+        />
+        
+        <MetricCard
+          title="Petrol Sales"
+          value={`${petrolData.litres}L`}
+          subtitle={`₹${petrolData.value.toLocaleString()}`}
+          icon="⛽"
+        />
+        
+        <MetricCard
+          title="Diesel Sales"
+          value={`${dieselData.litres}L`}
+          subtitle={`₹${dieselData.value.toLocaleString()}`}
+          icon="🚛"
+        />
+      </div>
 
       {/* Charts and Tables */}
       <Tabs defaultValue="overview" className="space-y-6">
@@ -265,7 +256,7 @@ export default function Sales() {
             <CardContent>
               <div className="space-y-4">
                 {sales && sales.length > 0 ? (
-                  sales.map((sale: Sale) => (
+                  sales.map((sale) => (
                     <div key={sale.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{sale.fuelType === 'Petrol' ? '⛽' : '🚛'}</span>

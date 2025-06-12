@@ -13,19 +13,24 @@ import MetricCard from '@/components/MetricCard';
 const Pumps = () => {
   const [editingNozzle, setEditingNozzle] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const currentStation = user?.stations?.[0];
+
   const { data: pumpsData, isLoading } = useQuery({
-    queryKey: ['pumps'],
+    queryKey: ['pumps', currentStation?.id],
     queryFn: async () => {
-      const response = await apiService.getPumps();
+      if (!currentStation) return [];
+      const response = await apiService.getPumps(currentStation.id);
       return response.data || [];
-    }
+    },
+    enabled: !!currentStation
   });
 
   const updatePumpStatusMutation = useMutation({
-    mutationFn: ({ pumpId, status }: { pumpId: string; status: string }) => 
-      apiService.updatePumpStatus(pumpId, status),
+    mutationFn: ({ pumpId, isActive }: { pumpId: string; isActive: boolean }) => 
+      apiService.updatePumpStatus(pumpId, isActive),
     onSuccess: () => {
       toast({
         title: "Pump Status Updated",
@@ -122,7 +127,7 @@ const Pumps = () => {
             <p className="text-muted-foreground mt-2">Loading pumps...</p>
           </div>
         ) : (
-          pumpsData?.map((pump: Pump) => (
+          pumpsData?.map((pump) => (
             <Card key={pump.id} className="relative">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -135,16 +140,18 @@ const Pumps = () => {
                       {getStatusIcon(pump.status)} {pump.status}
                     </Badge>
                     <Select
-                      value={pump.status}
-                      onValueChange={(status) => updatePumpStatusMutation.mutate({ pumpId: pump.id, status })}
+                      value={pump.status === 'active' ? 'true' : 'false'}
+                      onValueChange={(value) => updatePumpStatusMutation.mutate({ 
+                        pumpId: pump.id, 
+                        isActive: value === 'true' 
+                      })}
                     >
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                        <SelectItem value="true">Active</SelectItem>
+                        <SelectItem value="false">Inactive</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
