@@ -101,12 +101,14 @@ export default function AdminStations() {
 
       if (error) throw error;
 
-      // If owner is assigned, update their station_id
+      // If owner is assigned, create a user_stations relationship
       if (newStation.owner_id) {
         await supabase
-          .from('users')
-          .update({ station_id: data.id })
-          .eq('id', newStation.owner_id);
+          .from('user_stations')
+          .insert({
+            user_id: newStation.owner_id,
+            station_id: data.id
+          });
       }
 
       toast({

@@ -19,9 +19,12 @@ export interface PlanUsage {
 }
 
 export class PlanLimitsError extends Error {
-  constructor(message: string, public code: string = 'PLAN_LIMIT_EXCEEDED') {
+  public code: string;
+  
+  constructor(message: string, code: string = 'PLAN_LIMIT_EXCEEDED') {
     super(message);
     this.name = 'PlanLimitsError';
+    this.code = code;
   }
 }
 
@@ -68,7 +71,7 @@ export const planLimitsService = {
       .select('*')
       .eq('station_id', stationId)
       .eq('month', currentMonth)
-      .single();
+      .maybeSingle();
 
     if (error && error.code !== 'PGRST116') {
       throw new Error(`Failed to fetch plan usage: ${error.message}`);
@@ -124,11 +127,10 @@ export const planLimitsService = {
     
     if (!limits.maxEmployees) return;
 
-    // Count employees for this specific station using the users table filtered by station_id
     const { count, error } = await supabase
       .from('users')
       .select('*', { count: 'exact' })
-      .eq('station_id', stationId)
+      .eq('role', 'employee')
       .eq('is_active', true);
 
     if (error) {
