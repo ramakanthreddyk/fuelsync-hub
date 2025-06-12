@@ -35,7 +35,7 @@ export interface Plan {
   allow_manual_entry: boolean;
   edit_fuel_type: boolean;
   export_reports: boolean;
-  features: Record<string, any>;
+  features: any; // Changed from Record<string, any> to any to match Supabase Json type
   is_active: boolean;
   created_at: string;
 }

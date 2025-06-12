@@ -22,13 +22,12 @@ export default function AdminUsers() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isOwnerStationDialogOpen, setIsOwnerStationDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
-    role: 'employee' as const,
+    role: 'employee' as 'employee' | 'owner', // Fixed type annotation
     station_id: null as number | null,
     create_first_station: false,
     station_name: '',
@@ -67,7 +66,7 @@ export default function AdminUsers() {
       
       setUsers(usersData || []);
       setStations(stationsData || []);
-      setPlans(plansData || []);
+      setPlans((plansData || []) as Plan[]); // Type assertion to handle Json type
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -311,7 +310,7 @@ export default function AdminUsers() {
                 </div>
                 <div>
                   <Label htmlFor="role">Role</Label>
-                  <Select value={newUser.role} onValueChange={(value: any) => setNewUser({ ...newUser, role: value, create_first_station: false })}>
+                  <Select value={newUser.role} onValueChange={(value: 'employee' | 'owner') => setNewUser({ ...newUser, role: value, create_first_station: false })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

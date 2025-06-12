@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,7 +69,7 @@ export default function OwnerDashboard() {
       
       setStations(stationsData || []);
       setEmployees(employeesData || []);
-      setPlans(plansData || []);
+      setPlans((plansData || []) as Plan[]); // Type assertion to handle Json type
     } catch (error) {
       console.error('Error loading owner data:', error);
       toast({
