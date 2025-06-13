@@ -80,6 +80,22 @@ interface Database {
           is_active: boolean
         }
       }
+      event_log: {
+        Row: {
+          id: number
+          event_type: string
+          station_id: number | null
+          user_id: number | null
+          payload: any
+          occurred_at: string
+        }
+        Insert: {
+          event_type: string
+          station_id?: number | null
+          user_id?: number | null
+          payload?: any
+        }
+      }
     }
   }
 }
@@ -100,7 +116,7 @@ serve(async (req) => {
 
     console.log('Sales Management API Request:', req.method, url.pathname)
 
-    // POST /manual-entry - Create manual sale entry with calculations
+    // POST /sales-management - Create manual sale entry with calculations
     if (req.method === 'POST' && pathParts.length === 1 && pathParts[0] === 'sales-management') {
       const body = await req.json()
       const station_id = parseInt(body.station_id)
@@ -141,7 +157,7 @@ serve(async (req) => {
         if (lastReadingError) throw new Error('Error fetching last reading')
 
         const previousVolume = lastReading?.cumulative_vol || 0
-        const deltaVolume = parseFloat((cumulative_volume - previousVolume).toFixed(2))
+        const deltaVolume = parseFloat((cumulative_volume - previousVolume).toFixed(3))
 
         if (deltaVolume < 0) {
           return new Response(JSON.stringify({ 
@@ -184,6 +200,23 @@ serve(async (req) => {
 
         if (ocrError) throw new Error('Error creating OCR reading')
 
+        // Log manual reading event
+        await supabase
+          .from('event_log')
+          .insert({
+            event_type: 'manual_reading',
+            station_id,
+            user_id,
+            payload: {
+              nozzle_id,
+              cumulative_volume,
+              delta_volume: deltaVolume,
+              price_per_litre: pricePerLitre,
+              total_amount: totalAmount,
+              fuel_type: nozzle.fuel_type
+            }
+          })
+
         if (deltaVolume > 0) {
           const { data: sale, error: saleError } = await supabase
             .from('sales')
@@ -191,7 +224,7 @@ serve(async (req) => {
               station_id,
               nozzle_id,
               reading_id: ocrReading.id,
-              delta_volume_l: parseFloat(deltaVolume.toFixed(2)),
+              delta_volume_l: parseFloat(deltaVolume.toFixed(3)),
               price_per_litre: parseFloat(pricePerLitre.toFixed(2)),
               total_amount: parseFloat(totalAmount.toFixed(2))
             })
