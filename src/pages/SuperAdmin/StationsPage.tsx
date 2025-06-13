@@ -287,7 +287,7 @@ export default function StationsPage() {
                     <SelectValue placeholder="Select plan (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Plan</SelectItem>
+                    <SelectItem value="none">No Plan</SelectItem>
                     {plans.map((plan) => (
                       <SelectItem key={plan.id} value={plan.id.toString()}>
                         {plan.name} (₹{plan.price_monthly}/month)
@@ -476,7 +476,7 @@ export default function StationsPage() {
                   <SelectValue placeholder="Select plan (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Plan</SelectItem>
+                  <SelectItem value="none">No Plan</SelectItem>
                   {plans.map((plan) => (
                     <SelectItem key={plan.id} value={plan.id.toString()}>
                       {plan.name} (₹{plan.price_monthly}/month)
