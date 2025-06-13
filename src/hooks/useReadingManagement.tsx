@@ -39,9 +39,22 @@ export const useReadingManagement = () => {
         formData.append('pump_sno', pumpSno);
       }
 
-      const { data, error } = await supabase.functions.invoke('ocr-upload', {
-        body: formData,
-      });
+    const response = await fetch('/functions/v1/ocr-upload', {
+      method: 'POST',
+      headers: {
+        // Let browser set Content-Type for FormData (do NOT set manually)
+        Authorization: `Bearer ${supabase.auth.getSession().data.session?.access_token ?? ''}`,
+      },
+      body: formData,
+    });
+
+if (!response.ok) {
+  const error = await response.json();
+  throw new Error(error.error || 'Upload failed');
+}
+
+const data = await response.json();
+
 
       if (error) {
         console.error('OCR upload error:', error);
