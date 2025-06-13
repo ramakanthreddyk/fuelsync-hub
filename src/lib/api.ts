@@ -1,13 +1,13 @@
+
 // lib/api.ts
 
 const SUPABASE_URL = "https://untzkhbbsowpkmwrxdws.supabase.co";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabase } from "@/integrations/supabase/client";
 
 export class ApiClient {
   private async getAuthHeaders(): Promise<{ headers: Record<string, string>, session: any }> {
   try {
-    const supabase = createClientComponentClient();
     const result = await supabase.auth.getSession();
     const { data: { session }, error } = result;
 
