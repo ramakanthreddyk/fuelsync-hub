@@ -76,10 +76,10 @@ export default function Upload() {
 
   const handleUpload = async () => {
     if (!selectedFile || !pumpSno) {
-      toast({ 
-        title: "Error", 
-        description: "Please select a file and pump", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Please select a file and pump",
+        variant: "destructive"
       });
       return;
     }
@@ -95,9 +95,9 @@ export default function Upload() {
     try {
       const result = await uploadImageForOCR(selectedFile, pumpSno);
       if (result) {
-        toast({ 
-          title: "Success", 
-          description: "Receipt uploaded and processed successfully." 
+        toast({
+          title: "Success",
+          description: "Receipt uploaded and processed successfully."
         });
         setSelectedFile(null);
         setPumpSno('');
@@ -107,10 +107,10 @@ export default function Upload() {
       }
     } catch (error) {
       console.error('Upload error:', error);
-      toast({ 
-        title: "Upload Failed", 
-        description: "Failed to upload receipt. Please try again.", 
-        variant: "destructive" 
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload receipt. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsUploading(false);
@@ -119,19 +119,19 @@ export default function Upload() {
 
   const handleManualEntry = async () => {
     if (!manualData.nozzle_id || !manualData.cumulative_vol || !manualData.reading_date || !manualData.reading_time) {
-      toast({ 
-        title: "Error", 
-        description: "Please fill all required fields", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Please fill all required fields",
+        variant: "destructive"
       });
       return;
     }
 
     if (!currentStation) {
-      toast({ 
-        title: "Error", 
-        description: "No station selected", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "No station selected",
+        variant: "destructive"
       });
       return;
     }
@@ -147,9 +147,9 @@ export default function Upload() {
 
       const result = await submitManualReading(readingData);
       if (result) {
-        toast({ 
-          title: "Success", 
-          description: "Manual reading submitted successfully" 
+        toast({
+          title: "Success",
+          description: "Manual reading submitted successfully"
         });
         setManualData({
           nozzle_id: '',
@@ -160,29 +160,29 @@ export default function Upload() {
       }
     } catch (error) {
       console.error('Manual entry error:', error);
-      toast({ 
-        title: "Error", 
-        description: "Failed to submit manual reading", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Failed to submit manual reading",
+        variant: "destructive"
       });
     }
   };
 
   const handleTenderEntry = async () => {
     if (!tenderData.type || !tenderData.amount || !tenderData.entry_date) {
-      toast({ 
-        title: "Error", 
-        description: "Please fill all required fields", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Please fill all required fields",
+        variant: "destructive"
       });
       return;
     }
 
     if (!currentStation) {
-      toast({ 
-        title: "Error", 
-        description: "No station selected", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "No station selected",
+        variant: "destructive"
       });
       return;
     }
@@ -196,9 +196,9 @@ export default function Upload() {
       };
 
       await createManualEntry.mutateAsync(entryData);
-      toast({ 
-        title: "Success", 
-        description: "Tender entry submitted successfully" 
+      toast({
+        title: "Success",
+        description: "Tender entry submitted successfully"
       });
       setTenderData({
         type: '',
@@ -207,10 +207,10 @@ export default function Upload() {
       });
     } catch (error) {
       console.error('Tender entry error:', error);
-      toast({ 
-        title: "Error", 
-        description: "Failed to submit tender entry", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Failed to submit tender entry",
+        variant: "destructive"
       });
     }
   };
@@ -243,9 +243,9 @@ export default function Upload() {
               <div className="grid gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="receipt">Select Receipt Image:</Label>
-                  <Input 
-                    type="file" 
-                    id="receipt" 
+                  <Input
+                    type="file"
+                    id="receipt"
                     accept="image/*,.pdf"
                     onChange={handleFileSelect}
                     disabled={isUploading}
@@ -273,8 +273,8 @@ export default function Upload() {
                   </Select>
                 </div>
 
-                <Button 
-                  onClick={handleUpload} 
+                <Button
+                  onClick={handleUpload}
                   disabled={isUploading || !selectedFile || !pumpSno}
                   className="w-full"
                 >
@@ -286,15 +286,63 @@ export default function Upload() {
             <TabsContent value="manual" className="space-y-4">
               <div className="grid gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nozzle">Nozzle ID:</Label>
-                  <Input
-                    id="nozzle"
-                    type="number"
-                    value={manualData.nozzle_id}
-                    onChange={(e) => setManualData(prev => ({ ...prev, nozzle_id: e.target.value }))}
-                    placeholder="Enter nozzle number"
-                  />
+                  <Label htmlFor="station">Select Station:</Label>
+                  <Select value={selectedStationId} onValueChange={(value) => {
+                    setSelectedStationId(value);
+                    setSelectedPumpId('');
+                    setManualData(prev => ({ ...prev, nozzle_id: '' }));
+                  }}>
+                    <SelectTrigger id="station">
+                      <SelectValue placeholder="Select your station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userStations.map(station => (
+                        <SelectItem key={station.id} value={station.id.toString()}>
+                          {station.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {selectedStationId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pump">Select Pump:</Label>
+                    <Select value={selectedPumpId} onValueChange={(value) => {
+                      setSelectedPumpId(value);
+                      setManualData(prev => ({ ...prev, nozzle_id: '' }));
+                    }}>
+                      <SelectTrigger id="pump">
+                        <SelectValue placeholder="Select pump" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stationPumps.map(pump => (
+                          <SelectItem key={pump.id} value={pump.id.toString()}>
+                            Pump {pump.pump_sno} - {pump.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedPumpId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="nozzle">Nozzle:</Label>
+                    <Select value={manualData.nozzle_id} onValueChange={(value) => setManualData(prev => ({ ...prev, nozzle_id: value }))}>
+                      <SelectTrigger id="nozzle">
+                        <SelectValue placeholder="Select nozzle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pumpNozzles.map(nozzle => (
+                          <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
+                            Nozzle {nozzle.nozzle_number} - {nozzle.fuel_type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="volume">Cumulative Volume:</Label>
@@ -314,7 +362,7 @@ export default function Upload() {
                     <Input
                       id="date"
                       type="date"
-                      value={manualData.reading_date}
+                      value={manualData.reading_date || '2025-06-13'}
                       onChange={(e) => setManualData(prev => ({ ...prev, reading_date: e.target.value }))}
                     />
                   </div>
@@ -324,7 +372,7 @@ export default function Upload() {
                     <Input
                       id="time"
                       type="time"
-                      value={manualData.reading_time}
+                      value={manualData.reading_time || '19:09'}
                       onChange={(e) => setManualData(prev => ({ ...prev, reading_time: e.target.value }))}
                     />
                   </div>
@@ -335,6 +383,7 @@ export default function Upload() {
                 </Button>
               </div>
             </TabsContent>
+
 
             <TabsContent value="tender" className="space-y-4">
               <div className="grid gap-4">
