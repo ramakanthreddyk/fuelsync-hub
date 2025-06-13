@@ -15,7 +15,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { FuelSyncLogo } from "./FuelSyncLogo";
+import FuelSyncLogo from "./FuelSyncLogo";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import {
@@ -113,7 +113,7 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar className="w-64 lg:w-72">
+    <Sidebar className="w-56 lg:w-64">
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
           <FuelSyncLogo className="w-8 h-8" />
@@ -214,7 +214,7 @@ export function AppSidebar() {
             className="w-full justify-start gap-2"
           >
             <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Logout</span>
+            <span>Logout</span>
           </Button>
         </div>
       </SidebarFooter>
