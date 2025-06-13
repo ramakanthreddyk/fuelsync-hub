@@ -24,6 +24,7 @@ export class ApiClient {
         console.error("No valid session found");
         throw new Error("No valid session found");
       }
+      console.log("Session object -->:", session);
 
       return {
         Authorization: `Bearer ${session.access_token}`,
