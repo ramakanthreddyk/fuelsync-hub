@@ -104,7 +104,7 @@ export default function Upload() {
         title: "Success",
         description: "Tender entry saved successfully"
       });
-      
+
       setTenderData({
         type: '',
         amount: '',
@@ -121,10 +121,10 @@ export default function Upload() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) {
+    if (!selectedFile || !pumpSno) {
       toast({
         title: "Error",
-        description: "Please select a file",
+        description: "Please select a file and pump",
         variant: "destructive"
       });
       return;
@@ -167,25 +167,36 @@ export default function Upload() {
             </TabsList>
             <TabsContent value="upload" className="space-y-4">
               <div className="grid gap-4">
+                {/* File Upload */}
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="receipt">Select Receipt:</Label>
                   <Input type="file" id="receipt" onChange={handleFileSelect} />
                 </div>
+
+                {/* Pump S.No Dropdown */}
                 <div className="flex items-center space-x-2">
-                  <Label htmlFor="pumpSno">Pump S.No (Optional):</Label>
-                  <Input
-                    type="text"
-                    id="pumpSno"
-                    placeholder="Enter Pump S.No"
-                    value={pumpSno}
-                    onChange={(e) => setPumpSno(e.target.value)}
-                  />
+                  <Label htmlFor="pumpSno">Pump S.No:</Label>
+                  <Select value={pumpSno} onValueChange={setPumpSno}>
+                    <SelectTrigger id="pumpSno" className="w-[200px]">
+                      <SelectValue placeholder="Select Pump" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pumps.map((pump) => (
+                        <SelectItem key={pump.id} value={pump.pump_sno}>
+                          {pump.pump_sno}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Button onClick={handleUpload} disabled={isUploading || !selectedFile}>
+
+                {/* Upload Button */}
+                <Button onClick={handleUpload} disabled={isUploading || !selectedFile || !pumpSno}>
                   {isUploading ? "Uploading..." : "Upload"}
                 </Button>
               </div>
             </TabsContent>
+
             <TabsContent value="manual" className="space-y-4">
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
