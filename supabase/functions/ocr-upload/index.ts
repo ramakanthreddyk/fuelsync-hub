@@ -6,8 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-// Azure OCR Logic
-async function parseWithAzureOCR(imageBuffer) {
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL"),
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+);
+
+// Azure OCR polling and line extraction
+async function parseWithAzureOCR(imageBuffer: Uint8Array) {
   const AZURE_VISION_ENDPOINT = Deno.env.get("AZURE_VISION_ENDPOINT");
   const AZURE_VISION_KEY = Deno.env.get("AZURE_VISION_KEY");
 
@@ -20,98 +25,119 @@ async function parseWithAzureOCR(imageBuffer) {
     body: imageBuffer
   });
 
-  const operationLocation = analyzeRes.headers.get("operation-location");
-  if (!operationLocation) throw new Error("No operation-location returned from Azure OCR");
+  const opLocation = analyzeRes.headers.get("operation-location");
+  if (!opLocation) throw new Error("Azure Read: missing Operation-Location");
 
+  const opId = opLocation.split("/").pop();
   for (let i = 0; i < 10; i++) {
-    await new Promise((res) => setTimeout(res, 2000));
-    const result = await fetch(operationLocation, {
+    await new Promise(res => setTimeout(res, 2000));
+    const result = await fetch(`${AZURE_VISION_ENDPOINT}/vision/v3.2/read/analyzeResults/${opId}`, {
       headers: {
         "Ocp-Apim-Subscription-Key": AZURE_VISION_KEY
       }
     });
     const json = await result.json();
-    if (json.status === "succeeded") return json;
+    if (["succeeded", "failed"].includes(json.status)) return json;
   }
 
-  throw new Error("Azure OCR timeout: No result after polling");
+  throw new Error("OCR polling timeout");
 }
 
-// Text Extraction Logic
-function extractDataFromOCR(ocrJson) {
-  const lines = ocrJson.analyzeResult.readResults.flatMap((page) =>
-    page.lines.map((line) => line.text)
-  );
+// Line extractor helpers
+function extractLines(readResults: any[]): string[] {
+  return readResults.flatMap(p => p.lines.map((l: any) => l.text.trim()));
+}
 
-  console.log("🔍 OCR Lines:", lines);
-
-  let pump_sno = "";
-  const nozzles = [];
-
-  for (const line of lines) {
-    if (line.toLowerCase().includes("pump") && line.toLowerCase().includes("p00")) {
-      pump_sno = line.trim().split(" ").pop() ?? "";
-    }
-
-    const nozzleMatch = line.match(/Nozzle\s*(\d+):\s*(\d+(\.\d+)?)/i);
-    if (nozzleMatch) {
-      const nozzle_id = nozzleMatch[1];
-      const cumulative_volume = parseFloat(nozzleMatch[2]);
-      nozzles.push({ nozzle_id, cumulative_volume });
+function getDate(lines: string[]): string | null {
+  for (const l of lines) {
+    const m = l.match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (m) {
+      const [d, mth, y] = m[1].split('/');
+      return `${y}-${mth}-${d}`;
     }
   }
+  return null;
+}
 
-  return {
-    pump_sno,
-    reading_date: new Date().toISOString().split("T")[0],
-    reading_time: new Date().toTimeString().slice(0, 5),
-    nozzles
+function getTime(lines: string[]): string | null {
+  for (const l of lines) {
+    const m = l.replace(/\s/g, '').match(/(\d{2}:\d{2}:\d{2})/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function getNozzles(lines: string[]): { nozzle_id: number, cumulative_volume: number }[] {
+  const result = [];
+  let current: any = null;
+
+  const nextNumeric = (idx: number): number | null => {
+    const m = lines[idx + 1]?.match(/([\d.]+)/);
+    return m ? parseFloat(m[1]) : null;
   };
+
+  for (let i = 0; i < lines.length; i++) {
+    const txt = lines[i].toLowerCase();
+    const hit = txt.match(/nozzle\s*no\.?\s*(\d+)/i);
+    if (hit) {
+      if (current && current.cumulative_volume) result.push(current);
+      const no = parseInt(hit[1], 10);
+      current = {
+        nozzle_id: no,
+        cumulative_volume: null
+      };
+      continue;
+    }
+    if (!current) continue;
+
+    if (txt.includes("cumvolume")) current.cumulative_volume = nextNumeric(i);
+  }
+
+  if (current && current.cumulative_volume) result.push(current);
+  return result;
 }
 
-// Request Handler
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL"),
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-    );
-
     const formData = await req.formData();
     const file = formData.get("file");
-    const pumpSnoOverride = formData.get("pump_sno");
+    const pump_sno = formData.get("pump_sno");
 
-    if (!file) {
-      return new Response(JSON.stringify({ error: "No file uploaded" }), {
+    if (!file || !pump_sno) {
+      return new Response(JSON.stringify({ error: "file and pump_sno are required" }), {
         status: 400,
         headers: corsHeaders
       });
     }
 
     const buffer = new Uint8Array(await file.arrayBuffer());
-
     const ocrRaw = await parseWithAzureOCR(buffer);
-    console.log("📄 Raw Azure OCR response:", JSON.stringify(ocrRaw, null, 2));
+    console.log("📄 Azure OCR Raw:", JSON.stringify(ocrRaw, null, 2));
 
-    const ocrData = extractDataFromOCR(ocrRaw);
-    if (pumpSnoOverride) ocrData.pump_sno = pumpSnoOverride;
+    const lines = extractLines(ocrRaw.analyzeResult.readResults);
+    console.log("🔍 Extracted Lines:", lines);
 
-    console.log("🧩 Mapped OCR data:", JSON.stringify(ocrData, null, 2));
+    const ocrData = {
+      reading_date: getDate(lines) ?? new Date().toISOString().split("T")[0],
+      reading_time: getTime(lines) ?? new Date().toTimeString().slice(0, 5),
+      nozzles: getNozzles(lines)
+    };
+
+    console.log("🧩 Parsed OCR Data:", ocrData);
 
     const { data: pump, error: pumpError } = await supabase
       .from("pumps")
       .select("id, station_id")
-      .eq("pump_sno", ocrData.pump_sno)
+      .eq("pump_sno", pump_sno)
       .single();
 
     if (pumpError || !pump) {
-      console.error("❌ Pump not found or error:", pumpError);
-      return new Response(
-        JSON.stringify({ error: `Pump not found for sno: ${ocrData.pump_sno}` }),
-        { status: 404, headers: corsHeaders }
-      );
+      return new Response(JSON.stringify({ error: `Pump not found for sno: ${pump_sno}` }), {
+        status: 404,
+        headers: corsHeaders
+      });
     }
 
     const inserted = [];
@@ -120,12 +146,12 @@ serve(async (req) => {
       const { data: nozzleRow, error: nozzleError } = await supabase
         .from("nozzles")
         .select("id")
-        .eq("id", nozzle.nozzle_id)
         .eq("pump_id", pump.id)
+        .eq("nozzle_number", nozzle.nozzle_id)
         .maybeSingle();
 
       if (nozzleError || !nozzleRow) {
-        console.warn(`⚠️ Skipping nozzle ${nozzle.nozzle_id}:`, nozzleError);
+        console.warn(`⚠️ Nozzle ${nozzle.nozzle_id} not found for pump_id ${pump.id}`);
         continue;
       }
 
@@ -133,22 +159,18 @@ serve(async (req) => {
         .from("ocr_readings")
         .insert({
           station_id: pump.station_id,
-          nozzle_id: nozzle.nozzle_id,
-          pump_sno: ocrData.pump_sno,
+          pump_sno,
+          nozzle_id: nozzleRow.id,
           reading_date: ocrData.reading_date,
           reading_time: ocrData.reading_time,
-          cumulative_vol: Number(nozzle.cumulative_volume),
+          cumulative_vol: nozzle.cumulative_volume,
           source: "ocr",
           ocr_json: nozzle
         })
         .select()
         .single();
 
-      if (!insertRes.error) {
-        inserted.push(insertRes.data);
-      } else {
-        console.error("❌ Insert error for nozzle", nozzle.nozzle_id, ":", insertRes.error);
-      }
+      if (!insertRes.error) inserted.push(insertRes.data);
     }
 
     return new Response(
