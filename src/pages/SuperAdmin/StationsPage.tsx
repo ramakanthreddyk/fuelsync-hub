@@ -59,7 +59,7 @@ export default function StationsPage() {
     brand: 'IOCL' as 'IOCL' | 'BPCL' | 'HPCL',
     address: '',
     owner_id: '',
-    current_plan_id: ''
+    current_plan_id: 'none'
   });
   const { toast } = useToast();
 
@@ -107,7 +107,7 @@ export default function StationsPage() {
         body: JSON.stringify({
           ...formData,
           owner_id: parseInt(formData.owner_id),
-          current_plan_id: formData.current_plan_id ? parseInt(formData.current_plan_id) : null
+          current_plan_id: formData.current_plan_id === 'none' ? null : parseInt(formData.current_plan_id)
         }),
       });
 
@@ -117,7 +117,7 @@ export default function StationsPage() {
       });
 
       setIsCreateOpen(false);
-      setFormData({ name: '', brand: 'IOCL', address: '', owner_id: '', current_plan_id: '' });
+      setFormData({ name: '', brand: 'IOCL', address: '', owner_id: '', current_plan_id: 'none' });
       fetchData();
     } catch (error: any) {
       console.error('Error creating station:', error);
@@ -139,7 +139,7 @@ export default function StationsPage() {
           id: selectedStation.id,
           ...formData,
           owner_id: parseInt(formData.owner_id),
-          current_plan_id: formData.current_plan_id ? parseInt(formData.current_plan_id) : null
+          current_plan_id: formData.current_plan_id === 'none' ? null : parseInt(formData.current_plan_id)
         }),
       });
 
@@ -150,7 +150,7 @@ export default function StationsPage() {
 
       setIsEditOpen(false);
       setSelectedStation(null);
-      setFormData({ name: '', brand: 'IOCL', address: '', owner_id: '', current_plan_id: '' });
+      setFormData({ name: '', brand: 'IOCL', address: '', owner_id: '', current_plan_id: 'none' });
       fetchData();
     } catch (error: any) {
       console.error('Error updating station:', error);
@@ -191,7 +191,7 @@ export default function StationsPage() {
       brand: station.brand,
       address: station.address || '',
       owner_id: station.owner_id.toString(),
-      current_plan_id: station.current_plan_id?.toString() || ''
+      current_plan_id: station.current_plan_id ? station.current_plan_id.toString() : 'none'
     });
     setIsEditOpen(true);
   };
