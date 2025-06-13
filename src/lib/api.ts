@@ -5,8 +5,7 @@ export class ApiClient {
   private async getAuthHeaders() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('🔐 Supabase session:', session);
-      console.log('🔐 Supabase session error:', error);
+      console.log('🔐 Getting session for API request...');
       
       if (error) {
         console.error('Auth session error:', error);
@@ -50,11 +49,17 @@ export class ApiClient {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error response:', errorText);
-        throw new Error(`API Error: ${response.status} - ${errorText}`);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || `API Error: ${response.status}`);
+        } catch {
+          throw new Error(`API Error: ${response.status} - ${errorText}`);
+        }
       }
 
       const result = await response.json();
-      console.log('API Result:', result);
+      console.log('API Result success:', result.success);
       
       if (!result.success) {
         throw new Error(result.error || 'API request failed');

@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
@@ -40,26 +41,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load initial session
+    // Set up auth state listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      setSession(session);
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Defer user data fetching to avoid blocking auth state changes
+        setTimeout(() => {
+          fetchUserData(session.user.email!);
+        }, 0);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         fetchUserData(session.user.email!);
       } else {
-        setLoading(false);
-      }
-    });
-
-    // Subscribe to auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-
-      if (event === 'SIGNED_IN' && session?.user) {
-        await fetchUserData(session.user.email!);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
         setLoading(false);
       }
     });
@@ -71,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (email: string) => {
     try {
+      console.log('Fetching user data for:', email);
+      
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -81,8 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userError || !userData) {
         console.error('Error fetching user data:', userError);
         setUser(null);
+        setLoading(false);
         return;
       }
+
+      console.log('User data found:', userData);
 
       let stations = [];
 
@@ -121,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         stations,
       };
 
+      console.log('Setting user:', transformedUser);
       setUser(transformedUser);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -133,6 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
+      console.log('Attempting login for:', email);
+      
+      // First check if user exists in our system
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -144,6 +156,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid credentials or account not found');
       }
 
+      console.log('User found in system:', userData);
+
+      // Attempt sign in
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -152,26 +167,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (signInError) {
         console.error('Sign-in error:', signInError.message);
         
-        // Handle specific confirmation error with more detail
+        // Handle specific confirmation error
         if (signInError.message.includes('Email not confirmed') || 
-            signInError.message.includes('email_not_confirmed')) {
-          throw new Error('Your account requires email confirmation. Please contact support if this issue persists.');
+            signInError.message.includes('email_not_confirmed') ||
+            signInError.message.includes('signup_disabled')) {
+          throw new Error('Email not confirmed');
         }
         
         throw new Error('Invalid credentials');
       }
 
-      // session and user will be set by the auth listener
+      console.log('Login successful for:', email);
+      // User data will be set by the auth state change listener
     } catch (error) {
       console.error('Login error:', error);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 
   const logout = async () => {
     try {
+      console.log('Logging out...');
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);

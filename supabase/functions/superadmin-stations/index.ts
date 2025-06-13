@@ -13,76 +13,59 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Verify superadmin access
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Authorization header required' }),
+        JSON.stringify({ success: false, error: 'No authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Get authenticated user
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     
-    if (userError || !user) {
+    if (authError || !authUser) {
+      console.log('Auth error:', authError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid token' }),
+        JSON.stringify({ success: false, error: 'Authentication failed' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { data: userData, error: roleError } = await supabase
+    // Get user from public.users table to check role
+    const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role')
-      .eq('email', user.email)
+      .select('role, is_active')
+      .eq('email', authUser.email)
       .single();
 
-    if (roleError || userData?.role !== 'superadmin') {
+    if (userError || !userData || userData.role !== 'superadmin') {
+      console.log('Role check failed:', { userData, userError });
       return new Response(
-        JSON.stringify({ success: false, error: 'Superadmin access required' }),
+        JSON.stringify({ success: false, error: 'Insufficient permissions' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (req.method === 'GET') {
-      const url = new URL(req.url);
-      const ownerId = url.searchParams.get('ownerId');
-      const brand = url.searchParams.get('brand');
-      const active = url.searchParams.get('active');
-
-      let query = supabase
+      // Get all stations with owner information
+      const { data: stations, error } = await supabase
         .from('stations')
         .select(`
           *,
-          users!stations_owner_id_fkey (id, name, email),
-          plans (id, name, price_monthly),
-          pumps (count),
-          nozzles (count)
+          users!stations_owner_id_fkey(name, email),
+          plans!stations_current_plan_id_fkey(name, price_monthly)
         `)
         .order('created_at', { ascending: false });
 
-      if (ownerId) {
-        query = query.eq('owner_id', parseInt(ownerId));
-      }
-
-      if (brand) {
-        query = query.eq('brand', brand);
-      }
-
-      if (active !== null) {
-        query = query.eq('is_active', active === 'true');
-      }
-
-      const { data: stationsData, error: stationsError } = await query;
-
-      if (stationsError) {
-        console.error('Error fetching stations:', stationsError);
+      if (error) {
+        console.error('Error fetching stations:', error);
         return new Response(
           JSON.stringify({ success: false, error: 'Failed to fetch stations' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -90,7 +73,7 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, data: stationsData }),
+        JSON.stringify({ success: true, data: stations }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -98,17 +81,14 @@ serve(async (req) => {
     if (req.method === 'POST') {
       const { name, brand, address, owner_id, current_plan_id } = await req.json();
 
-      if (!name || !brand || !address || !owner_id) {
+      if (!name || !brand || !owner_id) {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Missing required fields: name, brand, address, owner_id' 
-          }),
+          JSON.stringify({ success: false, error: 'Missing required fields' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const { data: stationData, error: stationError } = await supabase
+      const { data: newStation, error: createError } = await supabase
         .from('stations')
         .insert({
           name,
@@ -118,11 +98,15 @@ serve(async (req) => {
           current_plan_id,
           is_active: true
         })
-        .select()
+        .select(`
+          *,
+          users!stations_owner_id_fkey(name, email),
+          plans!stations_current_plan_id_fkey(name, price_monthly)
+        `)
         .single();
 
-      if (stationError) {
-        console.error('Error creating station:', stationError);
+      if (createError) {
+        console.error('Error creating station:', createError);
         return new Response(
           JSON.stringify({ success: false, error: 'Failed to create station' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -130,7 +114,72 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, data: stationData }),
+        JSON.stringify({ success: true, data: newStation }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (req.method === 'PUT') {
+      const { id, name, brand, address, owner_id, current_plan_id, is_active } = await req.json();
+
+      if (!id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Station ID is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: updatedStation, error } = await supabase
+        .from('stations')
+        .update({ name, brand, address, owner_id, current_plan_id, is_active })
+        .eq('id', id)
+        .select(`
+          *,
+          users!stations_owner_id_fkey(name, email),
+          plans!stations_current_plan_id_fkey(name, price_monthly)
+        `)
+        .single();
+
+      if (error) {
+        console.error('Error updating station:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to update station' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data: updatedStation }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (req.method === 'DELETE') {
+      const url = new URL(req.url);
+      const id = url.searchParams.get('id');
+
+      if (!id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Station ID is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error } = await supabase
+        .from('stations')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting station:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to delete station' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Station deleted successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

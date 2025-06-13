@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Fuel, Eye, EyeOff, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 
 export default function Login() {
@@ -72,7 +71,8 @@ export default function Login() {
       
       // Handle specific confirmation error with auto-retry
       if (error.message?.includes('Email not confirmed') || 
-          error.message?.includes('email_not_confirmed')) {
+          error.message?.includes('email_not_confirmed') ||
+          error.message?.includes('signup_disabled')) {
         
         setIsConfirming(true);
         
@@ -97,8 +97,8 @@ export default function Login() {
               console.error('Retry login error:', retryError);
               setConfirmationError(true);
               toast({
-                title: "Login Failed After Confirmation",
-                description: "Please contact support if this issue persists.",
+                title: "Login Failed",
+                description: "Please try again or contact support if this issue persists.",
                 variant: "destructive",
               });
             } finally {
@@ -270,19 +270,17 @@ export default function Login() {
           </CardContent>
         </Card>
 
-        {process.env.NODE_ENV === 'development' && (
-          <Card className="border-green-200 bg-green-50">
-            <CardContent className="pt-4">
-              <div className="flex items-center space-x-2 text-green-800">
-                <CheckCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">Development Mode</span>
-              </div>
-              <p className="text-xs text-green-700 mt-1">
-                Email confirmation is disabled with automatic fallback.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center space-x-2 text-green-800">
+              <CheckCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">Auto-Confirmation Enabled</span>
+            </div>
+            <p className="text-xs text-green-700 mt-1">
+              Demo users are automatically confirmed during login.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

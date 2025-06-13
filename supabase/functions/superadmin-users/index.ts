@@ -13,66 +13,60 @@ serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify authorization header exists
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Authorization header required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get user from JWT
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    // Get authenticated user
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     
-    if (userError || !user) {
+    if (authError || !authUser) {
+      console.log('Auth error:', authError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid token' }),
+        JSON.stringify({ success: false, error: 'Authentication failed' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if user is superadmin
-    const { data: userData, error: roleError } = await supabase
+    // Get user from public.users table to check role
+    const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role')
-      .eq('email', user.email)
+      .select('role, is_active')
+      .eq('email', authUser.email)
       .single();
 
-    if (roleError || userData?.role !== 'superadmin') {
+    if (userError || !userData || userData.role !== 'superadmin') {
+      console.log('Role check failed:', { userData, userError });
       return new Response(
-        JSON.stringify({ success: false, error: 'Superadmin access required' }),
+        JSON.stringify({ success: false, error: 'Insufficient permissions' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Handle GET request
     if (req.method === 'GET') {
-      const url = new URL(req.url);
-      const role = url.searchParams.get('role');
-      const stationId = url.searchParams.get('stationId');
-
-      let query = supabase
+      // Get all users
+      const { data: users, error } = await supabase
         .from('users')
-        .select(`
-          *,
-          user_stations (station_id, stations (id, name, brand))
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (role) query = query.eq('role', role);
-      if (stationId) query = query.eq('user_stations.station_id', parseInt(stationId));
-
-      const { data: usersData, error: usersError } = await query;
-
-      if (usersError) {
-        console.error('Error fetching users:', usersError);
+      if (error) {
+        console.error('Error fetching users:', error);
         return new Response(
           JSON.stringify({ success: false, error: 'Failed to fetch users' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -80,34 +74,30 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, data: usersData }),
+        JSON.stringify({ success: true, data: users }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Handle POST request (create user)
     if (req.method === 'POST') {
-      const { name, email, phone, password, role, station_id } = await req.json();
+      const { name, email, phone, role, password = 'defaultpass123' } = await req.json();
 
-      if (!name || !email || !password || !role) {
+      if (!name || !email || !role) {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Missing required fields: name, email, password, role' 
-          }),
+          JSON.stringify({ success: false, error: 'Missing required fields' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Create user in users table
+      // Create user in public.users first
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert({
           name,
           email,
           phone,
-          password, // In production, this should be hashed
           role,
+          password,
           is_active: true
         })
         .select()
@@ -121,18 +111,87 @@ serve(async (req) => {
         );
       }
 
-      // If station_id provided, create user_station relationship
-      if (station_id && role === 'employee') {
-        await supabase
-          .from('user_stations')
-          .insert({
-            user_id: newUser.id,
-            station_id: parseInt(station_id)
-          });
+      // Create auth user
+      const { data: authUserData, error: authCreateError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name }
+      });
+
+      if (authCreateError) {
+        console.error('Error creating auth user:', authCreateError);
+        // Clean up the public user if auth creation failed
+        await supabase.from('users').delete().eq('id', newUser.id);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to create authentication user' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       return new Response(
         JSON.stringify({ success: true, data: newUser }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (req.method === 'PUT') {
+      const { id, name, email, phone, role, is_active } = await req.json();
+
+      if (!id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'User ID is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: updatedUser, error } = await supabase
+        .from('users')
+        .update({ name, email, phone, role, is_active })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating user:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to update user' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data: updatedUser }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (req.method === 'DELETE') {
+      const url = new URL(req.url);
+      const id = url.searchParams.get('id');
+
+      if (!id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'User ID is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting user:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to delete user' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'User deleted successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

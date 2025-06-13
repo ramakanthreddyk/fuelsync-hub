@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -28,9 +28,11 @@ serve(async (req) => {
         );
       }
 
-      // Security check: Only allow known demo emails or existing superadmin users
-      const allowedDomains = ['@fuelsync.com'];
-      const isAllowedEmail = allowedDomains.some(domain => email.endsWith(domain));
+      console.log(`Attempting to confirm user: ${email}`);
+
+      // Security check: Only allow known demo emails or @fuelsync.com domain
+      const allowedEmails = ['admin@fuelsync.com', 'rajesh@fuelsync.com', 'ravi@fuelsync.com'];
+      const isAllowedEmail = allowedEmails.includes(email) || email.endsWith('@fuelsync.com');
       
       if (!isAllowedEmail) {
         console.log(`Unauthorized confirmation attempt for email: ${email}`);
@@ -40,23 +42,23 @@ serve(async (req) => {
         );
       }
 
-      // Check if user exists in our users table
-      const { data: userData, error: userError } = await supabase
+      // Check if user exists in our public.users table
+      const { data: userData, error: userError } = await supabaseAdmin
         .from('users')
         .select('id, email, role')
         .eq('email', email)
         .single();
 
       if (userError || !userData) {
-        console.log(`User not found in users table: ${email}`);
+        console.log(`User not found in public.users table: ${email}`, userError);
         return new Response(
-          JSON.stringify({ success: false, error: 'User not found' }),
+          JSON.stringify({ success: false, error: 'User not found in system' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       // Get the auth user
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers();
       
       if (authError) {
         console.error('Error fetching auth users:', authError);
@@ -66,50 +68,60 @@ serve(async (req) => {
         );
       }
 
-      const authUser = authUsers.users.find(u => u.email === email);
+      let authUser = authUsers.users.find(u => u.email === email);
       
       if (!authUser) {
-        console.log(`Auth user not found: ${email}`);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Auth user not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Skip if already confirmed
-      if (authUser.email_confirmed_at) {
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: 'User already confirmed',
-            already_confirmed: true 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Confirm the user
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        authUser.id,
-        {
+        console.log(`Auth user not found for ${email}, creating one...`);
+        
+        // Create auth user if it doesn't exist
+        const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: userData.role === 'superadmin' ? 'admin123' : 
+                   userData.role === 'owner' ? 'owner123' : 'emp123',
           email_confirm: true,
-          email_confirmed_at: new Date().toISOString(),
-        }
-      );
+          user_metadata: {
+            name: userData.role === 'superadmin' ? 'Super Admin' : 
+                  userData.role === 'owner' ? 'Rajesh Kumar' : 'Ravi Singh'
+          }
+        });
 
-      if (updateError) {
-        console.error(`Error confirming user ${email}:`, updateError);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to confirm user' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        if (createError) {
+          console.error(`Error creating auth user for ${email}:`, createError);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to create auth user' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        authUser = newAuthUser.user;
+        console.log(`Successfully created and confirmed auth user: ${email}`);
+      } else {
+        // Update existing auth user to confirm
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          authUser.id,
+          { email_confirm: true }
         );
+
+        if (updateError) {
+          console.error(`Error confirming user ${email}:`, updateError);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to confirm user' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`Successfully confirmed existing user: ${email}`);
       }
 
-      console.log(`Successfully confirmed user: ${email}`);
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'User confirmed successfully' 
+          message: 'User confirmed successfully',
+          user: {
+            id: authUser.id,
+            email: authUser.email,
+            confirmed: true
+          }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

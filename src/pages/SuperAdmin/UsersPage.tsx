@@ -1,488 +1,474 @@
+
 import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { apiClient } from "@/lib/api";
+import { Users, UserPlus, Search, Edit, Trash2, CheckCircle, XCircle } from "lucide-react";
 import { UserConfirmationManager } from "@/components/UserConfirmationManager";
-import { 
-  Users, 
-  Plus, 
-  RefreshCw, 
-  Edit, 
-  Trash2, 
-  UserCheck, 
-  UserX,
-  Building2,
-  Phone,
-  Mail
-} from "lucide-react";
 
 interface User {
   id: number;
   name: string | null;
   email: string;
   phone: string | null;
-  role: string;
+  role: 'superadmin' | 'owner' | 'employee';
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  stations: Array<{
-    id: number;
-    name: string;
-    brand: string;
-    address: string | null;
-  }>;
 }
 
-interface Station {
-  id: number;
-  name: string;
-  brand: string;
-  address: string | null;
-}
-
-export function UsersPage() {
+export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [role, setRole] = useState('employee');
-  const [isActive, setIsActive] = useState(true);
-  const [password, setPassword] = useState('');
-  const [assignedStations, setAssignedStations] = useState<number[]>([]);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'employee' as 'superadmin' | 'owner' | 'employee',
+    password: ''
+  });
   const { toast } = useToast();
 
   useEffect(() => {
     fetchUsers();
-    fetchStations();
   }, []);
 
   const fetchUsers = async () => {
-    setIsLoading(true);
     try {
+      setLoading(true);
       const data = await apiClient.superadminRequest('superadmin-users');
       setUsers(data);
     } catch (error: any) {
+      console.error('Error fetching users:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to fetch users",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const fetchStations = async () => {
-    try {
-      const data = await apiClient.superadminRequest('superadmin-stations');
-      setStations(data);
-    } catch (error: any) {
+  const handleCreateUser = async () => {
+    if (!formData.name || !formData.email || !formData.role) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to fetch stations",
+        title: "Validation Error",
+        description: "Please fill in all required fields",
         variant: "destructive",
       });
+      return;
     }
-  };
 
-  const createUser = async () => {
-    setIsLoading(true);
     try {
-      const data = await apiClient.superadminRequest('superadmin-actions', {
+      await apiClient.superadminRequest('superadmin-users', {
         method: 'POST',
-        body: JSON.stringify({
-          action: 'create_user',
-          name,
-          email,
-          phone,
-          role,
-          is_active: isActive,
-          password,
-          assigned_stations: assignedStations,
-        }),
+        body: JSON.stringify(formData),
       });
 
       toast({
-        title: "Success",
-        description: "User created successfully",
+        title: "User Created",
+        description: "User has been created successfully",
       });
+
+      setIsCreateOpen(false);
+      setFormData({ name: '', email: '', phone: '', role: 'employee', password: '' });
       fetchUsers();
-      setShowCreateModal(false);
-      clearForm();
     } catch (error: any) {
+      console.error('Error creating user:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to create user",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const updateUser = async () => {
-    setIsLoading(true);
+  const handleEditUser = async () => {
+    if (!selectedUser) return;
+
     try {
-      const data = await apiClient.superadminRequest('superadmin-actions', {
-        method: 'POST',
+      await apiClient.superadminRequest('superadmin-users', {
+        method: 'PUT',
         body: JSON.stringify({
-          action: 'update_user',
-          id: selectedUser?.id,
-          name,
-          email,
-          phone,
-          role,
-          is_active: isActive,
-          assigned_stations: assignedStations,
+          id: selectedUser.id,
+          ...formData,
         }),
       });
 
       toast({
-        title: "Success",
-        description: "User updated successfully",
+        title: "User Updated",
+        description: "User has been updated successfully",
       });
+
+      setIsEditOpen(false);
+      setSelectedUser(null);
+      setFormData({ name: '', email: '', phone: '', role: 'employee', password: '' });
       fetchUsers();
-      setShowEditModal(false);
-      clearForm();
     } catch (error: any) {
+      console.error('Error updating user:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to update user",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const deleteUser = async (id: number) => {
-    setIsLoading(true);
+  const handleToggleActive = async (user: User) => {
     try {
-      await apiClient.superadminRequest('superadmin-actions', {
-        method: 'POST',
+      await apiClient.superadminRequest('superadmin-users', {
+        method: 'PUT',
         body: JSON.stringify({
-          action: 'delete_user',
-          id,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          is_active: !user.is_active,
         }),
       });
 
       toast({
-        title: "Success",
-        description: "User deleted successfully",
+        title: "User Updated",
+        description: `User has been ${!user.is_active ? 'activated' : 'deactivated'}`,
       });
+
       fetchUsers();
     } catch (error: any) {
+      console.error('Error toggling user status:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update user status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      await apiClient.superadminRequest(`superadmin-users?id=${userId}`, {
+        method: 'DELETE',
+      });
+
+      toast({
+        title: "User Deleted",
+        description: "User has been deleted successfully",
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to delete user",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const clearForm = () => {
-    setName('');
-    setEmail('');
-    setPhone('');
-    setRole('employee');
-    setIsActive(true);
-    setPassword('');
-    setAssignedStations([]);
-    setSelectedUser(null);
+  const openEditDialog = (user: User) => {
+    setSelectedUser(user);
+    setFormData({
+      name: user.name || '',
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      password: ''
+    });
+    setIsEditOpen(true);
   };
 
-  const handleEdit = (user: User) => {
-    setSelectedUser(user);
-    setName(user.name || '');
-    setEmail(user.email);
-    setPhone(user.phone || '');
-    setRole(user.role);
-    setIsActive(user.is_active);
-    setAssignedStations(user.stations.map(station => station.id));
-    setShowEditModal(true);
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  const getRoleBadge = (role: string) => {
+    const variants = {
+      superadmin: 'destructive',
+      owner: 'default',
+      employee: 'secondary'
+    } as const;
+    
+    return <Badge variant={variants[role as keyof typeof variants] || 'secondary'}>{role}</Badge>;
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Users Management</h1>
-          <p className="text-muted-foreground">Manage all users across the platform</p>
+          <p className="text-muted-foreground">Manage all platform users</p>
         </div>
-        <div className="flex space-x-2">
-          <Button onClick={fetchUsers} disabled={isLoading} variant="outline">
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create User
-          </Button>
-        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Create User
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>
+                Add a new user to the platform
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Enter user name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="role">Role *</Label>
+                <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="superadmin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Leave empty for default password"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateUser}>Create User</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Add the User Confirmation Manager */}
       <UserConfirmationManager />
 
       <Card>
         <CardHeader>
-          <CardTitle>Users List</CardTitle>
-          <CardDescription>View and manage existing users</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            All Users
+          </CardTitle>
+          <CardDescription>
+            Total users: {users.length}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {user.name || 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge>{user.role}</Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {user.is_active ? (
-                        <Badge variant="outline">Active</Badge>
-                      ) : (
-                        <Badge variant="destructive">Inactive</Badge>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <Button size="sm" variant="ghost" onClick={() => handleEdit(user)}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => deleteUser(user.id)}>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex gap-4 mb-6">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="superadmin">Super Admin</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {loading ? (
+            <div className="text-center py-8">Loading users...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name || 'No name'}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.phone || 'N/A'}</TableCell>
+                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                        {user.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditDialog(user)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleActive(user)}
+                        >
+                          {user.is_active ? (
+                            <XCircle className="h-4 w-4" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete User</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {user.name || user.email}? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      {/* Create User Modal */}
-      {showCreateModal && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter user name"
+              />
             </div>
-
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full" role="dialog" aria-modal="true" aria-labelledby="modal-headline">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-headline">
-                  Create New User
-                </h3>
-                <div className="mt-2">
-                  <div className="grid grid-cols-6 gap-6">
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
-                      <input type="text" name="name" id="name" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-                      <input type="email" name="email" id="email" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
-                      <input type="text" name="phone" id="phone" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="role" className="block text-sm font-medium text-gray-700">Role</label>
-                      <select id="role" name="role" className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
-                        <option value="employee">Employee</option>
-                        <option value="owner">Owner</option>
-                        <option value="superadmin">Super Admin</option>
-                      </select>
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
-                      <input type="password" name="password" id="password" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">Status</label>
-                      <label className="inline-flex items-center mt-2">
-                        <input type="checkbox" className="form-checkbox h-5 w-5 text-blue-600" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                        <span className="ml-2 text-gray-900">Active</span>
-                      </label>
-                    </div>
-
-                    {role !== 'superadmin' && (
-                      <div className="col-span-6">
-                        <label className="block text-sm font-medium text-gray-700">Assign Stations</label>
-                        <div className="mt-1">
-                          {stations.map((station) => (
-                            <label key={station.id} className="inline-flex items-center mr-4">
-                              <input
-                                type="checkbox"
-                                className="form-checkbox h-5 w-5 text-blue-600"
-                                value={station.id}
-                                checked={assignedStations.includes(station.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setAssignedStations([...assignedStations, station.id]);
-                                  } else {
-                                    setAssignedStations(assignedStations.filter((id) => id !== station.id));
-                                  }
-                                }}
-                              />
-                              <span className="ml-2 text-gray-900">{station.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <Button className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={createUser} disabled={isLoading}>
-                  Create
-                </Button>
-                <Button variant="ghost" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setShowCreateModal(false)} disabled={isLoading}>
-                  Cancel
-                </Button>
-              </div>
+            <div>
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="Enter email address"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="Enter phone number"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Role</Label>
+              <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="superadmin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full" role="dialog" aria-modal="true" aria-labelledby="modal-headline">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-headline">
-                  Edit User
-                </h3>
-                <div className="mt-2">
-                  <div className="grid grid-cols-6 gap-6">
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
-                      <input type="text" name="name" id="name" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-                      <input type="email" name="email" id="email" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
-                      <input type="text" name="phone" id="phone" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label htmlFor="role" className="block text-sm font-medium text-gray-700">Role</label>
-                      <select id="role" name="role" className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
-                        <option value="employee">Employee</option>
-                        <option value="owner">Owner</option>
-                        <option value="superadmin">Super Admin</option>
-                      </select>
-                    </div>
-
-                    <div className="col-span-6 sm:col-span-3">
-                      <label className="block text-sm font-medium text-gray-700">Status</label>
-                      <label className="inline-flex items-center mt-2">
-                        <input type="checkbox" className="form-checkbox h-5 w-5 text-blue-600" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                        <span className="ml-2 text-gray-900">Active</span>
-                      </label>
-                    </div>
-
-                    {role !== 'superadmin' && (
-                      <div className="col-span-6">
-                        <label className="block text-sm font-medium text-gray-700">Assign Stations</label>
-                        <div className="mt-1">
-                          {stations.map((station) => (
-                            <label key={station.id} className="inline-flex items-center mr-4">
-                              <input
-                                type="checkbox"
-                                className="form-checkbox h-5 w-5 text-blue-600"
-                                value={station.id}
-                                checked={assignedStations.includes(station.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setAssignedStations([...assignedStations, station.id]);
-                                  } else {
-                                    setAssignedStations(assignedStations.filter((id) => id !== station.id));
-                                  }
-                                }}
-                              />
-                              <span className="ml-2 text-gray-900">{station.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <Button className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={updateUser} disabled={isLoading}>
-                  Save
-                </Button>
-                <Button variant="ghost" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setShowEditModal(false)} disabled={isLoading}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditUser}>Update User</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
