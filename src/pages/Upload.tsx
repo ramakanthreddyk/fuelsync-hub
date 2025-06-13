@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload as UploadIcon, Camera, FileText, DollarSign } from 'lucide-react';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger
+} from "@/components/ui/tabs";
+import {
+  Upload as UploadIcon, Camera, FileText, DollarSign
+} from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useReadingManagement } from "@/hooks/useReadingManagement";
 import { usePumpsData } from "@/hooks/usePumpsData";
@@ -165,15 +173,14 @@ export default function Upload() {
                 Tender Entry
               </TabsTrigger>
             </TabsList>
+
             <TabsContent value="upload" className="space-y-4">
               <div className="grid gap-4">
-                {/* File Upload */}
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="receipt">Select Receipt:</Label>
                   <Input type="file" id="receipt" onChange={handleFileSelect} />
                 </div>
 
-                {/* Pump S.No Dropdown */}
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="pumpSno">Pump S.No:</Label>
                   <Select value={pumpSno} onValueChange={setPumpSno}>
@@ -181,16 +188,19 @@ export default function Upload() {
                       <SelectValue placeholder="Select Pump" />
                     </SelectTrigger>
                     <SelectContent>
-                      {pumps.map((pump) => (
-                        <SelectItem key={pump.id} value={pump.pump_sno}>
-                          {pump.pump_sno}
-                        </SelectItem>
-                      ))}
+                      {pumps.length === 0 ? (
+                        <SelectItem disabled value="">Loading...</SelectItem>
+                      ) : (
+                        pumps.map((pump) => (
+                          <SelectItem key={pump.id} value={String(pump.pump_sno)}>
+                            {pump.pump_sno}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Upload Button */}
                 <Button onClick={handleUpload} disabled={isUploading || !selectedFile || !pumpSno}>
                   {isUploading ? "Uploading..." : "Upload"}
                 </Button>
@@ -246,6 +256,7 @@ export default function Upload() {
                 </Button>
               </div>
             </TabsContent>
+
             <TabsContent value="tender" className="space-y-4">
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
