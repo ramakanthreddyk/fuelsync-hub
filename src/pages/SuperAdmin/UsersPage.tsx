@@ -11,8 +11,8 @@ import { apiClient } from "@/lib/api";
 import { Users, Mail, Phone } from 'lucide-react';
 
 export function UsersPage() {
-  const [roleFilter, setRoleFilter] = useState<string>('');
-  const [stationFilter, setStationFilter] = useState<string>('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [stationFilter, setStationFilter] = useState<string>('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -20,8 +20,8 @@ export function UsersPage() {
     queryKey: ['superadmin-users', roleFilter, stationFilter],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (roleFilter) params.set('role', roleFilter);
-      if (stationFilter) params.set('stationId', stationFilter);
+      if (roleFilter && roleFilter !== 'all') params.set('role', roleFilter);
+      if (stationFilter && stationFilter !== 'all') params.set('stationId', stationFilter);
       
       return apiClient.superadminRequest(`superadmin-users?${params.toString()}`);
     },
@@ -75,7 +75,7 @@ export function UsersPage() {
             <SelectValue placeholder="Filter by role" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All roles</SelectItem>
+            <SelectItem value="all">All roles</SelectItem>
             <SelectItem value="superadmin">Super Admin</SelectItem>
             <SelectItem value="owner">Owner</SelectItem>
             <SelectItem value="employee">Employee</SelectItem>
@@ -87,7 +87,7 @@ export function UsersPage() {
             <SelectValue placeholder="Filter by station" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All stations</SelectItem>
+            <SelectItem value="all">All stations</SelectItem>
           </SelectContent>
         </Select>
       </div>
