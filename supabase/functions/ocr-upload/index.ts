@@ -5,6 +5,69 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+interface Database {
+  public: {
+    Tables: {
+      pumps: {
+        Row: {
+          id: number;
+          station_id: number;
+          pump_sno: string;
+        }
+      };
+      nozzles: {
+        Row: {
+          id: number;
+          pump_id: number;
+          nozzle_number: number;
+          fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
+        }
+      };
+      ocr_readings: {
+        Row: {
+          id: number;
+          station_id: number;
+          pump_sno: string;
+          nozzle_id: number;
+          reading_date: string;
+          reading_time: string;
+          cumulative_vol: number;
+          source: 'ocr' | 'manual';
+          created_by: number | null;
+        };
+        Insert: {
+          station_id: number;
+          pump_sno: string;
+          nozzle_id: number;
+          reading_date: string;
+          reading_time: string;
+          cumulative_vol: number;
+          source: 'ocr' | 'manual';
+          created_by?: number;
+        };
+      };
+      fuel_prices: {
+        Row: {
+          station_id: number | null;
+          fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
+          price_per_litre: number;
+          valid_from: string;
+        };
+      };
+      sales: {
+        Insert: {
+          station_id: number;
+          nozzle_id: number;
+          reading_id: number;
+          delta_volume_l: number;
+          price_per_litre: number;
+          total_amount: number;
+        };
+      };
+    };
+  };
+}
+
 const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 // Azure OCR processing
 async function parseWithAzureOCR(imageBuffer) {
@@ -32,8 +95,8 @@ async function parseWithAzureOCR(imageBuffer) {
   const opId = opLocation.split("/").pop();
   console.log("⏳ Polling Azure OCR results...");
   // Poll for results with timeout
-  for(let i = 0; i < 15; i++){
-    await new Promise((res)=>setTimeout(res, 2000));
+  for (let i = 0; i < 15; i++) {
+    await new Promise((res) => setTimeout(res, 2000));
     const result = await fetch(`${AZURE_VISION_ENDPOINT}/vision/v3.2/read/analyzeResults/${opId}`, {
       headers: {
         "Ocp-Apim-Subscription-Key": AZURE_VISION_KEY
@@ -58,10 +121,10 @@ function extractLines(readResults) {
   if (!readResults || !Array.isArray(readResults)) {
     return [];
   }
-  return readResults.flatMap((page)=>(page.lines || []).map((line)=>line.text?.trim() || "")).filter((text)=>text.length > 0);
+  return readResults.flatMap((page) => (page.lines || []).map((line) => line.text?.trim() || "")).filter((text) => text.length > 0);
 }
 function getDate(lines) {
-  for (const line of lines){
+  for (const line of lines) {
     // Match various date formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
     const match = line.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/);
     if (match) {
@@ -75,7 +138,7 @@ function getDate(lines) {
   return null;
 }
 function getTime(lines) {
-  for (const line of lines){
+  for (const line of lines) {
     // Match time formats: HH:MM:SS, HH:MM, with optional AM/PM
     const match = line.replace(/\s/g, '').match(/(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?(?:[AP]M)?)/i);
     if (match) {
@@ -101,12 +164,12 @@ function getTime(lines) {
   }
   return null;
 }
-function getNozzles(lines) {
-  const result = [];
-  let current = null;
-  const getNextNumeric = (idx)=>{
+function getNozzles(lines: string[]): { nozzle_id: number; cumulative_volume: number | null }[] {
+  const result: { nozzle_id: number; cumulative_volume: number | null }[] = [];
+  let current: { nozzle_id: number; cumulative_volume: number | null } | undefined = undefined;
+  const getNextNumeric = (idx: number) => {
     // Look in next few lines for a numeric value
-    for(let i = idx + 1; i < Math.min(idx + 4, lines.length); i++){
+    for (let i = idx + 1; i < Math.min(idx + 4, lines.length); i++) {
       const match = lines[i].match(/([\d,]+\.?\d*)/);
       if (match) {
         const value = parseFloat(match[1].replace(/,/g, ''));
@@ -117,7 +180,7 @@ function getNozzles(lines) {
     }
     return null;
   };
-  for(let i = 0; i < lines.length; i++){
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i].toLowerCase();
     // Look for nozzle patterns
     const nozzleMatch = line.match(/(?:nozzle|noz)[\s]*(?:no\.?|number|#)?[\s]*(\d+)/i);
@@ -145,9 +208,9 @@ function getNozzles(lines) {
   if (current && current.cumulative_volume !== null) {
     result.push(current);
   }
-  return result.filter((nozzle)=>nozzle.nozzle_id > 0 && nozzle.cumulative_volume > 0);
+  return result.filter((nozzle) => nozzle.nozzle_id > 0 && nozzle.cumulative_volume !== null && nozzle.cumulative_volume > 0);
 }
-serve(async (req)=>{
+serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -239,11 +302,16 @@ serve(async (req)=>{
     }
     console.log("✅ Found pump:", pump);
     // Insert OCR readings
-    const inserted = [];
-    for (const nozzle of ocrData.nozzles){
+    const inserted: any[] = [];
+    for (const nozzle of ocrData.nozzles) {
       console.log("🔍 Processing nozzle:", nozzle.nozzle_id);
-      // Find nozzle
-      const { data: nozzleRow, error: nozzleError } = await supabase.from("nozzles").select("id").eq("pump_id", pump.id).eq("nozzle_number", nozzle.nozzle_id).maybeSingle();
+      // Find nozzle and its fuel type
+      const { data: nozzleRow, error: nozzleError } = await supabase
+        .from("nozzles")
+        .select("id, fuel_type")
+        .eq("pump_id", pump.id)
+        .eq("nozzle_number", nozzle.nozzle_id)
+        .maybeSingle();
       if (nozzleError || !nozzleRow) {
         console.warn(`⚠️ Nozzle ${nozzle.nozzle_id} not found for pump ${pump.id}`);
         continue;
@@ -266,6 +334,60 @@ serve(async (req)=>{
       }
       console.log("✅ Inserted reading:", insertResult.id);
       inserted.push(insertResult);
+      // Fetch previous reading (excluding this one)
+      const { data: previous, error: prevError } = await supabase
+        .from("ocr_readings")
+        .select("cumulative_vol")
+        .eq("station_id", pump.station_id)
+        .eq("nozzle_id", nozzleRow.id)
+        .neq("id", insertResult.id)
+        .order("reading_date", { ascending: false })
+        .order("reading_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const previousVol = previous?.cumulative_vol || 0;
+      const deltaVol = parseFloat((insertResult.cumulative_vol - previousVol).toFixed(3));
+      if (deltaVol <= 0) {
+        console.log("ℹ️ Skipping sale creation due to non-positive delta:", deltaVol);
+        continue;
+      }
+
+      // Get price per litre
+      const { data: priceRow, error: priceError } = await supabase
+        .from("fuel_prices")
+        .select("price_per_litre")
+        .eq("fuel_type", nozzleRow.fuel_type)
+        .or(`station_id.eq.${pump.station_id},station_id.is.null`)
+        .lte("valid_from", new Date().toISOString())
+        .order("valid_from", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (priceError || !priceRow) {
+        console.warn("⚠️ No fuel price found for nozzle", nozzleRow.id);
+        continue;
+      }
+
+      const pricePerLitre = parseFloat(priceRow.price_per_litre.toString());
+      const totalAmount = parseFloat((deltaVol * pricePerLitre).toFixed(2));
+
+      // Insert sale
+      const { error: saleError } = await supabase.from("sales").insert({
+        station_id: pump.station_id,
+        nozzle_id: nozzleRow.id,
+        reading_id: insertResult.id,
+        delta_volume_l: deltaVol,
+        price_per_litre: pricePerLitre,
+        total_amount: totalAmount
+      });
+
+      if (saleError) {
+        console.error("❌ Failed to insert sale:", saleError);
+      } else {
+        console.log("💰 Sale recorded:", { deltaVol, pricePerLitre, totalAmount });
+      }
+
     }
     console.log("🎉 OCR processing complete. Inserted", inserted.length, "readings");
     return new Response(JSON.stringify({
