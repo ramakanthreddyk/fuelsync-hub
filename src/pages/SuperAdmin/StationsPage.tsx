@@ -139,7 +139,8 @@ export default function StationsPage() {
           id: selectedStation.id,
           ...formData,
           owner_id: parseInt(formData.owner_id),
-          current_plan_id: formData.current_plan_id === 'none' ? null : parseInt(formData.current_plan_id)
+          current_plan_id: formData.current_plan_id === 'none' ? null : parseInt(formData.current_plan_id),
+          is_active: selectedStation.is_active
         }),
       });
 
