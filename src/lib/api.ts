@@ -5,39 +5,44 @@ const SUPABASE_URL = "https://untzkhbbsowpkmwrxdws.supabase.co";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export class ApiClient {
-  private async getAuthHeaders(): Promise<Record<string, string>> {
-    try {
-      const supabase = createClientComponentClient();
-const result = await supabase.auth.getSession();
-const { data: { session }, error } = result;
+  private async getAuthHeaders(): Promise<{ headers: Record<string, string>, session: any }> {
+  try {
+    const supabase = createClientComponentClient();
+    const result = await supabase.auth.getSession();
+    const { data: { session }, error } = result;
 
-console.log("🔐 Getting session for API request...");
-console.log("Full result -->", result); // includes data + error
-console.log("Session object -->", session);
+    console.log("🔐 Getting session for API request...");
+    console.log("Full result -->", result);
+    console.log("Session object -->", session);
 
-      if (error) {
-        console.error("Auth session error:", error);
-        throw new Error("Authentication failed");
-      }
+    if (error) {
+      console.error("Auth session error:", error);
+      throw new Error("Authentication failed");
+    }
 
-      if (!session?.access_token) {
-        console.error("No valid session found");
-        throw new Error("No valid session found");
-      }
+    if (!session?.access_token) {
+      console.error("No valid session found");
+      throw new Error("No valid session found");
+    }
 
-      return {
+    return {
+      headers: {
         Authorization: `Bearer ${session.access_token}`,
         "Content-Type": "application/json",
-      };
-    } catch (err) {
-      console.error("Error getting auth headers:", err);
-      throw err;
-    }
+      },
+      session,
+    };
+  } catch (err) {
+    console.error("Error getting auth headers:", err);
+    throw err;
   }
-
+}
+  
   async superadminRequest(endpoint: string, options: RequestInit = {}) {
     try {
-      const headers = await this.getAuthHeaders();
+      const { headers, session } = await this.getAuthHeaders();
+console.log("Making superadmin request with session -->", session);
+
 
       console.log("Making superadmin request to:", endpoint);
     console.log("Making superadmin request to --->>>>:", headers);
