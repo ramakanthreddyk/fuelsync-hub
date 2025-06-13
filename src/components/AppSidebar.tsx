@@ -26,7 +26,7 @@ import {
   Settings,
   Shield
 } from 'lucide-react';
-import { FuelSyncLogo } from './FuelSyncLogo';
+import FuelSyncLogo from './FuelSyncLogo';
 
 export function AppSidebar() {
   const { user } = useAuth();
