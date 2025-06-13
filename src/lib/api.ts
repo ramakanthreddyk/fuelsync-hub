@@ -14,7 +14,7 @@ export class ApiClient {
       } = await supabase.auth.getSession();
 
       console.log("🔐 Getting session for API request...");
-      console.log("Session object -->:", session);
+      console.log("Session object -->:", data);
       if (error) {
         console.error("Auth session error:", error);
         throw new Error("Authentication failed");
@@ -49,7 +49,7 @@ export class ApiClient {
           ...(options.headers || {}),
         },
       });
-
+      console.log("Session object -->:", session);
       console.log("Response status:", response.status);
 
       const text = await response.text();
