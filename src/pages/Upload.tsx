@@ -38,6 +38,23 @@ export default function Upload() {
     entry_date: ''
   });
 
+  const [selectedStationId, setSelectedStationId] = useState('');
+  const [selectedPumpId, setSelectedPumpId] = useState('');
+
+  const userStations = useMemo(() => {
+    // Filter or fetch stations owned by the current user
+    return allStations.filter(s => s.owner_id === user?.id);
+  }, [user, allStations]);
+
+  const stationPumps = useMemo(() => {
+    return pumps.filter(p => p.station_id.toString() === selectedStationId);
+  }, [pumps, selectedStationId]);
+  
+  const pumpNozzles = useMemo(() => {
+    return nozzles.filter(n => n.pump_id.toString() === selectedPumpId);
+  }, [nozzles, selectedPumpId]);
+
+
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentStation } = useRoleAccess();
