@@ -8,13 +8,13 @@ export class ApiClient {
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
       const supabase = createClientComponentClient();
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
+const result = await supabase.auth.getSession();
+const { data: { session }, error } = result;
 
-      console.log("🔐 Getting session for API request...");
-      console.log("Session object -->:", data);
+console.log("🔐 Getting session for API request...");
+console.log("Full result -->", result); // includes data + error
+console.log("Session object -->", session);
+
       if (error) {
         console.error("Auth session error:", error);
         throw new Error("Authentication failed");
@@ -24,7 +24,6 @@ export class ApiClient {
         console.error("No valid session found");
         throw new Error("No valid session found");
       }
-      console.log("Session object -->:", session);
 
       return {
         Authorization: `Bearer ${session.access_token}`,
