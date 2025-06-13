@@ -37,21 +37,13 @@ export const useReadingManagement = () => {
       formData.append("file", file);
       if (pumpSno) formData.append("pump_sno", pumpSno);
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-  
-    if (!session?.access_token) {
-      toast({
-        title: "Not Authenticated",
-        description: "Please log in before uploading.",
-        variant: "destructive",
-      });
-      return null;
-    }
+const sessionResponse = await supabase.auth.getSession();
+const access_token = sessionResponse.data?.session?.access_token;
 
-    const access_token = session.access_token;
+if (!access_token) {
+  throw new Error("User not logged in. Access token is undefined.");
+}
+
       const response = await fetch("/functions/v1/ocr-upload", {
         method: "POST",
         headers: {
