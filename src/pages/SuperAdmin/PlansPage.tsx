@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings } from 'lucide-react';
 
-export function PlansPage() {
+export default function PlansPage() {
   return (
     <div className="space-y-6">
       <div>

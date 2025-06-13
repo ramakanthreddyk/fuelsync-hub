@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,7 @@ interface OwnerFormData {
   address: string;
 }
 
-export function CreateOwnerWizard() {
+export default function CreateOwnerWizard() {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<OwnerFormData>({
     name: '',

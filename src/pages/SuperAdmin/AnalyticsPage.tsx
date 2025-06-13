@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3 } from 'lucide-react';
 
-export function AnalyticsPage() {
+export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>

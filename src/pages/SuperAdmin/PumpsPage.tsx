@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Fuel } from 'lucide-react';
 
-export function PumpsPage() {
+export default function PumpsPage() {
   return (
     <div className="space-y-6">
       <div>
