@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
@@ -44,16 +43,15 @@ export default function Upload() {
 
   const { toast } = useToast();
   const { user } = useAuth();
-  const { currentStation } = useRoleAccess();
+  const { currentStation, stations: allStations = [] } = useRoleAccess();
   const { isLoading, uploadImageForOCR, submitManualReading } = useReadingManagement();
   const { createManualEntry } = useSalesManagement();
   const { data: pumps = [] } = usePumpsData();
-  const { stations: allStations = [] } = useRoleAccess();
 
   const userStations = useMemo(() => {
-    // Filter or fetch stations owned by the current user
-    return allStations.filter(s => s.owner_id === user?.id);
-  }, [user, allStations]);
+    // The useRoleAccess hook already provides the correct stations for the current user
+    return allStations;
+  }, [allStations]);
 
   const stationPumps = useMemo(() => {
     return pumps.filter(p => p.station_id.toString() === selectedStationId);
