@@ -16,6 +16,8 @@ additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 enable_signup = true
 enable_confirmations = false
+enable_email_confirmations = false
+enable_phone_confirmations = false
 
 [auth.external.apple]
 enabled = false
@@ -130,6 +132,9 @@ verify_jwt = false
 
 [functions.db-functions]
 verify_jwt = false
+
+[functions.confirm-users]
+verify_jwt = true
 
 [db]
 port = 54322

@@ -151,6 +151,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (signInError) {
         console.error('Sign-in error:', signInError.message);
+        
+        // Handle specific confirmation error with more detail
+        if (signInError.message.includes('Email not confirmed') || 
+            signInError.message.includes('email_not_confirmed')) {
+          throw new Error('Your account requires email confirmation. Please contact support if this issue persists.');
+        }
+        
         throw new Error('Invalid credentials');
       }
 

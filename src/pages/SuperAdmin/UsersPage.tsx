@@ -1,486 +1,487 @@
-
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
-import { Users, Mail, Phone, AlertCircle, Crown, Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { UserConfirmationManager } from "@/components/UserConfirmationManager";
+import { 
+  Users, 
+  Plus, 
+  RefreshCw, 
+  Edit, 
+  Trash2, 
+  UserCheck, 
+  UserX,
+  Building2,
+  Phone,
+  Mail
+} from "lucide-react";
 
-const userFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Valid email is required'),
-  phone: z.string().optional(),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['owner', 'employee']),
-  station_id: z.string().optional(),
-});
+interface User {
+  id: number;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  stations: Array<{
+    id: number;
+    name: string;
+    brand: string;
+    address: string | null;
+  }>;
+}
 
-type UserFormData = z.infer<typeof userFormSchema>;
+interface Station {
+  id: number;
+  name: string;
+  brand: string;
+  address: string | null;
+}
 
 export function UsersPage() {
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [stationFilter, setStationFilter] = useState<string>('all');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('employee');
+  const [isActive, setIsActive] = useState(true);
+  const [password, setPassword] = useState('');
+  const [assignedStations, setAssignedStations] = useState<number[]>([]);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const form = useForm<UserFormData>({
-    resolver: zodResolver(userFormSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
-      password: '',
-      role: 'employee',
-      station_id: '',
-    },
-  });
+  useEffect(() => {
+    fetchUsers();
+    fetchStations();
+  }, []);
 
-  const { data: users, isLoading, error, refetch } = useQuery({
-    queryKey: ['superadmin-users', roleFilter, stationFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (roleFilter && roleFilter !== 'all') params.set('role', roleFilter);
-      if (stationFilter && stationFilter !== 'all') params.set('stationId', stationFilter);
-      
-      console.log('Fetching users with params:', params.toString());
-      return apiClient.superadminRequest(`superadmin-users?${params.toString()}`);
-    },
-  });
-
-  const { data: stations } = useQuery({
-    queryKey: ['superadmin-stations'],
-    queryFn: async () => {
-      return apiClient.superadminRequest('superadmin-stations');
-    },
-  });
-
-  const toggleUserMutation = useMutation({
-    mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
-      console.log('Toggling user:', userId, 'to active:', isActive);
-      return apiClient.superadminRequest(`superadmin-actions/users/${userId}/activate`, {
-        method: 'PUT',
-        body: JSON.stringify({ is_active: isActive }),
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiClient.superadminRequest('superadmin-users');
+      setUsers(data);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch users",
+        variant: "destructive",
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
-      toast({ title: "Success", description: "User status updated" });
-    },
-    onError: (error: any) => {
-      console.error('Toggle user error:', error);
-      toast({ 
-        title: "Error", 
-        description: error.message || "Failed to update user status", 
-        variant: "destructive" 
-      });
-    },
-  });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const createUserMutation = useMutation({
-    mutationFn: async (userData: UserFormData) => {
-      return apiClient.superadminRequest('superadmin-users', {
+  const fetchStations = async () => {
+    try {
+      const data = await apiClient.superadminRequest('superadmin-stations');
+      setStations(data);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch stations",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const createUser = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiClient.superadminRequest('superadmin-actions', {
         method: 'POST',
-        body: JSON.stringify(userData),
+        body: JSON.stringify({
+          action: 'create_user',
+          name,
+          email,
+          phone,
+          role,
+          is_active: isActive,
+          password,
+          assigned_stations: assignedStations,
+        }),
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
-      toast({ title: "Success", description: "User created successfully" });
-      setIsCreateModalOpen(false);
-      form.reset();
-    },
-    onError: (error: any) => {
-      console.error('Create user error:', error);
-      toast({ 
-        title: "Error", 
-        description: error.message || "Failed to create user", 
-        variant: "destructive" 
-      });
-    },
-  });
 
-  const updateUserMutation = useMutation({
-    mutationFn: async ({ userId, userData }: { userId: number; userData: Partial<UserFormData> }) => {
-      return apiClient.superadminRequest(`superadmin-actions/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(userData),
+      toast({
+        title: "Success",
+        description: "User created successfully",
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
-      toast({ title: "Success", description: "User updated successfully" });
-      setEditingUser(null);
-      form.reset();
-    },
-    onError: (error: any) => {
-      console.error('Update user error:', error);
-      toast({ 
-        title: "Error", 
-        description: error.message || "Failed to update user", 
-        variant: "destructive" 
+      fetchUsers();
+      setShowCreateModal(false);
+      clearForm();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create user",
+        variant: "destructive",
       });
-    },
-  });
-
-  const deleteUserMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      return apiClient.superadminRequest(`superadmin-actions/users/${userId}`, {
-        method: 'DELETE',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
-      toast({ title: "Success", description: "User deleted successfully" });
-    },
-    onError: (error: any) => {
-      console.error('Delete user error:', error);
-      toast({ 
-        title: "Error", 
-        description: error.message || "Failed to delete user", 
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const onSubmit = (data: UserFormData) => {
-    if (editingUser) {
-      updateUserMutation.mutate({ userId: editingUser.id, userData: data });
-    } else {
-      createUserMutation.mutate(data);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleEdit = (user: any) => {
-    setEditingUser(user);
-    form.reset({
-      name: user.name || '',
-      email: user.email,
-      phone: user.phone || '',
-      password: '',
-      role: user.role,
-      station_id: user.user_stations?.[0]?.station_id?.toString() || '',
-    });
-    setIsCreateModalOpen(true);
-  };
+  const updateUser = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiClient.superadminRequest('superadmin-actions', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'update_user',
+          id: selectedUser?.id,
+          name,
+          email,
+          phone,
+          role,
+          is_active: isActive,
+          assigned_stations: assignedStations,
+        }),
+      });
 
-  const handleDelete = (userId: number) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      deleteUserMutation.mutate(userId);
+      toast({
+        title: "Success",
+        description: "User updated successfully",
+      });
+      fetchUsers();
+      setShowEditModal(false);
+      clearForm();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update user",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'superadmin': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'owner': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'employee': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+  const deleteUser = async (id: number) => {
+    setIsLoading(true);
+    try {
+      await apiClient.superadminRequest('superadmin-actions', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'delete_user',
+          id,
+        }),
+      });
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+      fetchUsers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete user",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg">Loading platform users...</div>
-      </div>
-    );
-  }
+  const clearForm = () => {
+    setName('');
+    setEmail('');
+    setPhone('');
+    setRole('employee');
+    setIsActive(true);
+    setPassword('');
+    setAssignedStations([]);
+    setSelectedUser(null);
+  };
 
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="w-5 h-5" />
-            <p>Error loading users: {error.message}</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleEdit = (user: User) => {
+    setSelectedUser(user);
+    setName(user.name || '');
+    setEmail(user.email);
+    setPhone(user.phone || '');
+    setRole(user.role);
+    setIsActive(user.is_active);
+    setAssignedStations(user.stations.map(station => station.id));
+    setShowEditModal(true);
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Crown className="w-8 h-8 text-amber-500" />
-            Platform User Management
-          </h1>
-          <p className="text-muted-foreground">Manage all users across the FuelSync platform</p>
+          <h1 className="text-3xl font-bold">Users Management</h1>
+          <p className="text-muted-foreground">Manage all users across the platform</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="w-4 h-4 mr-2" />
+        <div className="flex space-x-2">
+          <Button onClick={fetchUsers} disabled={isLoading} variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => {
-                setEditingUser(null);
-                form.reset();
-              }}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create User
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingUser ? 'Edit User' : 'Create New User'}</DialogTitle>
-                <DialogDescription>
-                  {editingUser ? 'Update user information' : 'Add a new user to the platform'}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter user name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="Enter email" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter phone number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Role</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="owner">Station Owner</SelectItem>
-                            <SelectItem value="employee">Station Employee</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {stations && stations.length > 0 && (
-                    <FormField
-                      control={form.control}
-                      name="station_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Assign Station (Optional)</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select station" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="">No station</SelectItem>
-                              {stations.map((station: any) => (
-                                <SelectItem key={station.id} value={station.id.toString()}>
-                                  {station.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
-                      {editingUser ? 'Update User' : 'Create User'}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create User
+          </Button>
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All roles</SelectItem>
-            <SelectItem value="superadmin">Super Admin</SelectItem>
-            <SelectItem value="owner">Station Owner</SelectItem>
-            <SelectItem value="employee">Station Employee</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Add the User Confirmation Manager */}
+      <UserConfirmationManager />
 
-        <Select value={stationFilter} onValueChange={setStationFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by station" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stations</SelectItem>
-            {stations?.map((station: any) => (
-              <SelectItem key={station.id} value={station.id.toString()}>
-                {station.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Users List</CardTitle>
+          <CardDescription>View and manage existing users</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {users.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        {user.name || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{user.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge>{user.role}</Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {user.is_active ? (
+                        <Badge variant="outline">Active</Badge>
+                      ) : (
+                        <Badge variant="destructive">Inactive</Badge>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <Button size="sm" variant="ghost" onClick={() => handleEdit(user)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteUser(user.id)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {users?.map((user: any) => (
-          <Card key={user.id} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                {user.name || 'Unnamed User'}
-                {user.role === 'superadmin' && <Crown className="w-4 h-4 text-amber-500" />}
-              </CardTitle>
-              <CardDescription className="flex items-center gap-1">
-                <Mail className="w-3 h-3" />
-                {user.email}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <Badge className={getRoleBadgeColor(user.role)} variant="outline">
-                  {user.role === 'superadmin' ? 'Platform Admin' : 
-                   user.role === 'owner' ? 'Station Owner' : 
-                   'Station Employee'}
-                </Badge>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Active</span>
-                  <Switch
-                    checked={user.is_active}
-                    onCheckedChange={(checked) => 
-                      toggleUserMutation.mutate({ 
-                        userId: user.id, 
-                        isActive: checked 
-                      })
-                    }
-                    disabled={toggleUserMutation.isPending || user.role === 'superadmin'}
-                  />
-                </div>
-              </div>
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
 
-              {user.phone && (
-                <div className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Phone className="w-3 h-3" />
-                  {user.phone}
-                </div>
-              )}
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-              {user.user_stations?.length > 0 && (
-                <div className="text-sm">
-                  <div className="text-muted-foreground">Assigned Stations:</div>
-                  {user.user_stations.map((us: any) => (
-                    <div key={us.station_id} className="text-xs bg-muted rounded px-2 py-1 mt-1">
-                      {us.stations?.name || `Station ${us.station_id}`}
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full" role="dialog" aria-modal="true" aria-labelledby="modal-headline">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-headline">
+                  Create New User
+                </h3>
+                <div className="mt-2">
+                  <div className="grid grid-cols-6 gap-6">
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
+                      <input type="text" name="name" id="name" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={name} onChange={(e) => setName(e.target.value)} />
                     </div>
-                  ))}
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                      <input type="email" name="email" id="email" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
+                      <input type="text" name="phone" id="phone" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="role" className="block text-sm font-medium text-gray-700">Role</label>
+                      <select id="role" name="role" className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+                        <option value="employee">Employee</option>
+                        <option value="owner">Owner</option>
+                        <option value="superadmin">Super Admin</option>
+                      </select>
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                      <input type="password" name="password" id="password" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">Status</label>
+                      <label className="inline-flex items-center mt-2">
+                        <input type="checkbox" className="form-checkbox h-5 w-5 text-blue-600" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+                        <span className="ml-2 text-gray-900">Active</span>
+                      </label>
+                    </div>
+
+                    {role !== 'superadmin' && (
+                      <div className="col-span-6">
+                        <label className="block text-sm font-medium text-gray-700">Assign Stations</label>
+                        <div className="mt-1">
+                          {stations.map((station) => (
+                            <label key={station.id} className="inline-flex items-center mr-4">
+                              <input
+                                type="checkbox"
+                                className="form-checkbox h-5 w-5 text-blue-600"
+                                value={station.id}
+                                checked={assignedStations.includes(station.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAssignedStations([...assignedStations, station.id]);
+                                  } else {
+                                    setAssignedStations(assignedStations.filter((id) => id !== station.id));
+                                  }
+                                }}
+                              />
+                              <span className="ml-2 text-gray-900">{station.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-
-              <div className="text-xs text-muted-foreground">
-                Created: {new Date(user.created_at).toLocaleDateString()}
               </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEdit(user)}
-                  disabled={user.role === 'superadmin'}
-                >
-                  <Edit className="w-3 h-3 mr-1" />
-                  Edit
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <Button className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={createUser} disabled={isLoading}>
+                  Create
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDelete(user.id)}
-                  disabled={user.role === 'superadmin'}
-                >
-                  <Trash2 className="w-3 h-3 mr-1" />
-                  Delete
+                <Button variant="ghost" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setShowCreateModal(false)} disabled={isLoading}>
+                  Cancel
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {(!users || users.length === 0) && (
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No users found</h3>
-            <p className="text-muted-foreground">
-              No platform users match the current filters.
-            </p>
-          </CardContent>
-        </Card>
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full" role="dialog" aria-modal="true" aria-labelledby="modal-headline">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-headline">
+                  Edit User
+                </h3>
+                <div className="mt-2">
+                  <div className="grid grid-cols-6 gap-6">
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
+                      <input type="text" name="name" id="name" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={name} onChange={(e) => setName(e.target.value)} />
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                      <input type="email" name="email" id="email" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone</label>
+                      <input type="text" name="phone" id="phone" className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label htmlFor="role" className="block text-sm font-medium text-gray-700">Role</label>
+                      <select id="role" name="role" className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+                        <option value="employee">Employee</option>
+                        <option value="owner">Owner</option>
+                        <option value="superadmin">Super Admin</option>
+                      </select>
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">Status</label>
+                      <label className="inline-flex items-center mt-2">
+                        <input type="checkbox" className="form-checkbox h-5 w-5 text-blue-600" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+                        <span className="ml-2 text-gray-900">Active</span>
+                      </label>
+                    </div>
+
+                    {role !== 'superadmin' && (
+                      <div className="col-span-6">
+                        <label className="block text-sm font-medium text-gray-700">Assign Stations</label>
+                        <div className="mt-1">
+                          {stations.map((station) => (
+                            <label key={station.id} className="inline-flex items-center mr-4">
+                              <input
+                                type="checkbox"
+                                className="form-checkbox h-5 w-5 text-blue-600"
+                                value={station.id}
+                                checked={assignedStations.includes(station.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAssignedStations([...assignedStations, station.id]);
+                                  } else {
+                                    setAssignedStations(assignedStations.filter((id) => id !== station.id));
+                                  }
+                                }}
+                              />
+                              <span className="ml-2 text-gray-900">{station.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <Button className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={updateUser} disabled={isLoading}>
+                  Save
+                </Button>
+                <Button variant="ghost" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setShowEditModal(false)} disabled={isLoading}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

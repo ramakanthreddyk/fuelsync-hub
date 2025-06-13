@@ -1,17 +1,20 @@
+
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Fuel, Eye, EyeOff } from "lucide-react";
+import { Fuel, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmationError, setConfirmationError] = useState(false);
   const { login } = useAuth();
   const { toast } = useToast();
 
@@ -28,14 +31,33 @@ export default function Login() {
     }
 
     setIsLoading(true);
+    setConfirmationError(false);
+    
     try {
       await login(email, password);
-    } catch (error: any) {
       toast({
-        title: "Login Failed",
-        description: error.message || "Invalid credentials",
-        variant: "destructive",
+        title: "Login Successful",
+        description: "Welcome back!",
       });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      
+      // Handle specific confirmation error
+      if (error.message?.includes('Email not confirmed') || 
+          error.message?.includes('email_not_confirmed')) {
+        setConfirmationError(true);
+        toast({
+          title: "Account Not Confirmed",
+          description: "Your account needs to be confirmed. Please contact support if this issue persists.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Login Failed",
+          description: error.message || "Invalid credentials. Please check your email and password.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -50,6 +72,7 @@ export default function Login() {
   const fillDemo = (email: string, password: string) => {
     setEmail(email);
     setPassword(password);
+    setConfirmationError(false);
   };
 
   return (
@@ -64,6 +87,19 @@ export default function Login() {
           <h1 className="text-3xl font-bold text-gray-900">FuelSync</h1>
           <p className="text-gray-600">Fuel Station Management System</p>
         </div>
+
+        {confirmationError && (
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              Your account requires email confirmation. Please contact support at{' '}
+              <a href="mailto:support@fuelsync.com" className="underline font-medium">
+                support@fuelsync.com
+              </a>{' '}
+              if you continue to experience this issue.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Card>
           <CardHeader>
@@ -148,6 +184,20 @@ export default function Login() {
             ))}
           </CardContent>
         </Card>
+
+        {process.env.NODE_ENV === 'development' && (
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="pt-4">
+              <div className="flex items-center space-x-2 text-green-800">
+                <CheckCircle className="h-4 w-4" />
+                <span className="text-sm font-medium">Development Mode</span>
+              </div>
+              <p className="text-xs text-green-700 mt-1">
+                Email confirmation is disabled for faster testing.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
