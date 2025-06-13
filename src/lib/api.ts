@@ -40,7 +40,7 @@ console.log("Session object -->", session);
       const headers = await this.getAuthHeaders();
 
       console.log("Making superadmin request to:", endpoint);
-
+    console.log("Making superadmin request to --->>>>:", headers);
       const response = await fetch(`${SUPABASE_URL}/functions/v1/${endpoint}`, {
         ...options,
         headers: {
