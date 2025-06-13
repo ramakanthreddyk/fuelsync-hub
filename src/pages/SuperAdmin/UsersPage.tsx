@@ -6,17 +6,48 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
-import { Users, Mail, Phone, AlertCircle, Crown } from 'lucide-react';
+import { Users, Mail, Phone, AlertCircle, Crown, Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const userFormSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Valid email is required'),
+  phone: z.string().optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(['owner', 'employee']),
+  station_id: z.string().optional(),
+});
+
+type UserFormData = z.infer<typeof userFormSchema>;
 
 export function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [stationFilter, setStationFilter] = useState<string>('all');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users, isLoading, error } = useQuery({
+  const form = useForm<UserFormData>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      role: 'employee',
+      station_id: '',
+    },
+  });
+
+  const { data: users, isLoading, error, refetch } = useQuery({
     queryKey: ['superadmin-users', roleFilter, stationFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -25,6 +56,13 @@ export function UsersPage() {
       
       console.log('Fetching users with params:', params.toString());
       return apiClient.superadminRequest(`superadmin-users?${params.toString()}`);
+    },
+  });
+
+  const { data: stations } = useQuery({
+    queryKey: ['superadmin-stations'],
+    queryFn: async () => {
+      return apiClient.superadminRequest('superadmin-stations');
     },
   });
 
@@ -49,6 +87,99 @@ export function UsersPage() {
       });
     },
   });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (userData: UserFormData) => {
+      return apiClient.superadminRequest('superadmin-users', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
+      toast({ title: "Success", description: "User created successfully" });
+      setIsCreateModalOpen(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      console.error('Create user error:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to create user", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, userData }: { userId: number; userData: Partial<UserFormData> }) => {
+      return apiClient.superadminRequest(`superadmin-actions/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(userData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
+      toast({ title: "Success", description: "User updated successfully" });
+      setEditingUser(null);
+      form.reset();
+    },
+    onError: (error: any) => {
+      console.error('Update user error:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update user", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      return apiClient.superadminRequest(`superadmin-actions/users/${userId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
+      toast({ title: "Success", description: "User deleted successfully" });
+    },
+    onError: (error: any) => {
+      console.error('Delete user error:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to delete user", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const onSubmit = (data: UserFormData) => {
+    if (editingUser) {
+      updateUserMutation.mutate({ userId: editingUser.id, userData: data });
+    } else {
+      createUserMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (user: any) => {
+    setEditingUser(user);
+    form.reset({
+      name: user.name || '',
+      email: user.email,
+      phone: user.phone || '',
+      password: '',
+      role: user.role,
+      station_id: user.user_stations?.[0]?.station_id?.toString() || '',
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleDelete = (userId: number) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      deleteUserMutation.mutate(userId);
+    }
+  };
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -90,6 +221,143 @@ export function UsersPage() {
           </h1>
           <p className="text-muted-foreground">Manage all users across the FuelSync platform</p>
         </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setEditingUser(null);
+                form.reset();
+              }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create User
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingUser ? 'Edit User' : 'Create New User'}</DialogTitle>
+                <DialogDescription>
+                  {editingUser ? 'Update user information' : 'Add a new user to the platform'}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter user name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="Enter email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter phone number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Enter password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="owner">Station Owner</SelectItem>
+                            <SelectItem value="employee">Station Employee</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {stations && stations.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="station_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Assign Station (Optional)</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select station" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="">No station</SelectItem>
+                              {stations.map((station: any) => (
+                                <SelectItem key={station.id} value={station.id.toString()}>
+                                  {station.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
+                      {editingUser ? 'Update User' : 'Create User'}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-4">
@@ -111,6 +379,11 @@ export function UsersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All stations</SelectItem>
+            {stations?.map((station: any) => (
+              <SelectItem key={station.id} value={station.id.toString()}>
+                {station.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -171,6 +444,27 @@ export function UsersPage() {
 
               <div className="text-xs text-muted-foreground">
                 Created: {new Date(user.created_at).toLocaleDateString()}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEdit(user)}
+                  disabled={user.role === 'superadmin'}
+                >
+                  <Edit className="w-3 h-3 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(user.id)}
+                  disabled={user.role === 'superadmin'}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Delete
+                </Button>
               </div>
             </CardContent>
           </Card>

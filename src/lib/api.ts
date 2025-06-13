@@ -7,12 +7,14 @@ export class ApiClient {
       const { data: { session }, error } = await supabase.auth.getSession();
       console.log('🔐 Supabase session:', session);
       console.log('🔐 Supabase session error:', error);
+      
       if (error) {
         console.error('Auth session error:', error);
         throw new Error('Authentication failed');
       }
 
       if (!session?.access_token) {
+        console.error('No valid session found');
         throw new Error('No valid session found');
       }
 
