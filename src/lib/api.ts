@@ -12,8 +12,6 @@ export class ApiClient {
     const { data: { session }, error } = result;
 
     console.log("🔐 Getting session for API request...");
-    console.log("Full result -->", result);
-    console.log("Session object -->", session);
 
     if (error) {
       console.error("Auth session error:", error);
@@ -53,8 +51,6 @@ console.log("Making superadmin request with session -->", session);
           ...(options.headers || {}),
         },
       });
-      console.log("Session object -->:", session);
-      console.log("Response status:", response.status);
 
       const text = await response.text();
 
