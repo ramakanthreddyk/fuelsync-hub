@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,8 @@ export default function UsersPage() {
     email: '',
     phone: '',
     role: 'employee' as 'superadmin' | 'owner' | 'employee',
-    password: ''
+    password: '',
+    station_id: '' // Added for employee station assignment
   });
   const { toast } = useToast();
 
@@ -74,10 +74,20 @@ export default function UsersPage() {
     }
 
     try {
-      await apiClient.superadminRequest('superadmin-users', {
+      const res = await apiClient.superadminRequest('superadmin-users', {
         method: 'POST',
         body: JSON.stringify(formData),
       });
+
+      if (formData.role === 'employee' && formData.station_id) {
+        await apiClient.superadminRequest('superadmin-user-stations', {
+          method: 'POST',
+          body: JSON.stringify({
+            user_id: res.id,
+            station_id: formData.station_id
+          })
+        });
+      }
 
       toast({
         title: "User Created",
@@ -85,7 +95,7 @@ export default function UsersPage() {
       });
 
       setIsCreateOpen(false);
-      setFormData({ name: '', email: '', phone: '', role: 'employee', password: '' });
+      setFormData({ name: '', email: '', phone: '', role: 'employee', password: '', station_id: '' });
       fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
