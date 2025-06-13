@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ interface StationWithDetails {
   address: string;
   owner_id: number;
   current_plan_id: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   users: { id: number; name: string; email: string; role: string } | null;
@@ -67,21 +69,33 @@ export default function AdminStations() {
     );
   }
 
-  // Fetch stations
+  // Fetch stations using the superadmin endpoint
   const { data: stations, isLoading } = useQuery({
-    queryKey: ['stations'],
+    queryKey: ['admin-stations'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('stations')
-        .select(`
-          *,
-          users!stations_owner_id_fkey (id, name, email, role),
-          plans (id, name, price_monthly)
-        `)
-        .order('created_at', { ascending: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-stations`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-      if (error) throw error;
-      return data as StationWithDetails[];
+      if (!response.ok) {
+        throw new Error('Failed to fetch stations');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch stations');
+      }
+
+      return result.data as StationWithDetails[];
     },
   });
 
@@ -114,26 +128,42 @@ export default function AdminStations() {
     },
   });
 
-  // Add station mutation
+  // Add station mutation using superadmin endpoint
   const addStationMutation = useMutation({
     mutationFn: async (stationData: typeof newStation) => {
-      const { data, error } = await supabase
-        .from('stations')
-        .insert({
-          name: stationData.name,
-          brand: stationData.brand,
-          address: stationData.address,
-          owner_id: parseInt(stationData.owner_id),
-          current_plan_id: parseInt(stationData.current_plan_id)
-        })
-        .select()
-        .single();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-stations`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: stationData.name,
+            brand: stationData.brand,
+            address: stationData.address,
+            owner_id: parseInt(stationData.owner_id),
+            current_plan_id: parseInt(stationData.current_plan_id)
+          }),
+        }
+      );
 
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        throw new Error('Failed to create station');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create station');
+      }
+
+      return result.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stations'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stations'] });
       setIsAddStationOpen(false);
       setNewStation({
         name: '',
