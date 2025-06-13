@@ -4,14 +4,19 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarHeader,
 } from '@/components/ui/sidebar';
-import { Users, Building2, Fuel, Settings, Plus, BarChart3 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { Users, Building2, Fuel, Settings, Plus, BarChart3, LogOut, ArrowLeft } from 'lucide-react';
+import FuelSyncLogo from './FuelSyncLogo';
 
 const superAdminItems = [
   {
@@ -48,9 +53,29 @@ const superAdminItems = [
 
 export function SuperAdminSidebar() {
   const location = useLocation();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <Sidebar className="w-64">
+      <SidebarHeader>
+        <div className="flex items-center justify-between">
+          <FuelSyncLogo className="h-8" />
+          <Link to="/dashboard">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
+          </Link>
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
@@ -73,6 +98,22 @@ export function SuperAdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <div className="p-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleLogout}
+            className="w-full justify-start"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground px-2 pb-2">
+          Super Admin Panel
+        </p>
+      </SidebarFooter>
     </Sidebar>
   );
 }

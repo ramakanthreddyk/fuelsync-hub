@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
-import { Users, Mail, Phone } from 'lucide-react';
+import { Users, Mail, Phone, AlertCircle } from 'lucide-react';
 
 export function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -16,19 +16,21 @@ export function UsersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading, error } = useQuery({
     queryKey: ['superadmin-users', roleFilter, stationFilter],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams();
       if (roleFilter && roleFilter !== 'all') params.set('role', roleFilter);
       if (stationFilter && stationFilter !== 'all') params.set('stationId', stationFilter);
       
+      console.log('Fetching users with params:', params.toString());
       return apiClient.superadminRequest(`superadmin-users?${params.toString()}`);
     },
   });
 
   const toggleUserMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
+      console.log('Toggling user:', userId, 'to active:', isActive);
       return apiClient.superadminRequest(`superadmin-actions/users/${userId}/activate`, {
         method: 'PUT',
         body: JSON.stringify({ is_active: isActive }),
@@ -39,9 +41,10 @@ export function UsersPage() {
       toast({ title: "Success", description: "User status updated" });
     },
     onError: (error: any) => {
+      console.error('Toggle user error:', error);
       toast({ 
         title: "Error", 
-        description: error.message, 
+        description: error.message || "Failed to update user status", 
         variant: "destructive" 
       });
     },
@@ -57,7 +60,24 @@ export function UsersPage() {
   };
 
   if (isLoading) {
-    return <div className="text-center">Loading users...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-lg">Loading users...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="w-5 h-5" />
+            <p>Error loading users: {error.message}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -137,7 +157,7 @@ export function UsersPage() {
                   <div className="text-muted-foreground">Stations:</div>
                   {user.user_stations.map((us: any) => (
                     <div key={us.station_id} className="text-xs">
-                      {us.stations?.name}
+                      {us.stations?.name || `Station ${us.station_id}`}
                     </div>
                   ))}
                 </div>

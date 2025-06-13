@@ -1,10 +1,18 @@
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { RequireRole } from '@/components/RequireRole';
 import { SuperAdminLayout } from '@/layouts/SuperAdminLayout';
-import { UsersPage, StationsPage, CreateOwnerWizard } from '@/pages/SuperAdmin';
+import { 
+  UsersPage, 
+  StationsPage, 
+  PumpsPage, 
+  PlansPage, 
+  AnalyticsPage, 
+  CreateOwnerWizard 
+} from '@/pages/SuperAdmin';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import Settings from '@/pages/Settings';
@@ -81,6 +89,9 @@ function App() {
                       <Routes>
                         <Route path="/users" element={<UsersPage />} />
                         <Route path="/stations" element={<StationsPage />} />
+                        <Route path="/pumps" element={<PumpsPage />} />
+                        <Route path="/plans" element={<PlansPage />} />
+                        <Route path="/analytics" element={<AnalyticsPage />} />
                         <Route path="/create-owner" element={<CreateOwnerWizard />} />
                         <Route path="/" element={<Navigate to="/sa/users" replace />} />
                       </Routes>

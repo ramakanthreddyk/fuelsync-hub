@@ -1,153 +1,197 @@
 
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
-import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { User, Building2, CheckCircle, AlertCircle } from 'lucide-react';
 
-interface OwnerData {
+interface OwnerFormData {
   name: string;
   email: string;
   phone: string;
   password: string;
-}
-
-interface StationData {
   stationName: string;
-  brand: 'IOCL' | 'BPCL' | 'HPCL';
+  brand: string;
   address: string;
 }
 
 export function CreateOwnerWizard() {
   const [step, setStep] = useState(1);
-  const [ownerData, setOwnerData] = useState<OwnerData>({
+  const [formData, setFormData] = useState<OwnerFormData>({
     name: '',
     email: '',
     phone: '',
     password: '',
-  });
-  const [stationData, setStationData] = useState<StationData>({
     stationName: '',
-    brand: 'IOCL',
+    brand: '',
     address: '',
   });
-
+  const [createdData, setCreatedData] = useState<any>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const createOwnerMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: OwnerFormData) => {
+      console.log('Creating owner with data:', data);
       return apiClient.superadminRequest('superadmin-owners', {
         method: 'POST',
-        body: JSON.stringify({
-          ...ownerData,
-          ...stationData,
-        }),
+        body: JSON.stringify(data),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['superadmin-users'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-stations'] });
-      toast({
-        title: "Success",
-        description: "Owner and station created successfully",
+    onSuccess: (data) => {
+      console.log('Owner created successfully:', data);
+      setCreatedData(data);
+      setStep(3);
+      toast({ 
+        title: "Success", 
+        description: "Owner and station created successfully!" 
       });
-      // Reset form
-      setStep(1);
-      setOwnerData({ name: '', email: '', phone: '', password: '' });
-      setStationData({ stationName: '', brand: 'IOCL', address: '' });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create owner",
-        variant: "destructive",
+      console.error('Create owner error:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to create owner", 
+        variant: "destructive" 
       });
     },
   });
 
-  const canProceedToStep2 = ownerData.name && ownerData.email && ownerData.password;
-  const canSubmit = canProceedToStep2 && stationData.stationName && stationData.address;
+  const updateFormData = (field: keyof OwnerFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleNext = () => {
+    if (step === 1) {
+      // Validate owner data
+      if (!formData.name || !formData.email || !formData.password) {
+        toast({ 
+          title: "Validation Error", 
+          description: "Please fill in all required fields", 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+    setStep(step + 1);
+  };
+
+  const handleSubmit = () => {
+    // Validate station data
+    if (!formData.stationName || !formData.brand || !formData.address) {
+      toast({ 
+        title: "Validation Error", 
+        description: "Please fill in all station fields", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    createOwnerMutation.mutate(formData);
+  };
+
+  const resetForm = () => {
+    setStep(1);
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      stationName: '',
+      brand: '',
+      address: '',
+    });
+    setCreatedData(null);
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Create Owner + Station</h1>
-        <p className="text-muted-foreground">Create a new owner user and their station</p>
+        <h1 className="text-3xl font-bold">Create New Owner</h1>
+        <p className="text-muted-foreground">Set up a new station owner and their first station</p>
       </div>
 
+      {/* Progress indicator */}
       <div className="flex items-center justify-center space-x-4 mb-8">
-        <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-          step >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted'
-        }`}>
-          {step > 1 ? <Check className="w-4 h-4" /> : '1'}
+        <div className={`flex items-center ${step >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 1 ? 'border-primary bg-primary text-white' : 'border-muted-foreground'}`}>
+            1
+          </div>
+          <span className="ml-2">Owner Info</span>
         </div>
-        <div className={`h-0.5 w-16 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
-        <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-          step >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted'
-        }`}>
-          {step > 2 ? <Check className="w-4 h-4" /> : '2'}
+        <div className={`w-8 h-1 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+        <div className={`flex items-center ${step >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 2 ? 'border-primary bg-primary text-white' : 'border-muted-foreground'}`}>
+            2
+          </div>
+          <span className="ml-2">Station Info</span>
+        </div>
+        <div className={`w-8 h-1 ${step >= 3 ? 'bg-primary' : 'bg-muted'}`} />
+        <div className={`flex items-center ${step >= 3 ? 'text-primary' : 'text-muted-foreground'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 3 ? 'border-primary bg-primary text-white' : 'border-muted-foreground'}`}>
+            ✓
+          </div>
+          <span className="ml-2">Complete</span>
         </div>
       </div>
 
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 1: Owner Information</CardTitle>
-            <CardDescription>Enter the owner's personal details</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Owner Information
+            </CardTitle>
+            <CardDescription>Enter the details for the new station owner</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                value={ownerData.name}
-                onChange={(e) => setOwnerData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="John Doe"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Full Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => updateFormData('name', e.target.value)}
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => updateFormData('email', e.target.value)}
+                  placeholder="Enter email address"
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={ownerData.email}
-                onChange={(e) => setOwnerData(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="john@example.com"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => updateFormData('phone', e.target.value)}
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => updateFormData('password', e.target.value)}
+                  placeholder="Enter password"
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={ownerData.phone}
-                onChange={(e) => setOwnerData(prev => ({ ...prev, phone: e.target.value }))}
-                placeholder="+91-9876543210"
-              />
+            <div className="flex justify-end">
+              <Button onClick={handleNext}>Next</Button>
             </div>
-            <div>
-              <Label htmlFor="password">Temporary Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={ownerData.password}
-                onChange={(e) => setOwnerData(prev => ({ ...prev, password: e.target.value }))}
-                placeholder="temporaryPassword123"
-              />
-            </div>
-            <Button 
-              onClick={() => setStep(2)}
-              disabled={!canProceedToStep2}
-              className="w-full"
-            >
-              Next: Station Details
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -155,57 +199,98 @@ export function CreateOwnerWizard() {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 2: Station Information</CardTitle>
-            <CardDescription>Enter the station details</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5" />
+              Station Information
+            </CardTitle>
+            <CardDescription>Enter the details for the owner's first station</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="stationName">Station Name</Label>
+              <Label htmlFor="stationName">Station Name *</Label>
               <Input
                 id="stationName"
-                value={stationData.stationName}
-                onChange={(e) => setStationData(prev => ({ ...prev, stationName: e.target.value }))}
-                placeholder="Green Valley IOCL"
+                value={formData.stationName}
+                onChange={(e) => updateFormData('stationName', e.target.value)}
+                placeholder="Enter station name"
               />
             </div>
             <div>
-              <Label htmlFor="brand">Brand</Label>
-              <Select value={stationData.brand} onValueChange={(value: any) => setStationData(prev => ({ ...prev, brand: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="IOCL">IOCL</SelectItem>
-                  <SelectItem value="BPCL">BPCL</SelectItem>
-                  <SelectItem value="HPCL">HPCL</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="brand">Brand *</Label>
+              <Input
+                id="brand"
+                value={formData.brand}
+                onChange={(e) => updateFormData('brand', e.target.value)}
+                placeholder="Enter brand (e.g., Shell, BP, Exxon)"
+              />
             </div>
             <div>
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="address">Address *</Label>
               <Input
                 id="address"
-                value={stationData.address}
-                onChange={(e) => setStationData(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="123 Main Street, City, State, PIN"
+                value={formData.address}
+                onChange={(e) => updateFormData('address', e.target.value)}
+                placeholder="Enter full station address"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
               <Button 
-                variant="outline"
-                onClick={() => setStep(1)}
-                className="flex-1"
+                onClick={handleSubmit}
+                disabled={createOwnerMutation.isPending}
               >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+                {createOwnerMutation.isPending ? 'Creating...' : 'Create Owner & Station'}
               </Button>
-              <Button 
-                onClick={() => createOwnerMutation.mutate()}
-                disabled={!canSubmit || createOwnerMutation.isPending}
-                className="flex-1"
-              >
-                {createOwnerMutation.isPending ? 'Creating...' : 'Create Owner + Station'}
-              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && createdData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Owner Created Successfully!
+            </CardTitle>
+            <CardDescription>The owner and station have been created</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Owner Name</Label>
+                <p className="font-medium">{createdData.owner?.name}</p>
+              </div>
+              <div>
+                <Label>Email</Label>
+                <p className="font-medium">{createdData.owner?.email}</p>
+              </div>
+              <div>
+                <Label>Station Name</Label>
+                <p className="font-medium">{createdData.station?.name}</p>
+              </div>
+              <div>
+                <Label>Brand</Label>
+                <p className="font-medium">{createdData.station?.brand}</p>
+              </div>
+            </div>
+            <div>
+              <Label>Station Address</Label>
+              <p className="font-medium">{createdData.station?.address}</p>
+            </div>
+            <div className="flex justify-center">
+              <Button onClick={resetForm}>Create Another Owner</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {createOwnerMutation.error && (
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="w-5 h-5" />
+              <p>Error: {createOwnerMutation.error.message}</p>
             </div>
           </CardContent>
         </Card>

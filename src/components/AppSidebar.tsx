@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -24,12 +25,14 @@ import {
   Users, 
   Building2, 
   Settings,
-  Shield
+  Shield,
+  LogOut
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import FuelSyncLogo from './FuelSyncLogo';
 
 export function AppSidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
 
   const menuItems = [
@@ -70,8 +73,8 @@ export function AppSidebar() {
     },
   ];
 
-  // Add admin items for owners and superadmins
-  if (user?.role === 'owner' || user?.role === 'superadmin') {
+  // Add admin items for owners only (NOT superadmins - they have their own interface)
+  if (user?.role === 'owner') {
     menuItems.push(
       {
         title: "Manage Users",
@@ -86,8 +89,8 @@ export function AppSidebar() {
     );
   }
 
-  // Add super admin link for superadmins
-  if (user?.role === 'superadmin') {
+  // Add super admin link ONLY for superadmins and only when not already in SA routes
+  if (user?.role === 'superadmin' && !location.pathname.startsWith('/sa')) {
     menuItems.push({
       title: "Super Admin",
       url: "/sa/users",
@@ -100,6 +103,14 @@ export function AppSidebar() {
     url: "/settings",
     icon: Settings,
   });
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <Sidebar className="w-64">
@@ -131,7 +142,18 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <p className="text-xs text-muted-foreground">
+        <div className="p-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleLogout}
+            className="w-full justify-start"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground px-2 pb-2">
           FuelSync &copy; {new Date().getFullYear()}
         </p>
       </SidebarFooter>
