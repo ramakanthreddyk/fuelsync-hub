@@ -8,13 +8,18 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      headers: corsHeaders
+    });
   }
 
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ success: false, error: 'Missing or invalid authorization header' }), {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing or invalid authorization header'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -25,7 +30,11 @@ serve(async (req) => {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
+      {
+        global: {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      }
     );
 
     const supabaseAdmin = createClient(
@@ -35,7 +44,10 @@ serve(async (req) => {
 
     const { data: authResp, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authResp?.user) {
-      return new Response(JSON.stringify({ success: false, error: 'Authentication failed' }), {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Authentication failed'
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -49,45 +61,63 @@ serve(async (req) => {
       .single();
 
     if (userError || !userData || userData.role !== 'superadmin') {
-      return new Response(JSON.stringify({ success: false, error: 'Insufficient permissions' }), {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Insufficient permissions'
+      }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     if (req.method === 'GET') {
-      const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
       if (error) {
-        return new Response(JSON.stringify({ success: false, error: 'Failed to fetch users' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to fetch users'
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-      return new Response(JSON.stringify({ success: true, data: users }), {
+
+      return new Response(JSON.stringify({
+        success: true,
+        data: users
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     if (req.method === 'POST') {
-      const { name, email, phone, role, password = 'defaultpass123' } = await req.json();
+      const { name, email, phone, role, password = 'defaultpass123', station_id } = await req.json();
+
       if (!name || !email || !role) {
-        return new Response(JSON.stringify({ success: false, error: 'Missing required fields' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Missing required fields'
+        }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
-      const { data: newUser, error: createError } = await supabase.from('users').insert({
-        name,
-        email,
-        phone,
-        role,
-        password,
-        is_active: true
-      }).select().single();
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({ name, email, phone, role, password, is_active: true })
+        .select()
+        .single();
 
       if (createError) {
-        return new Response(JSON.stringify({ success: false, error: 'Failed to create user' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to create user'
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -102,13 +132,38 @@ serve(async (req) => {
 
       if (authCreateError) {
         await supabase.from('users').delete().eq('id', newUser.id);
-        return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to create authentication user'
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
-      return new Response(JSON.stringify({ success: true, data: newUser }), {
+      if (role === 'employee' && station_id) {
+        const { error: stationLinkError } = await supabase.from('user_stations').insert({
+          user_id: newUser.id,
+          station_id: station_id
+        });
+
+        if (stationLinkError) {
+          await supabase.from('users').delete().eq('id', newUser.id);
+          await supabaseAdmin.auth.admin.deleteUser(authUserData.user.id);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to assign employee to station'
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        data: newUser
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -116,28 +171,30 @@ serve(async (req) => {
     if (req.method === 'PUT') {
       const { id, name, email, phone, role, is_active } = await req.json();
       if (!id) {
-        return new Response(JSON.stringify({ success: false, error: 'User ID is required' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'User ID is required'
+        }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-
       const { data: updatedUser, error } = await supabase.from('users').update({
-        name,
-        email,
-        phone,
-        role,
-        is_active
+        name, email, phone, role, is_active
       }).eq('id', id).select().single();
-
       if (error) {
-        return new Response(JSON.stringify({ success: false, error: 'Failed to update user' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to update user'
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-
-      return new Response(JSON.stringify({ success: true, data: updatedUser }), {
+      return new Response(JSON.stringify({
+        success: true,
+        data: updatedUser
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -146,33 +203,45 @@ serve(async (req) => {
       const url = new URL(req.url);
       const id = url.searchParams.get('id');
       if (!id) {
-        return new Response(JSON.stringify({ success: false, error: 'User ID is required' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'User ID is required'
+        }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-
       const { error } = await supabase.from('users').delete().eq('id', id);
-
       if (error) {
-        return new Response(JSON.stringify({ success: false, error: 'Failed to delete user' }), {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to delete user'
+        }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-
-      return new Response(JSON.stringify({ success: true, message: 'User deleted successfully' }), {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'User deleted successfully'
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Method not allowed'
+    }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
     console.error('Superadmin users error:', error);
-    return new Response(JSON.stringify({ success: false, error: 'Internal server error' }), {
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Internal server error'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
