@@ -42,6 +42,14 @@ export default function Upload() {
   const [selectedStationId, setSelectedStationId] = useState('');
   const [selectedPumpId, setSelectedPumpId] = useState('');
 
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const { currentStation } = useRoleAccess();
+  const { isLoading, uploadImageForOCR, submitManualReading } = useReadingManagement();
+  const { createManualEntry } = useSalesManagement();
+  const { data: pumps = [] } = usePumpsData();
+  const { stations: allStations = [] } = useRoleAccess();
+
   const userStations = useMemo(() => {
     // Filter or fetch stations owned by the current user
     return allStations.filter(s => s.owner_id === user?.id);
@@ -52,16 +60,9 @@ export default function Upload() {
   }, [pumps, selectedStationId]);
 
   const pumpNozzles = useMemo(() => {
-    return nozzles.filter(n => n.pump_id.toString() === selectedPumpId);
-  }, [nozzles, selectedPumpId]);
-
-
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const { currentStation } = useRoleAccess();
-  const { isLoading, uploadImageForOCR, submitManualReading } = useReadingManagement();
-  const { createManualEntry } = useSalesManagement();
-  const { data: pumps = [] } = usePumpsData();
+    return pumps
+      .find(p => p.id.toString() === selectedPumpId)?.nozzles || [];
+  }, [pumps, selectedPumpId]);
 
   // Redirect to login if not authenticated
   if (!user) {
@@ -339,7 +340,7 @@ export default function Upload() {
                     <Label htmlFor="pump">Select Pump:</Label>
                     <Select value={selectedPumpId} onValueChange={(value) => {
                       setSelectedPumpId(value);
-                      setManualData(prev => ({ ...prev, nozzle_id: '' }));
+                      setManualData(prev => ({ ...prev, pump_id: value, nozzle_id: '' }));
                     }}>
                       <SelectTrigger id="pump">
                         <SelectValue placeholder="Select pump" />
