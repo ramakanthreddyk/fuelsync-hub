@@ -32,54 +32,53 @@ export const useReadingManagement = () => {
   const uploadImageForOCR = async (file: File, pumpSno?: string): Promise<OCRUploadResult | null> => {
     try {
       setIsLoading(true);
-  
+
       const formData = new FormData();
-      formData.append('file', file);
-      if (pumpSno) formData.append('pump_sno', pumpSno);
-  
-      const session = await supabase.auth.getSession();
-      const access_token = session.data.session?.access_token;
-  
-      const response = await fetch('/functions/v1/ocr-upload', {
-        method: 'POST',
+      formData.append("file", file);
+      if (pumpSno) formData.append("pump_sno", pumpSno);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const access_token = sessionData?.session?.access_token;
+
+      const response = await fetch("/functions/v1/ocr-upload", {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          Authorization: `Bearer ${access_token}`, // DO NOT manually set Content-Type
         },
         body: formData,
       });
-  
+
       const result = await response.json();
-  
+
       if (!response.ok) {
-        throw new Error(result.error || 'OCR upload failed');
+        throw new Error(result.error || "OCR upload failed");
       }
-  
+
       toast({
-        title: 'OCR Processing Complete',
+        title: "OCR Processing Complete",
         description: `Successfully processed ${result.inserted} readings`,
       });
-  
+
       return {
-          success: true,
-         data: {
+        success: true,
+        data: {
           readings_inserted: result.inserted,
           ocr_preview: result.ocr,
-          readings: result.ocr.nozzles
-        }
+          readings: result.ocr.nozzles,
+        },
       };
     } catch (error: any) {
-      console.error('OCR upload error:', error);
+      console.error("OCR upload error:", error);
       toast({
-        title: 'OCR Upload Failed',
-        description: error.message || 'Unexpected error',
-        variant: 'destructive',
+        title: "OCR Upload Failed",
+        description: error.message || "Unexpected error",
+        variant: "destructive",
       });
       return null;
     } finally {
       setIsLoading(false);
     }
   };
-
 
   const submitManualReading = async (readingData: ManualReadingData): Promise<ManualReadingResult | null> => {
     try {
