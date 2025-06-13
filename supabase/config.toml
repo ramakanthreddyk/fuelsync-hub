@@ -136,6 +136,12 @@ verify_jwt = false
 [functions.confirm-users]
 verify_jwt = true
 
+[functions.confirm-user]
+verify_jwt = false
+
+[functions.superadmin-plans]
+verify_jwt = true
+
 [db]
 port = 54322
 

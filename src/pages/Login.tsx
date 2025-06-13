@@ -7,16 +7,44 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Fuel, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Fuel, Eye, EyeOff, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [confirmationError, setConfirmationError] = useState(false);
   const { login } = useAuth();
   const { toast } = useToast();
+
+  const confirmUser = async (userEmail: string) => {
+    try {
+      const response = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: userEmail }),
+        }
+      );
+
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to confirm user');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error confirming user:', error);
+      throw error;
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,15 +70,52 @@ export default function Login() {
     } catch (error: any) {
       console.error('Login error:', error);
       
-      // Handle specific confirmation error
+      // Handle specific confirmation error with auto-retry
       if (error.message?.includes('Email not confirmed') || 
           error.message?.includes('email_not_confirmed')) {
-        setConfirmationError(true);
-        toast({
-          title: "Account Not Confirmed",
-          description: "Your account needs to be confirmed. Please contact support if this issue persists.",
-          variant: "destructive",
-        });
+        
+        setIsConfirming(true);
+        
+        try {
+          // Attempt to confirm the user automatically
+          await confirmUser(email);
+          
+          toast({
+            title: "Account Confirmed",
+            description: "Your account has been confirmed. Retrying login...",
+          });
+          
+          // Wait a moment and retry login
+          setTimeout(async () => {
+            try {
+              await login(email, password);
+              toast({
+                title: "Login Successful",
+                description: "Welcome back!",
+              });
+            } catch (retryError: any) {
+              console.error('Retry login error:', retryError);
+              setConfirmationError(true);
+              toast({
+                title: "Login Failed After Confirmation",
+                description: "Please contact support if this issue persists.",
+                variant: "destructive",
+              });
+            } finally {
+              setIsConfirming(false);
+            }
+          }, 1000);
+          
+        } catch (confirmError: any) {
+          console.error('Confirmation error:', confirmError);
+          setConfirmationError(true);
+          setIsConfirming(false);
+          toast({
+            title: "Account Confirmation Failed",
+            description: "Please contact support to confirm your account.",
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
           title: "Login Failed",
@@ -59,7 +124,9 @@ export default function Login() {
         });
       }
     } finally {
-      setIsLoading(false);
+      if (!isConfirming) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -97,6 +164,15 @@ export default function Login() {
                 support@fuelsync.com
               </a>{' '}
               if you continue to experience this issue.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isConfirming && (
+          <Alert className="border-blue-200 bg-blue-50">
+            <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+            <AlertDescription className="text-blue-800">
+              Confirming your account and retrying login...
             </AlertDescription>
           </Alert>
         )}
@@ -152,9 +228,18 @@ export default function Login() {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={isLoading}
+                disabled={isLoading || isConfirming}
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isConfirming ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Confirming Account...
+                  </>
+                ) : isLoading ? (
+                  'Signing in...'
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </form>
           </CardContent>
@@ -193,7 +278,7 @@ export default function Login() {
                 <span className="text-sm font-medium">Development Mode</span>
               </div>
               <p className="text-xs text-green-700 mt-1">
-                Email confirmation is disabled for faster testing.
+                Email confirmation is disabled with automatic fallback.
               </p>
             </CardContent>
           </Card>

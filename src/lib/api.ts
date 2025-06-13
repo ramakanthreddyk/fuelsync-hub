@@ -66,6 +66,32 @@ export class ApiClient {
       throw error;
     }
   }
+
+  async confirmUser(email: string) {
+    try {
+      const response = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to confirm user');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error confirming user:', error);
+      throw error;
+    }
+  }
 }
 
 export const apiClient = new ApiClient();
