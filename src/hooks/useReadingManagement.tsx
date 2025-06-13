@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface ManualReadingData {
   station_id: number;
@@ -28,6 +29,7 @@ export interface ManualReadingResult {
 export const useReadingManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const uploadImageForOCR = async (
     file: File,
@@ -37,15 +39,13 @@ export const useReadingManagement = () => {
       setIsLoading(true);
       console.log('🔍 Starting OCR upload process...');
 
-      // Check authentication
-      const { data: { session }, error: authError } = await supabase.auth.getSession();
-      
-      if (authError || !session?.access_token) {
-        console.error('❌ Authentication error:', authError);
+      // Check authentication using our custom auth system
+      if (!user || !user.id) {
+        console.error('❌ Authentication error: User not logged in');
         throw new Error("Authentication required. Please log in again.");
       }
 
-      console.log('✅ Authentication verified, user ID:', session.user.id);
+      console.log('✅ Authentication verified, user ID:', user.id);
 
       // Validate file
       if (!file) {
@@ -78,13 +78,11 @@ export const useReadingManagement = () => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("pump_sno", pumpSno);
+      formData.append("user_id", user.id.toString());
 
       // Use Supabase functions invoke method
       const { data, error } = await supabase.functions.invoke('ocr-upload', {
         body: formData,
-        headers: {
-          // Don't set Content-Type header - browser will set it automatically for FormData
-        }
       });
 
       if (error) {
@@ -141,6 +139,12 @@ export const useReadingManagement = () => {
       setIsLoading(true);
       console.log('📝 Submitting manual reading:', readingData);
 
+      // Check authentication using our custom auth system
+      if (!user || !user.id) {
+        console.error('❌ Authentication error: User not logged in');
+        throw new Error("Authentication required. Please log in again.");
+      }
+
       // Validate data
       if (!readingData.station_id || !readingData.nozzle_id || !readingData.cumulative_vol) {
         throw new Error("Missing required fields");
@@ -150,8 +154,13 @@ export const useReadingManagement = () => {
         throw new Error("Cumulative volume must be greater than 0");
       }
 
+      const payload = {
+        ...readingData,
+        user_id: user.id
+      };
+
       const { data, error } = await supabase.functions.invoke("manual-reading", {
-        body: readingData,
+        body: payload,
       });
 
       if (error) {

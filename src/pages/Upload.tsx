@@ -45,6 +45,27 @@ export default function Upload() {
   const { createManualEntry } = useSalesManagement();
   const { data: pumps = [] } = usePumpsData();
 
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="container py-10 max-w-4xl mx-auto">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <h2 className="text-xl font-semibold">Authentication Required</h2>
+              <p className="text-muted-foreground">
+                Please log in to access the upload functionality.
+              </p>
+              <Button onClick={() => window.location.href = '/login'}>
+                Go to Login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -58,15 +79,6 @@ export default function Upload() {
       toast({ 
         title: "Error", 
         description: "Please select a file and pump", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    if (!user) {
-      toast({ 
-        title: "Error", 
-        description: "User not authenticated", 
         variant: "destructive" 
       });
       return;

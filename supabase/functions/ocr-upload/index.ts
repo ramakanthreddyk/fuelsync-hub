@@ -210,13 +210,15 @@ serve(async (req) => {
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const pump_sno = formData.get("pump_sno") as string;
+    const user_id = formData.get("user_id") as string;
 
     console.log("📋 Request details:", {
       filePresent: !!file,
       fileName: file?.name,
       fileSize: file?.size,
       fileType: file?.type,
-      pumpSno: pump_sno
+      pumpSno: pump_sno,
+      userId: user_id
     });
 
     if (!file || !pump_sno) {
@@ -224,6 +226,15 @@ serve(async (req) => {
         error: "Missing required fields: file and pump_sno are required" 
       }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    if (!user_id) {
+      return new Response(JSON.stringify({ 
+        error: "Authentication required: user_id is missing" 
+      }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
@@ -305,7 +316,8 @@ serve(async (req) => {
           reading_time: ocrData.reading_time,
           cumulative_vol: nozzle.cumulative_volume,
           source: "ocr",
-          ocr_json: nozzle
+          ocr_json: nozzle,
+          user_id: parseInt(user_id)
         })
         .select()
         .single();
