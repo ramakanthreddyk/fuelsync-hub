@@ -5,7 +5,8 @@ export class ApiClient {
   private async getAuthHeaders() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+      console.log('🔐 Supabase session:', session);
+      console.log('🔐 Supabase session error:', error);
       if (error) {
         console.error('Auth session error:', error);
         throw new Error('Authentication failed');
