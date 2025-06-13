@@ -1,4 +1,4 @@
-// Upload.tsx (shortened version for clarity)
+
 import React, { useState } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
@@ -21,7 +21,6 @@ import { usePumpsData } from "@/hooks/usePumpsData";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useSalesManagement } from "@/hooks/useSalesManagement";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function Upload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -48,31 +47,164 @@ export default function Upload() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setSelectedFile(file);
+    if (file) {
+      console.log('File selected:', file.name, file.size, file.type);
+      setSelectedFile(file);
+    }
   };
 
   const handleUpload = async () => {
     if (!selectedFile || !pumpSno) {
-      toast({ title: "Error", description: "Please select a file and pump", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: "Please select a file and pump", 
+        variant: "destructive" 
+      });
       return;
     }
+
+    if (!user) {
+      toast({ 
+        title: "Error", 
+        description: "User not authenticated", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    console.log('Starting upload process:', {
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      pumpSno,
+      userId: user.id
+    });
+
     setIsUploading(true);
     try {
       const result = await uploadImageForOCR(selectedFile, pumpSno);
       if (result) {
-        toast({ title: "Success", description: "Receipt uploaded and processed." });
+        toast({ 
+          title: "Success", 
+          description: "Receipt uploaded and processed successfully." 
+        });
         setSelectedFile(null);
         setPumpSno('');
+        // Reset file input
+        const fileInput = document.getElementById('receipt') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
       }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({ 
+        title: "Upload Failed", 
+        description: "Failed to upload receipt. Please try again.", 
+        variant: "destructive" 
+      });
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Manual + Tender Entry logic unchanged...
+  const handleManualEntry = async () => {
+    if (!manualData.nozzle_id || !manualData.cumulative_vol || !manualData.reading_date || !manualData.reading_time) {
+      toast({ 
+        title: "Error", 
+        description: "Please fill all required fields", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!currentStation) {
+      toast({ 
+        title: "Error", 
+        description: "No station selected", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    try {
+      const readingData = {
+        station_id: currentStation.id,
+        nozzle_id: parseInt(manualData.nozzle_id),
+        cumulative_vol: parseFloat(manualData.cumulative_vol),
+        reading_date: manualData.reading_date,
+        reading_time: manualData.reading_time
+      };
+
+      const result = await submitManualReading(readingData);
+      if (result) {
+        toast({ 
+          title: "Success", 
+          description: "Manual reading submitted successfully" 
+        });
+        setManualData({
+          nozzle_id: '',
+          cumulative_vol: '',
+          reading_date: '',
+          reading_time: ''
+        });
+      }
+    } catch (error) {
+      console.error('Manual entry error:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to submit manual reading", 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  const handleTenderEntry = async () => {
+    if (!tenderData.type || !tenderData.amount || !tenderData.entry_date) {
+      toast({ 
+        title: "Error", 
+        description: "Please fill all required fields", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!currentStation) {
+      toast({ 
+        title: "Error", 
+        description: "No station selected", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    try {
+      const entryData = {
+        station_id: currentStation.id,
+        nozzle_id: 1, // Default nozzle for tender entries
+        cumulative_volume: parseFloat(tenderData.amount),
+        user_id: user?.id || 0
+      };
+
+      await createManualEntry.mutateAsync(entryData);
+      toast({ 
+        title: "Success", 
+        description: "Tender entry submitted successfully" 
+      });
+      setTenderData({
+        type: '',
+        amount: '',
+        entry_date: ''
+      });
+    } catch (error) {
+      console.error('Tender entry error:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to submit tender entry", 
+        variant: "destructive" 
+      });
+    }
+  };
 
   return (
-    <div className="container py-10">
+    <div className="container py-10 max-w-4xl mx-auto">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Data Entry</CardTitle>
@@ -80,40 +212,162 @@ export default function Upload() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Tabs defaultValue="upload" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="upload"><UploadIcon className="mr-2 h-4 w-4" />Upload</TabsTrigger>
-              <TabsTrigger value="manual"><FileText className="mr-2 h-4 w-4" />Manual</TabsTrigger>
-              <TabsTrigger value="tender"><DollarSign className="mr-2 h-4 w-4" />Tender</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="upload">
+                <UploadIcon className="mr-2 h-4 w-4" />
+                Upload
+              </TabsTrigger>
+              <TabsTrigger value="manual">
+                <FileText className="mr-2 h-4 w-4" />
+                Manual
+              </TabsTrigger>
+              <TabsTrigger value="tender">
+                <DollarSign className="mr-2 h-4 w-4" />
+                Tender
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="upload">
+            <TabsContent value="upload" className="space-y-4">
               <div className="grid gap-4">
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="receipt">Select Receipt:</Label>
-                  <Input type="file" id="receipt" onChange={handleFileSelect} />
+                <div className="space-y-2">
+                  <Label htmlFor="receipt">Select Receipt Image:</Label>
+                  <Input 
+                    type="file" 
+                    id="receipt" 
+                    accept="image/*,.pdf"
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                  />
+                  {selectedFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="pumpSno">Pump S.No:</Label>
-                  <Select value={pumpSno} onValueChange={setPumpSno}>
-                    <SelectTrigger id="pumpSno" className="w-[200px]">
+                <div className="space-y-2">
+                  <Label htmlFor="pumpSno">Pump Serial Number:</Label>
+                  <Select value={pumpSno} onValueChange={setPumpSno} disabled={isUploading}>
+                    <SelectTrigger id="pumpSno">
                       <SelectValue placeholder="Select Pump" />
                     </SelectTrigger>
                     <SelectContent>
                       {pumps.map((pump) => (
-                        <SelectItem key={pump.id} value={String(pump.pump_sno)}>{pump.pump_sno}</SelectItem>
+                        <SelectItem key={pump.id} value={String(pump.pump_sno)}>
+                          Pump {pump.pump_sno} - {pump.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <Button onClick={handleUpload} disabled={isUploading || !selectedFile || !pumpSno}>
-                  {isUploading ? "Uploading..." : "Upload"}
+                <Button 
+                  onClick={handleUpload} 
+                  disabled={isUploading || !selectedFile || !pumpSno}
+                  className="w-full"
+                >
+                  {isUploading ? "Processing..." : "Upload & Process"}
                 </Button>
               </div>
             </TabsContent>
 
-            {/* Manual and Tender Tabs continue as before */}
+            <TabsContent value="manual" className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nozzle">Nozzle ID:</Label>
+                  <Input
+                    id="nozzle"
+                    type="number"
+                    value={manualData.nozzle_id}
+                    onChange={(e) => setManualData(prev => ({ ...prev, nozzle_id: e.target.value }))}
+                    placeholder="Enter nozzle number"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="volume">Cumulative Volume:</Label>
+                  <Input
+                    id="volume"
+                    type="number"
+                    step="0.01"
+                    value={manualData.cumulative_vol}
+                    onChange={(e) => setManualData(prev => ({ ...prev, cumulative_vol: e.target.value }))}
+                    placeholder="Enter volume reading"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Reading Date:</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={manualData.reading_date}
+                      onChange={(e) => setManualData(prev => ({ ...prev, reading_date: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Reading Time:</Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      value={manualData.reading_time}
+                      onChange={(e) => setManualData(prev => ({ ...prev, reading_time: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <Button onClick={handleManualEntry} disabled={isLoading} className="w-full">
+                  {isLoading ? "Submitting..." : "Submit Manual Reading"}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="tender" className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tenderType">Tender Type:</Label>
+                  <Select value={tenderData.type} onValueChange={(value) => setTenderData(prev => ({ ...prev, type: value }))}>
+                    <SelectTrigger id="tenderType">
+                      <SelectValue placeholder="Select tender type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="card">Card</SelectItem>
+                      <SelectItem value="upi">UPI</SelectItem>
+                      <SelectItem value="credit">Credit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Amount:</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    value={tenderData.amount}
+                    onChange={(e) => setTenderData(prev => ({ ...prev, amount: e.target.value }))}
+                    placeholder="Enter amount"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="entryDate">Entry Date:</Label>
+                  <Input
+                    id="entryDate"
+                    type="date"
+                    value={tenderData.entry_date}
+                    onChange={(e) => setTenderData(prev => ({ ...prev, entry_date: e.target.value }))}
+                  />
+                </div>
+
+                <Button onClick={handleTenderEntry} disabled={createManualEntry.isPending} className="w-full">
+                  {createManualEntry.isPending ? "Submitting..." : "Submit Tender Entry"}
+                </Button>
+              </div>
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
