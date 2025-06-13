@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
-import { Users, Mail, Phone, AlertCircle } from 'lucide-react';
+import { Users, Mail, Phone, AlertCircle, Crown } from 'lucide-react';
 
 export function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -52,17 +52,17 @@ export function UsersPage() {
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
-      case 'superadmin': return 'bg-purple-100 text-purple-800';
-      case 'owner': return 'bg-blue-100 text-blue-800';
-      case 'employee': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'superadmin': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'owner': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'employee': return 'bg-green-100 text-green-800 border-green-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg">Loading users...</div>
+        <div className="text-lg">Loading platform users...</div>
       </div>
     );
   }
@@ -84,8 +84,11 @@ export function UsersPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Manage users across all stations</p>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Crown className="w-8 h-8 text-amber-500" />
+            Platform User Management
+          </h1>
+          <p className="text-muted-foreground">Manage all users across the FuelSync platform</p>
         </div>
       </div>
 
@@ -97,8 +100,8 @@ export function UsersPage() {
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
             <SelectItem value="superadmin">Super Admin</SelectItem>
-            <SelectItem value="owner">Owner</SelectItem>
-            <SelectItem value="employee">Employee</SelectItem>
+            <SelectItem value="owner">Station Owner</SelectItem>
+            <SelectItem value="employee">Station Employee</SelectItem>
           </SelectContent>
         </Select>
 
@@ -114,11 +117,12 @@ export function UsersPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {users?.map((user: any) => (
-          <Card key={user.id}>
+          <Card key={user.id} className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 {user.name || 'Unnamed User'}
+                {user.role === 'superadmin' && <Crown className="w-4 h-4 text-amber-500" />}
               </CardTitle>
               <CardDescription className="flex items-center gap-1">
                 <Mail className="w-3 h-3" />
@@ -127,8 +131,10 @@ export function UsersPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
-                <Badge className={getRoleBadgeColor(user.role)}>
-                  {user.role}
+                <Badge className={getRoleBadgeColor(user.role)} variant="outline">
+                  {user.role === 'superadmin' ? 'Platform Admin' : 
+                   user.role === 'owner' ? 'Station Owner' : 
+                   'Station Employee'}
                 </Badge>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Active</span>
@@ -140,7 +146,7 @@ export function UsersPage() {
                         isActive: checked 
                       })
                     }
-                    disabled={toggleUserMutation.isPending}
+                    disabled={toggleUserMutation.isPending || user.role === 'superadmin'}
                   />
                 </div>
               </div>
@@ -154,9 +160,9 @@ export function UsersPage() {
 
               {user.user_stations?.length > 0 && (
                 <div className="text-sm">
-                  <div className="text-muted-foreground">Stations:</div>
+                  <div className="text-muted-foreground">Assigned Stations:</div>
                   {user.user_stations.map((us: any) => (
-                    <div key={us.station_id} className="text-xs">
+                    <div key={us.station_id} className="text-xs bg-muted rounded px-2 py-1 mt-1">
                       {us.stations?.name || `Station ${us.station_id}`}
                     </div>
                   ))}
@@ -177,7 +183,7 @@ export function UsersPage() {
             <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">No users found</h3>
             <p className="text-muted-foreground">
-              No users match the current filters.
+              No platform users match the current filters.
             </p>
           </CardContent>
         </Card>

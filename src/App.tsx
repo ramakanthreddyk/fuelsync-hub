@@ -58,10 +58,24 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
+    // Role-based redirect after login
+    if (user.role === 'superadmin') {
+      return <Navigate to="/superadmin/users" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
+}
+
+function RoleBasedRedirect() {
+  const { user } = useAuth();
+  
+  if (user?.role === 'superadmin') {
+    return <Navigate to="/superadmin/users" replace />;
+  }
+  
+  return <Navigate to="/dashboard" replace />;
 }
 
 function App() {
@@ -79,9 +93,9 @@ function App() {
               } 
             />
             
-            {/* Super Admin Routes */}
+            {/* Super Admin Routes - Completely separate from owner/employee routes */}
             <Route 
-              path="/sa/*" 
+              path="/superadmin/*" 
               element={
                 <ProtectedRoute>
                   <RequireRole role="superadmin">
@@ -93,7 +107,7 @@ function App() {
                         <Route path="/plans" element={<PlansPage />} />
                         <Route path="/analytics" element={<AnalyticsPage />} />
                         <Route path="/create-owner" element={<CreateOwnerWizard />} />
-                        <Route path="/" element={<Navigate to="/sa/users" replace />} />
+                        <Route path="/" element={<Navigate to="/superadmin/users" replace />} />
                       </Routes>
                     </SuperAdminLayout>
                   </RequireRole>
@@ -101,7 +115,7 @@ function App() {
               } 
             />
             
-            {/* Regular App Routes */}
+            {/* Regular App Routes - For owners and employees only */}
             <Route 
               path="/*" 
               element={
@@ -118,7 +132,7 @@ function App() {
                       <Route path="/admin/users" element={<AdminUsers />} />
                       <Route path="/admin/stations" element={<AdminStations />} />
                       <Route path="/settings" element={<Settings />} />
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/" element={<RoleBasedRedirect />} />
                     </Routes>
                   </AppLayout>
                 </ProtectedRoute>

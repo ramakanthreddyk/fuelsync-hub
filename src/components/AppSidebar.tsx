@@ -25,7 +25,6 @@ import {
   Users, 
   Building2, 
   Settings,
-  Shield,
   LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,6 +33,12 @@ import FuelSyncLogo from './FuelSyncLogo';
 export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
+
+  // This sidebar is ONLY for owners and employees
+  // Superadmins should never see this - they have their own layout
+  if (user?.role === 'superadmin') {
+    return null;
+  }
 
   const menuItems = [
     {
@@ -73,7 +78,7 @@ export function AppSidebar() {
     },
   ];
 
-  // Add admin items for owners only (NOT superadmins - they have their own interface)
+  // Add admin items for owners only
   if (user?.role === 'owner') {
     menuItems.push(
       {
@@ -87,15 +92,6 @@ export function AppSidebar() {
         icon: Building2,
       }
     );
-  }
-
-  // Add super admin link ONLY for superadmins and only when not already in SA routes
-  if (user?.role === 'superadmin' && !location.pathname.startsWith('/sa')) {
-    menuItems.push({
-      title: "Super Admin",
-      url: "/sa/users",
-      icon: Shield,
-    });
   }
 
   menuItems.push({

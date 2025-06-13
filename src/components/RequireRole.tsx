@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -9,28 +10,27 @@ interface RequireRoleProps {
 }
 
 export function RequireRole({ role, children }: RequireRoleProps) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (!user) {
+  if (loading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-muted-foreground">Authentication required</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
     );
   }
 
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (user.role !== role) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-muted-foreground">
-            Access denied. This page requires {role} privileges.
-          </p>
-        </CardContent>
-      </Card>
-    );
+    // Redirect based on actual role
+    if (user.role === 'superadmin') {
+      return <Navigate to="/superadmin/users" replace />;
+    } else {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

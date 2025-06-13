@@ -15,39 +15,39 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Building2, Fuel, Settings, Plus, BarChart3, LogOut, ArrowLeft } from 'lucide-react';
+import { Users, Building2, UserPlus, BarChart3, LogOut, Settings, Crown } from 'lucide-react';
 import FuelSyncLogo from './FuelSyncLogo';
 
 const superAdminItems = [
   {
     title: "Users",
-    url: "/sa/users",
+    url: "/superadmin/users",
     icon: Users,
+    description: "Manage all platform users"
   },
   {
     title: "Stations", 
-    url: "/sa/stations",
+    url: "/superadmin/stations",
     icon: Building2,
-  },
-  {
-    title: "Pumps",
-    url: "/sa/pumps", 
-    icon: Fuel,
+    description: "View and manage all stations"
   },
   {
     title: "Plans",
-    url: "/sa/plans",
+    url: "/superadmin/plans",
     icon: Settings,
+    description: "Manage subscription plans"
   },
   {
     title: "Create Owner",
-    url: "/sa/create-owner",
-    icon: Plus,
+    url: "/superadmin/create-owner",
+    icon: UserPlus,
+    description: "Onboard new station owners"
   },
   {
     title: "Analytics",
-    url: "/sa/analytics", 
+    url: "/superadmin/analytics", 
     icon: BarChart3,
+    description: "Platform-wide analytics"
   },
 ];
 
@@ -67,13 +67,13 @@ export function SuperAdminSidebar() {
     <Sidebar className="w-64">
       <SidebarHeader>
         <div className="flex items-center justify-between">
-          <FuelSyncLogo className="h-8" />
-          <Link to="/dashboard">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <FuelSyncLogo className="h-8" />
+            <Crown className="w-5 h-5 text-amber-500" />
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">
+          Platform Administration
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -86,10 +86,16 @@ export function SuperAdminSidebar() {
                   <SidebarMenuButton 
                     asChild
                     isActive={location.pathname === item.url}
+                    className="flex flex-col items-start h-auto py-3"
                   >
                     <Link to={item.url}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
+                      <div className="flex items-center gap-2 w-full">
+                        <item.icon className="w-4 h-4" />
+                        <span className="font-medium">{item.title}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground mt-1">
+                        {item.description}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -111,7 +117,7 @@ export function SuperAdminSidebar() {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground px-2 pb-2">
-          Super Admin Panel
+          FuelSync Platform Admin
         </p>
       </SidebarFooter>
     </Sidebar>
