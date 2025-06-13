@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
@@ -8,216 +7,133 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import FuelSyncLogo from "./FuelSyncLogo";
-import { useAuth } from "@/hooks/useAuth";
-import { useRoleAccess } from "@/hooks/useRoleAccess";
-import {
-  Home,
-  Upload,
-  TrendingUp,
-  DollarSign,
+  SidebarHeader,
+} from '@/components/ui/sidebar';
+import { useAuth } from '@/hooks/useAuth';
+import { 
+  Home, 
+  Upload, 
+  TrendingUp, 
+  Calendar, 
+  Fuel, 
+  DollarSign, 
+  FileText, 
+  Users, 
+  Building2, 
   Settings,
-  BarChart3,
-  Calendar,
-  Fuel,
-  LogOut,
-  Users,
-  Building2
-} from "lucide-react";
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: Home,
-    roles: ['superadmin', 'owner', 'employee']
-  },
-  {
-    title: "Data Entry",
-    url: "/upload",
-    icon: Upload,
-    roles: ['superadmin', 'owner', 'employee']
-  },
-  {
-    title: "Sales",
-    url: "/sales",
-    icon: TrendingUp,
-    roles: ['superadmin', 'owner', 'employee']
-  },
-  {
-    title: "Fuel Prices",
-    url: "/prices",
-    icon: DollarSign,
-    roles: ['superadmin', 'owner']
-  },
-  {
-    title: "Pumps & Nozzles",
-    url: "/pumps",
-    icon: Fuel,
-    roles: ['superadmin', 'owner']
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: BarChart3,
-    roles: ['superadmin', 'owner']
-  },
-  {
-    title: "Daily Closure",
-    url: "/daily-closure",
-    icon: Calendar,
-    roles: ['superadmin', 'owner', 'employee']
-  },
-];
-
-const adminMenuItems = [
-  {
-    title: "Manage Stations",
-    url: "/admin/stations",
-    icon: Building2,
-    roles: ['superadmin']
-  },
-  {
-    title: "Manage Users",
-    url: "/admin/users",
-    icon: Users,
-    roles: ['superadmin']
-  },
-];
+  Shield
+} from 'lucide-react';
+import { FuelSyncLogo } from './FuelSyncLogo';
 
 export function AppSidebar() {
+  const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const { role, currentStation } = useRoleAccess();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const menuItems = [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: Home,
+    },
+    {
+      title: "Upload OCR",
+      url: "/upload",
+      icon: Upload,
+    },
+    {
+      title: "Sales",
+      url: "/sales", 
+      icon: TrendingUp,
+    },
+    {
+      title: "Daily Closure",
+      url: "/daily-closure",
+      icon: Calendar,
+    },
+    {
+      title: "Pumps",
+      url: "/pumps",
+      icon: Fuel,
+    },
+    {
+      title: "Prices",
+      url: "/prices",
+      icon: DollarSign,
+    },
+    {
+      title: "Reports",
+      url: "/reports",
+      icon: FileText,
+    },
+  ];
 
-  const filteredMenuItems = menuItems.filter(item => 
-    item.roles.includes(role)
-  );
+  // Add admin items for owners and superadmins
+  if (user?.role === 'owner' || user?.role === 'superadmin') {
+    menuItems.push(
+      {
+        title: "Manage Users",
+        url: "/admin/users",
+        icon: Users,
+      },
+      {
+        title: "Manage Stations",
+        url: "/admin/stations", 
+        icon: Building2,
+      }
+    );
+  }
 
-  const filteredAdminItems = adminMenuItems.filter(item => 
-    item.roles.includes(role)
-  );
+  // Add super admin link for superadmins
+  if (user?.role === 'superadmin') {
+    menuItems.push({
+      title: "Super Admin",
+      url: "/sa/users",
+      icon: Shield,
+    });
+  }
+
+  menuItems.push({
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+  });
 
   return (
-    <Sidebar className="w-52 lg:w-56">
-      <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <FuelSyncLogo className="w-7 h-7" />
-          <div className="flex flex-col min-w-0">
-            <span className="font-semibold text-base truncate">FuelSync</span>
-            {currentStation && (
-              <span className="text-xs text-muted-foreground truncate">
-                {currentStation.name}
-              </span>
-            )}
-          </div>
-        </div>
+    <Sidebar className="w-64">
+      <SidebarHeader>
+        <Link to="/dashboard">
+          <FuelSyncLogo className="h-8" />
+        </Link>
       </SidebarHeader>
-
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">
-            Main Menu
-          </SidebarGroupLabel>
+          <SidebarGroupLabel>FuelSync</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredMenuItems.map((item) => (
+              {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
+                  <SidebarMenuButton 
                     asChild
                     isActive={location.pathname === item.url}
-                    className="w-full justify-start gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   >
-                    <a href={item.url}>
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{item.title}</span>
-                    </a>
+                    <Link to={item.url}>
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {filteredAdminItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">
-              Administration
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {filteredAdminItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location.pathname === item.url}
-                      className="w-full justify-start gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    >
-                      <a href={item.url}>
-                        <item.icon className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">
-            Settings
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location.pathname === '/settings'}
-                  className="w-full justify-start gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <a href="/settings">
-                    <Settings className="w-4 h-4 shrink-0" />
-                    <span className="truncate">Settings</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="border-t border-sidebar-border p-4">
-        <div className="space-y-3">
-          {user && (
-            <div className="text-xs text-sidebar-foreground/80">
-              <p className="font-medium truncate">{user.name}</p>
-              <p className="capitalize text-sidebar-foreground/60">{role}</p>
-            </div>
-          )}
-          <Button
-            onClick={handleLogout}
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2 bg-background/50 hover:bg-background border-sidebar-border hover:border-sidebar-accent text-sidebar-foreground hover:text-sidebar-accent-foreground"
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            <span className="truncate">Logout</span>
-          </Button>
-        </div>
+      <SidebarFooter>
+        <p className="text-xs text-muted-foreground">
+          FuelSync &copy; {new Date().getFullYear()}
+        </p>
       </SidebarFooter>
     </Sidebar>
   );
