@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
@@ -90,15 +91,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Welcome back, {user?.name}! Here's what's happening at {currentStation?.name || 'your station'}.
+      <div className="space-y-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Welcome back, {user?.name}! Here's what's happening today.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -111,7 +112,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Collections</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -124,7 +125,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Readings</CardTitle>
             <Fuel className="h-4 w-4 text-muted-foreground" />
@@ -137,13 +138,13 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Last Reading</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl font-bold">
               {stats.lastReading ? new Date(stats.lastReading).toLocaleTimeString() : 'None'}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -154,7 +155,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle>Daily Variance</CardTitle>
             <CardDescription>
@@ -162,28 +163,28 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center">
+            <div className="text-center py-4">
               {Math.abs(stats.todaySales - stats.todayTender) < 0.01 ? (
                 <div className="text-green-600">
                   <div className="text-3xl font-bold">Balanced</div>
-                  <p className="text-sm">Sales and collections match</p>
+                  <p className="text-sm mt-2">Sales and collections match</p>
                 </div>
               ) : stats.todaySales > stats.todayTender ? (
                 <div className="text-red-600">
                   <div className="text-3xl font-bold">-₹{(stats.todaySales - stats.todayTender).toFixed(2)}</div>
-                  <p className="text-sm">Collection shortage</p>
+                  <p className="text-sm mt-2">Collection shortage</p>
                 </div>
               ) : (
                 <div className="text-blue-600">
                   <div className="text-3xl font-bold">+₹{(stats.todayTender - stats.todaySales).toFixed(2)}</div>
-                  <p className="text-sm">Collection excess</p>
+                  <p className="text-sm mt-2">Collection excess</p>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
             <CardDescription>
@@ -191,33 +192,33 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button 
                 onClick={() => window.location.href = '/upload'}
-                className="p-3 text-left border rounded-lg hover:bg-gray-50 transition-colors"
+                className="p-4 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
               >
-                <div className="font-medium">Add Reading</div>
+                <div className="font-medium group-hover:text-primary">Add Reading</div>
                 <div className="text-sm text-muted-foreground">Manual entry</div>
               </button>
               <button 
                 onClick={() => window.location.href = '/upload'}
-                className="p-3 text-left border rounded-lg hover:bg-gray-50 transition-colors"
+                className="p-4 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
               >
-                <div className="font-medium">Record Payment</div>
+                <div className="font-medium group-hover:text-primary">Record Payment</div>
                 <div className="text-sm text-muted-foreground">Tender entry</div>
               </button>
               <button 
-                onClick={() => window.location.href = '/closure'}
-                className="p-3 text-left border rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => window.location.href = '/daily-closure'}
+                className="p-4 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
               >
-                <div className="font-medium">Daily Closure</div>
+                <div className="font-medium group-hover:text-primary">Daily Closure</div>
                 <div className="text-sm text-muted-foreground">End of day</div>
               </button>
               <button 
                 onClick={() => window.location.href = '/settings'}
-                className="p-3 text-left border rounded-lg hover:bg-gray-50 transition-colors"
+                className="p-4 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
               >
-                <div className="font-medium">Settings</div>
+                <div className="font-medium group-hover:text-primary">Settings</div>
                 <div className="text-sm text-muted-foreground">Configuration</div>
               </button>
             </div>
