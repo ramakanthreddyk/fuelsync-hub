@@ -1,8 +1,7 @@
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { Session } from '@supabase/supabase-js';
 
 type UserRole = Database['public']['Enums']['user_role'];
 
@@ -27,6 +26,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
+    // Load initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
@@ -50,23 +50,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Subscribe to auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
-      if (session?.user) {
+
+      if (event === 'SIGNED_IN' && session?.user) {
         await fetchUserData(session.user.email!);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserData = async (email: string) => {
     try {
-      // First get the user
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -77,52 +81,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userError || !userData) {
         console.error('Error fetching user data:', userError);
         setUser(null);
-        setLoading(false);
         return;
       }
 
-      // Then get the stations for this user based on role
       let stations = [];
+
       if (userData.role === 'owner') {
-        // For owners, get stations they own
         const { data: stationsData, error: stationsError } = await supabase
           .from('stations')
           .select('id, name, brand, address')
           .eq('owner_id', userData.id);
-
-        if (!stationsError && stationsData) {
-          stations = stationsData;
-        }
+        stations = stationsData || [];
       } else if (userData.role === 'employee') {
-        // For employees, get stations via user_stations table
         const { data: userStationsData, error: userStationsError } = await supabase
           .from('user_stations')
-          .select(`
-            stations (
-              id,
-              name,
-              brand,
-              address
-            )
-          `)
+          .select('stations ( id, name, brand, address )')
           .eq('user_id', userData.id);
 
-        if (!userStationsError && userStationsData) {
+        if (userStationsData) {
           stations = userStationsData.map((us: any) => us.stations).filter(Boolean);
         }
       } else if (userData.role === 'superadmin') {
-        // For superadmin, get all stations (limited for demo)
         const { data: stationsData, error: stationsError } = await supabase
           .from('stations')
           .select('id, name, brand, address')
           .limit(5);
-
-        if (!stationsError && stationsData) {
-          stations = stationsData;
-        }
+        stations = stationsData || [];
       }
 
-      // Transform the data to match our User interface
       const transformedUser: User = {
         id: userData.id,
         name: userData.name,
@@ -132,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         is_active: userData.is_active,
         created_at: userData.created_at,
         updated_at: userData.updated_at,
-        stations: stations || []
+        stations,
       };
 
       setUser(transformedUser);
@@ -145,10 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
-
-      // First check if user exists in our users table
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -160,55 +144,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid credentials or account not found');
       }
 
-      // For demo purposes, we'll accept the passwords from the seed data
-      // In production, you'd verify the password hash
-      const validCredentials = [
-        { email: 'admin@fuelsync.com', password: 'admin123' },
-        { email: 'rajesh@fuelsync.com', password: 'owner123' },
-        { email: 'ravi@fuelsync.com', password: 'emp123' }
-      ];
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      const validUser = validCredentials.find(
-        cred => cred.email === email && cred.password === password
-      );
-
-      if (!validUser) {
+      if (signInError) {
+        console.error('Sign-in error:', signInError.message);
         throw new Error('Invalid credentials');
       }
 
-      // Create a Supabase auth session using signInWithPassword
-      // For demo, we'll use the email as both email and password for Supabase auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            role: userData.role,
-            user_id: userData.id
-          }
-        }
-      });
-
-      // If user already exists, try signing in
-      if (authError?.message?.includes('already registered')) {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: email,
-          password: password
-        });
-
-        if (signInError) {
-          throw new Error('Authentication failed');
-        }
-      } else if (authError) {
-        throw new Error('Authentication failed');
-      }
-
-      // fetchUserData will be called automatically by the auth state change listener
+      // session and user will be set by the auth listener
     } catch (error) {
-      setLoading(false);
       console.error('Login error:', error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -223,22 +174,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signOut = logout;
-
-  const value = {
+  const value: AuthContextType = {
     user,
     session,
     loading,
+    isLoggedIn: !!user && !!session,
     login,
     logout,
-    signOut,
+    signOut: logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
