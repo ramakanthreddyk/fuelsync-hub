@@ -14,7 +14,7 @@ export class ApiClient {
       } = await supabase.auth.getSession();
 
       console.log("🔐 Getting session for API request...");
-
+      console.log("Session object -->:", session);
       if (error) {
         console.error("Auth session error:", error);
         throw new Error("Authentication failed");
