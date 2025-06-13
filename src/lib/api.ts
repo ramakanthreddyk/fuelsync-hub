@@ -1,6 +1,3 @@
-
-// lib/api.ts
-
 const SUPABASE_URL = "https://untzkhbbsowpkmwrxdws.supabase.co";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -39,11 +36,7 @@ export class ApiClient {
   async superadminRequest(endpoint: string, options: RequestInit = {}) {
     try {
       const { headers, session } = await this.getAuthHeaders();
-console.log("Making superadmin request with session -->", session);
-
-
       console.log("Making superadmin request to:", endpoint);
-    console.log("Making superadmin request to --->>>>:", headers);
       const response = await fetch(`${SUPABASE_URL}/functions/v1/${endpoint}`, {
         ...options,
         headers: {
