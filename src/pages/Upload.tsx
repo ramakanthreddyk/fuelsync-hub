@@ -27,6 +27,7 @@ export default function Upload() {
   const [pumpSno, setPumpSno] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [manualData, setManualData] = useState({
+    pump_id: '',
     nozzle_id: '',
     cumulative_vol: '',
     reading_date: '',
@@ -49,7 +50,7 @@ export default function Upload() {
   const stationPumps = useMemo(() => {
     return pumps.filter(p => p.station_id.toString() === selectedStationId);
   }, [pumps, selectedStationId]);
-  
+
   const pumpNozzles = useMemo(() => {
     return nozzles.filter(n => n.pump_id.toString() === selectedPumpId);
   }, [nozzles, selectedPumpId]);
@@ -135,7 +136,13 @@ export default function Upload() {
   };
 
   const handleManualEntry = async () => {
-    if (!manualData.nozzle_id || !manualData.cumulative_vol || !manualData.reading_date || !manualData.reading_time) {
+    if (
+      !manualData.pump_id ||
+      !manualData.nozzle_id ||
+      !manualData.cumulative_vol ||
+      !manualData.reading_date ||
+      !manualData.reading_time
+    ) {
       toast({
         title: "Error",
         description: "Please fill all required fields",
@@ -154,12 +161,16 @@ export default function Upload() {
     }
 
     try {
+      const selectedPump = pumps.find(p => p.id === parseInt(manualData.pump_id));
+
       const readingData = {
         station_id: currentStation.id,
+        pump_sno: selectedPump?.pump_sno ?? '',  // this field is in your table
         nozzle_id: parseInt(manualData.nozzle_id),
         cumulative_vol: parseFloat(manualData.cumulative_vol),
         reading_date: manualData.reading_date,
-        reading_time: manualData.reading_time
+        reading_time: manualData.reading_time,
+        source: 'manual' // required for OCR table
       };
 
       const result = await submitManualReading(readingData);
@@ -169,6 +180,7 @@ export default function Upload() {
           description: "Manual reading submitted successfully"
         });
         setManualData({
+          pump_id: '',
           nozzle_id: '',
           cumulative_vol: '',
           reading_date: '',
