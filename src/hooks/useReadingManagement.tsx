@@ -28,31 +28,49 @@ export const useReadingManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const uploadImageForOCR = async (file: File, pumpSno?: string): Promise<OCRUploadResult | null> => {
+  const uploadImageForOCR = async (
+    file: File,
+    pumpSno?: string
+  ): Promise<OCRUploadResult | null> => {
     try {
       setIsLoading(true);
+
+      const sessionResponse = await supabase.auth.getSession();
+      const access_token = sessionResponse.data?.session?.access_token;
+
+      if (!access_token) {
+        throw new Error("User not logged in. Access token is undefined.");
+      }
 
       const formData = new FormData();
       formData.append("file", file);
       if (pumpSno) formData.append("pump_sno", pumpSno);
 
-      const { data, error } = await supabase.functions.invoke("ocr-upload", {
-        body: formData as any, // Supabase currently lacks full FormData types
+      const response = await fetch("/functions/v1/ocr-upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: formData,
       });
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "OCR upload failed");
+      }
 
       toast({
         title: "OCR Processing Complete",
-        description: `Successfully processed ${data.inserted} readings`,
+        description: `Successfully processed ${result.inserted} readings`,
       });
 
       return {
         success: true,
         data: {
-          readings_inserted: data.inserted,
-          ocr_preview: data.ocr,
-          readings: data.ocr.nozzles,
+          readings_inserted: result.inserted,
+          ocr_preview: result.ocr,
+          readings: result.ocr.nozzles,
         },
       };
     } catch (error: any) {
@@ -68,16 +86,18 @@ export const useReadingManagement = () => {
     }
   };
 
-  const submitManualReading = async (readingData: ManualReadingData): Promise<ManualReadingResult | null> => {
+  const submitManualReading = async (
+    readingData: ManualReadingData
+  ): Promise<ManualReadingResult | null> => {
     try {
       setIsLoading(true);
 
-      const { data, error } = await supabase.functions.invoke('manual-reading', {
+      const { data, error } = await supabase.functions.invoke("manual-reading", {
         body: readingData,
       });
 
       if (error) {
-        console.error('Manual reading error:', error);
+        console.error("Manual reading error:", error);
         toast({
           title: "Manual Reading Failed",
           description: error.message || "Failed to save reading",
@@ -93,7 +113,7 @@ export const useReadingManagement = () => {
 
       return data;
     } catch (error) {
-      console.error('Manual reading error:', error);
+      console.error("Manual reading error:", error);
       toast({
         title: "Manual Reading Failed",
         description: "An unexpected error occurred",
