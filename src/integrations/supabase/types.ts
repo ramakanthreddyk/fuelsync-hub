@@ -141,6 +141,42 @@ export type Database = {
           },
         ]
       }
+      nozzle_assignments: {
+        Row: {
+          assigned_at: string | null
+          id: number
+          nozzle_id: number | null
+          station_id: number | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          id?: number
+          nozzle_id?: number | null
+          station_id?: number | null
+        }
+        Update: {
+          assigned_at?: string | null
+          id?: number
+          nozzle_id?: number | null
+          station_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nozzle_assignments_nozzle_id_fkey"
+            columns: ["nozzle_id"]
+            isOneToOne: false
+            referencedRelation: "nozzles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nozzle_assignments_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nozzles: {
         Row: {
           created_at: string | null
@@ -326,6 +362,42 @@ export type Database = {
         }
         Relationships: []
       }
+      pump_assignments: {
+        Row: {
+          assigned_at: string | null
+          id: number
+          pump_id: number | null
+          station_id: number | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          id?: number
+          pump_id?: number | null
+          station_id?: number | null
+        }
+        Update: {
+          assigned_at?: string | null
+          id?: number
+          pump_id?: number | null
+          station_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pump_assignments_pump_id_fkey"
+            columns: ["pump_id"]
+            isOneToOne: false
+            referencedRelation: "pumps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pump_assignments_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pumps: {
         Row: {
           created_at: string | null
@@ -419,6 +491,48 @@ export type Database = {
           },
         ]
       }
+      station_plans: {
+        Row: {
+          effective_from: string
+          id: number
+          is_paid: boolean | null
+          notes: string | null
+          plan_id: number
+          station_id: number
+        }
+        Insert: {
+          effective_from?: string
+          id?: number
+          is_paid?: boolean | null
+          notes?: string | null
+          plan_id: number
+          station_id: number
+        }
+        Update: {
+          effective_from?: string
+          id?: number
+          is_paid?: boolean | null
+          notes?: string | null
+          plan_id?: number
+          station_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "station_plans_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_plans_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stations: {
         Row: {
           address: string | null
@@ -426,8 +540,11 @@ export type Database = {
           created_at: string | null
           current_plan_id: number | null
           id: number
+          is_active: boolean | null
+          is_paid: boolean | null
           name: string
           owner_id: number | null
+          plan_id: number | null
           updated_at: string | null
         }
         Insert: {
@@ -436,8 +553,11 @@ export type Database = {
           created_at?: string | null
           current_plan_id?: number | null
           id?: number
+          is_active?: boolean | null
+          is_paid?: boolean | null
           name: string
           owner_id?: number | null
+          plan_id?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -446,8 +566,11 @@ export type Database = {
           created_at?: string | null
           current_plan_id?: number | null
           id?: number
+          is_active?: boolean | null
+          is_paid?: boolean | null
           name?: string
           owner_id?: number | null
+          plan_id?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -463,6 +586,13 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stations_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
             referencedColumns: ["id"]
           },
         ]
@@ -586,7 +716,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      current_station_plans: {
+        Row: {
+          effective_from: string | null
+          is_paid: boolean | null
+          plan_id: number | null
+          station_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "station_plans_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "station_plans_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       increment_ocr_usage: {

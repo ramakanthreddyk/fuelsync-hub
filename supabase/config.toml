@@ -11,43 +11,141 @@ max_rows = 1000
 [auth]
 enabled = true
 port = 54324
-external_url = "http://127.0.0.1:54321"
-additional_redirect_urls = ["https://untzkhbbsowpkmwrxdws.supabase.co"]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 enable_signup = true
 enable_confirmations = false
 
-[auth.email]
-enable_signup = true
-double_confirm_changes = true
-enable_confirmations = false
+[auth.external.apple]
+enabled = false
+client_id = ""
+secret = ""
 
-[db]
-enabled = true
-port = 54322
-shadow_port = 54320
-major_version = 15
+[auth.external.azure]
+enabled = false
+client_id = ""
+secret = ""
+url = ""
 
-[functions.pumps-api]
+[auth.external.bitbucket]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.discord]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.facebook]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.github]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.gitlab]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.google]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.keycloak]
+enabled = false
+client_id = ""
+secret = ""
+url = ""
+
+[auth.external.linkedin_oidc]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.notion]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.twitch]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.twitter]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.slack_oidc]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.spotify]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.workos]
+enabled = false
+client_id = ""
+secret = ""
+
+[auth.external.zoom]
+enabled = false
+client_id = ""
+secret = ""
+
+[functions.ocr-upload]
 verify_jwt = false
 
-[functions.sales-api]
+[functions.superadmin-owners]
+verify_jwt = true
+
+[functions.superadmin-users]
+verify_jwt = true
+
+[functions.superadmin-stations]
+verify_jwt = true
+
+[functions.superadmin-actions]
+verify_jwt = true
+
+[functions.superadmin-analytics]
+verify_jwt = true
+
+[functions.fuel-prices]
 verify_jwt = false
 
 [functions.nozzles-api]
 verify_jwt = false
 
-[realtime]
-enabled = true
-port = 54323
-tenant_id = "realtime-dev"
+[functions.db-functions]
+verify_jwt = false
+
+[db]
+port = 54322
 
 [studio]
 enabled = true
 port = 54323
-api_url = "http://127.0.0.1:54321"
+
+[inbucket]
+enabled = true
+port = 54324
 
 [storage]
 enabled = true
-port = 54321
-file_size_limit = "50MiB"
+port = 54325
+
+[analytics]
+enabled = false
+port = 54327

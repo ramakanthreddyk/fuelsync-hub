@@ -1,63 +1,18 @@
-
 # FuelSync Database Schema Documentation
 
 ## Overview
 
 The FuelSync database is designed with a multi-tenant architecture supporting fuel station management with three main user roles: Super Admins, Owners, and Employees.
 
-## Entity Relationship Diagram
+## Superadmin Capabilities
 
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│    Plans    │    │    Users    │    │  Stations   │
-│             │    │             │    │             │
-│ id (PK)     │    │ id (PK)     │    │ id (PK)     │
-│ name        │    │ name        │    │ name        │
-│ price_monthly│   │ email       │    │ brand       │
-│ features    │    │ role        │◄──┐│ address     │
-│ ...         │    │ station_id  │   ││ owner_id (FK)│
-└─────────────┘    │ ...         │   │└─────────────┘
-                   └─────────────┘   │       │
-                                    │       │
-┌─────────────┐    ┌─────────────┐   │       │    ┌─────────────┐
-│   Pumps     │    │  Nozzles    │   │       │    │Station_Plans│
-│             │    │             │   │       │    │             │
-│ id (PK)     │    │ id (PK)     │   │       └───►│ station_id  │
-│ station_id  │◄───┤ pump_id (FK)│   │            │ plan_id     │
-│ pump_sno    │    │ nozzle_num  │   │            │ effective_from│
-│ name        │    │ fuel_type   │   │            │ ...         │
-│ ...         │    │ ...         │   │            └─────────────┘
-└─────────────┘    └─────────────┘   │
-       │                  │          │
-       │                  │          │
-       ▼                  ▼          │
-┌─────────────┐    ┌─────────────┐   │
-│OCR_Readings │    │Fuel_Prices  │   │
-│             │    │             │   │
-│ id (PK)     │    │ id (PK)     │   │
-│ station_id  │◄───┼─station_id  │◄──┘
-│ nozzle_id   │    │ fuel_type   │
-│ pump_sno    │    │ price_per_l │
-│ reading_date│    │ valid_from  │
-│ cumulative_vol│  │ ...         │
-│ source      │    └─────────────┘
-│ ocr_json    │
-│ ...         │
-└─────────────┘
-       │
-       ▼
-┌─────────────┐
-│    Sales    │
-│             │
-│ id (PK)     │
-│ station_id  │
-│ nozzle_id   │
-│ reading_id  │
-│ delta_vol_l │
-│ total_amount│
-│ ...         │
-└─────────────┘
-```
+Super administrators have system-wide access and can:
+- Create owner users and their stations
+- Manage all users across all stations
+- Activate/deactivate stations and users
+- Assign/reassign pumps and nozzles between stations
+- View cross-station analytics and reports
+- Manage subscription plans and billing
 
 ## Core Tables
 
@@ -72,7 +27,6 @@ CREATE TABLE users (
   phone TEXT,
   password TEXT NOT NULL,
   role user_role NOT NULL, -- 'superadmin', 'owner', 'employee'
-  station_id INT REFERENCES stations(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -80,10 +34,23 @@ CREATE TABLE users (
 ```
 
 **Key Relationships:**
-- `station_id`: Only populated for employees (references their assigned station)
-- Owners have `station_id = NULL` and own stations via `stations.owner_id`
+- Super admins have no station restrictions
+- Owners manage stations via `stations.owner_id`
+- Employees are linked via `user_stations` table
 
-### 2. Stations
+### 2. User-Station Assignments
+Many-to-many relationship for employee station assignments.
+
+```sql
+CREATE TABLE user_stations (
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  station_id INTEGER REFERENCES stations(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (user_id, station_id)
+);
+```
+
+### 3. Stations
 Fuel stations owned by users with owner role.
 
 ```sql
@@ -92,19 +59,53 @@ CREATE TABLE stations (
   name TEXT NOT NULL,
   brand station_brand NOT NULL, -- 'IOCL', 'BPCL', 'HPCL'
   address TEXT,
-  owner_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  current_plan_id INT REFERENCES plans(id),
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  current_plan_id INTEGER REFERENCES plans(id),
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 ```
 
-**Key Relationships:**
-- `owner_id`: References `users.id` where `role = 'owner'`
-- One owner can have multiple stations
-- Each station belongs to exactly one owner
+### 4. Pump Assignments
+Tracks pump assignment history for superadmin management.
 
-### 3. Plans
+```sql
+CREATE TABLE pump_assignments (
+  id SERIAL PRIMARY KEY,
+  pump_id INTEGER REFERENCES pumps(id) ON DELETE CASCADE,
+  station_id INTEGER REFERENCES stations(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### 5. Nozzle Assignments
+Tracks nozzle assignment history for superadmin management.
+
+```sql
+CREATE TABLE nozzle_assignments (
+  id SERIAL PRIMARY KEY,
+  nozzle_id INTEGER REFERENCES nozzles(id) ON DELETE CASCADE,
+  station_id INTEGER REFERENCES stations(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### 6. Station Plans
+Subscription plan assignments and history.
+
+```sql
+CREATE TABLE station_plans (
+  id SERIAL PRIMARY KEY,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  plan_id INTEGER NOT NULL REFERENCES plans(id),
+  effective_from TIMESTAMPTZ NOT NULL DEFAULT now(),
+  is_paid BOOLEAN DEFAULT FALSE,
+  notes TEXT
+);
+```
+
+### 7. Plans
 Subscription plans that define feature limits.
 
 ```sql
@@ -130,7 +131,7 @@ CREATE TABLE plans (
 - **Basic**: ₹999/month, 5 pumps, 10 nozzles, 5 employees, 50 OCR/month
 - **Premium**: ₹2999/month, 20 pumps, 50 nozzles, 20 employees, 200 OCR/month
 
-### 4. Station_Plans
+### 8. Station_Plans
 Tracks subscription history for stations.
 
 ```sql
@@ -144,7 +145,7 @@ CREATE TABLE station_plans (
 );
 ```
 
-### 5. Pumps
+### 9. Pumps
 Fuel dispensers at each station.
 
 ```sql
@@ -160,7 +161,7 @@ CREATE TABLE pumps (
 );
 ```
 
-### 6. Nozzles
+### 10. Nozzles
 Individual fuel nozzles on each pump.
 
 ```sql
@@ -176,7 +177,7 @@ CREATE TABLE nozzles (
 );
 ```
 
-### 7. OCR_Readings (Updated Schema)
+### 11. OCR_Readings (Updated Schema)
 Fuel meter readings captured via OCR or manual entry.
 
 ```sql
@@ -203,7 +204,7 @@ CREATE TABLE ocr_readings (
 - Added `ocr_json` to store raw OCR processing results
 - Changed `id` to UUID type
 
-### 8. Fuel_Prices
+### 12. Fuel_Prices
 Current fuel pricing at each station.
 
 ```sql
@@ -218,7 +219,7 @@ CREATE TABLE fuel_prices (
 );
 ```
 
-### 9. Sales
+### 13. Sales
 Calculated sales data based on reading differences.
 
 ```sql
@@ -234,7 +235,7 @@ CREATE TABLE sales (
 );
 ```
 
-### 10. Tender_Entries
+### 14. Tender_Entries
 Cash/card collections and payments.
 
 ```sql
@@ -250,7 +251,7 @@ CREATE TABLE tender_entries (
 );
 ```
 
-### 11. Daily_Closure
+### 15. Daily_Closure
 End-of-day reconciliation.
 
 ```sql
@@ -266,7 +267,7 @@ CREATE TABLE daily_closure (
 );
 ```
 
-### 12. Plan_Usage
+### 16. Plan_Usage
 Monthly usage tracking for plan limits.
 
 ```sql
@@ -363,3 +364,61 @@ CREATE INDEX idx_fuel_prices_station_fuel ON fuel_prices(station_id, fuel_type, 
 ```
 
 This schema supports the complete multi-tenant fuel station management system with proper data isolation, role-based access control, and dual OCR/manual reading capabilities.
+
+## Superadmin API Endpoints
+
+### User Management
+- `POST /superadmin-owners` - Create owner + station
+- `GET /superadmin-users` - List all users with filters
+- `PUT /superadmin-actions/users/{id}/activate` - Toggle user status
+
+### Station Management
+- `GET /superadmin-stations` - List all stations with filters
+- `POST /superadmin-stations` - Create station
+- `PUT /superadmin-actions/stations/{id}/deactivate` - Toggle station status
+- `PUT /superadmin-actions/stations/{id}/plan` - Update subscription plan
+
+### Equipment Management
+- `PUT /superadmin-actions/pumps/{id}/assign` - Reassign pump
+- `PUT /superadmin-actions/nozzles/{id}/assign` - Reassign nozzle
+
+### Analytics
+- `GET /superadmin-analytics` - Cross-station analytics and reports
+
+## Access Control
+
+### Role-Based Permissions
+
+1. **Superadmin**:
+   - Full system access
+   - Can create/modify any user or station
+   - Cross-station analytics
+   - Equipment reassignment
+   - Plan management
+
+2. **Owner**:
+   - Access to owned stations only
+   - Can create employees for their stations
+   - Station-specific analytics
+   - Pump/nozzle management within their stations
+
+3. **Employee**:
+   - Access to assigned station(s) only
+   - Data entry and basic operations
+   - No user management capabilities
+
+### Data Isolation
+
+- All data queries automatically filter by station_id for owners/employees
+- Superadmin queries can access all stations using `stationId=all` parameter
+- Cross-station operations require superadmin role verification
+
+## Security Features
+
+1. **JWT Authentication**: All API endpoints require valid JWT tokens
+2. **Role Verification**: Each endpoint verifies user role before processing
+3. **Audit Logging**: Critical operations are logged for compliance
+4. **Data Encryption**: Sensitive data encrypted at rest and in transit
+5. **Rate Limiting**: API endpoints have built-in rate limiting
+
+This schema supports the complete multi-tenant fuel station management system with proper data isolation, role-based access control, and comprehensive superadmin capabilities.
