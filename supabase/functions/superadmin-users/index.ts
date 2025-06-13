@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -18,7 +17,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get authorization header
+    // ✅ Verify authorization header exists
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -27,30 +26,26 @@ serve(async (req) => {
       );
     }
 
-    // Verify user is superadmin
+    // ✅ Decode JWT to check role
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
+    try {
+      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+      const userRole = tokenPayload.role;
+
+      if (userRole !== 'superadmin') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Superadmin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch (_) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid token' }),
+        JSON.stringify({ success: false, error: 'Malformed or invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { data: userData, error: roleError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('email', user.email)
-      .single();
-
-    if (roleError || userData?.role !== 'superadmin') {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Superadmin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // ✅ Handle GET request
     if (req.method === 'GET') {
       const url = new URL(req.url);
       const role = url.searchParams.get('role');
@@ -64,13 +59,8 @@ serve(async (req) => {
         `)
         .order('created_at', { ascending: false });
 
-      if (role) {
-        query = query.eq('role', role);
-      }
-
-      if (stationId) {
-        query = query.eq('user_stations.station_id', parseInt(stationId));
-      }
+      if (role) query = query.eq('role', role);
+      if (stationId) query = query.eq('user_stations.station_id', parseInt(stationId));
 
       const { data: usersData, error: usersError } = await query;
 
@@ -88,6 +78,7 @@ serve(async (req) => {
       );
     }
 
+    // ❌ Other methods not allowed
     return new Response(
       JSON.stringify({ success: false, error: 'Method not allowed' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
