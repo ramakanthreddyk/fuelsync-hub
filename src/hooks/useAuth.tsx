@@ -90,8 +90,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      console.log('User data found:', userData);
-
       let stations = [];
 
       if (userData.role === 'owner') {
@@ -129,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         stations,
       };
 
-      console.log('Setting user:', transformedUser);
       setUser(transformedUser);
     } catch (error) {
       console.error('Error fetching user data:', error);
