@@ -362,7 +362,7 @@ export type Database = {
           id: number
           occurred_at: string
           station_id: number | null
-          user_id: number
+          user_id: string
         }
         Insert: {
           activity_type: string
@@ -370,7 +370,7 @@ export type Database = {
           id?: number
           occurred_at?: string
           station_id?: number | null
-          user_id: number
+          user_id: string
         }
         Update: {
           activity_type?: string
@@ -378,9 +378,17 @@ export type Database = {
           id?: number
           occurred_at?: string
           station_id?: number | null
-          user_id?: number
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_stations: {
         Row: {
