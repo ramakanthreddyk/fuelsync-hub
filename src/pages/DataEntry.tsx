@@ -22,13 +22,14 @@ import { usePumpNozzles } from "@/hooks/usePumpNozzles";
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useIsPremiumStation } from '@/hooks/useIsPremiumStation';
 
-const useUserStations = () => {
-  const [userStations, setUserStations] = useState<any[]>([]);
-  useEffect(() => {
-    supabase.from('stations').select('id, name').then(({ data }) => setUserStations(data || []));
-  }, []);
-  return { userStations };
-};
+// Remove this hook and call
+// const useUserStations = () => {
+//   const [userStations, setUserStations] = useState<any[]>([]);
+//   useEffect(() => {
+//     supabase.from('stations').select('id, name').then(({ data }) => setUserStations(data || []));
+//   }, []);
+//   return { userStations };
+// };
 
 interface ManualEntryData {
   station_id: number;
@@ -56,7 +57,9 @@ interface RefillData {
 export default function DataEntry() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { userStations } = useUserStations();
+  // REMOVE useUserStations hook:
+  // const { userStations } = useUserStations();
+
   const [selectedStation, setSelectedStation] = useState<number | null>(null);
   const [selectedPump, setSelectedPump] = useState<number | null>(null);
 
@@ -72,13 +75,14 @@ export default function DataEntry() {
   const { isLoading: ocrLoading, uploadImageForOCR } = useReadingManagement();
   const { session } = useAuth();
 
-  // Derived dropdown options
+  // Use role access to strictly scope stations to the user (owner/employee)
+  const { role, stations: userStations, isOwner } = useRoleAccess();
+
+  // Derived dropdown options, use the userStations list from useRoleAccess
   const { data: pumps = [] } = useStationPumps(selectedStation || userStations[0]?.id);
   const { data: ocrNozzles = [] } = usePumpNozzles(ocrPump);
   const { data: manualNozzles = [] } = usePumpNozzles(manualPump);
 
-  // Use role access to strictly scope stations to the user (owner/employee)
-  const { role, stations: userStations, isOwner } = useRoleAccess();
   const { data: isPremium, isLoading: planLoading } = useIsPremiumStation(selectedStation);
 
   // Handlers
