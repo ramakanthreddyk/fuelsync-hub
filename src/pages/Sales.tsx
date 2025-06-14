@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Card,
@@ -430,11 +429,16 @@ export default function Sales() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All stations</SelectItem>
-                        {stations.map((station) => (
-                          <SelectItem key={station.id} value={station.id.toString()}>
-                            {station.name}
-                          </SelectItem>
-                        ))}
+                        {stations
+                          .filter(station => !!station.id)
+                          .map((station) => (
+                            <SelectItem
+                              key={station.id}
+                              value={String(station.id)}
+                            >
+                              {station.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -452,11 +456,15 @@ export default function Sales() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All pumps</SelectItem>
-                      {pumps?.map((pump) => (
-                        <SelectItem key={pump.id} value={pump.id.toString()}>
-                          {pump.name || `Pump ${pump.pump_sno}`}
-                        </SelectItem>
-                      ))}
+                      {pumps?.filter(pump => !!pump.id)
+                        .map((pump) => (
+                          <SelectItem
+                            key={pump.id}
+                            value={String(pump.id)}
+                          >
+                            {pump.name || `Pump ${pump.pump_sno}`}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -472,12 +480,17 @@ export default function Sales() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All nozzles</SelectItem>
-                      {pumps?.flatMap(pump => 
-                        pump.nozzles.map(nozzle => (
-                          <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
-                            Pump {pump.pump_sno} - #{nozzle.nozzle_number} ({nozzle.fuel_type})
-                          </SelectItem>
-                        ))
+                      {pumps?.flatMap(pump =>
+                        (pump.nozzles || [])
+                          .filter(nozzle => !!nozzle.id && !!pump.pump_sno)
+                          .map(nozzle => (
+                            <SelectItem
+                              key={nozzle.id}
+                              value={String(nozzle.id)}
+                            >
+                              Pump {pump.pump_sno} - #{nozzle.nozzle_number} ({nozzle.fuel_type})
+                            </SelectItem>
+                          ))
                       )}
                     </SelectContent>
                   </Select>
