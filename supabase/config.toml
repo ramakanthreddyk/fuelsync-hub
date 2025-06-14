@@ -15,8 +15,8 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
 enable_signup = true
-enable_confirmations = false
-enable_email_confirmations = false
+enable_confirmations = true
+enable_email_confirmations = true
 enable_phone_confirmations = false
 
 [auth.external.apple]
