@@ -488,6 +488,15 @@ export type Database = {
       }
     }
     Functions: {
+      create_admin_user: {
+        Args: { user_email: string; user_name: string }
+        Returns: {
+          id: string
+          email: string
+          name: string
+          role: Database["public"]["Enums"]["user_role"]
+        }[]
+      }
       increment_ocr_usage: {
         Args: { p_station_id: number; p_month: string }
         Returns: undefined
