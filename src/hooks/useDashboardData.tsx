@@ -61,32 +61,35 @@ export const useDashboardData = () => {
       setIsLoading(true);
       console.log("Loading dashboard data for station", currentStation);
 
-      // Load dashboard summary
-      const { data: summaryResult, error: summaryError } = await supabase.functions.invoke('dashboard-api/summary', {
-        headers: { 'Content-Type': 'application/json' },
-        method: 'GET',
-        body: null,
-        // Add query params directly to the URL (invoke doesn't accept them, so fallback below if needed)
-      });
-
+      // Fetch dashboard summary using fetch to pass stationId as a query param
+      const summaryRes = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/dashboard-api/summary?stationId=${currentStation.id}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+      const summaryResult = await summaryRes.json();
       console.log("Dashboard summary result:", summaryResult);
 
-      if (summaryResult?.error) {
-        throw new Error(summaryResult.error);
+      if (!summaryRes.ok || summaryResult?.error) {
+        throw new Error(summaryResult?.error || "Failed to load dashboard summary");
       }
       const summary = summaryResult.data;
 
-      // Load sales trends
-      const { data: trendsResult, error: trendsError } = await supabase.functions.invoke('dashboard-api/sales-trend', {
-        headers: { 'Content-Type': 'application/json' },
-        method: 'GET',
-        body: null,
-      });
-
+      // Fetch sales trends
+      const trendsRes = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/dashboard-api/sales-trend?stationId=${currentStation.id}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+      const trendsResult = await trendsRes.json();
       console.log("Dashboard trends result:", trendsResult);
 
-      if (trendsResult?.error) {
-        throw new Error(trendsResult.error);
+      if (!trendsRes.ok || trendsResult?.error) {
+        throw new Error(trendsResult?.error || "Failed to load trends data");
       }
 
       const trends = trendsResult.data || [];
@@ -96,7 +99,6 @@ export const useDashboardData = () => {
         .from('ocr_readings')
         .select('*', { count: 'exact', head: true })
         .eq('station_id', currentStation.id);
-
       console.log("Total readings count:", readingsCount);
 
       // Get last reading time
@@ -106,7 +108,6 @@ export const useDashboardData = () => {
         .eq('station_id', currentStation.id)
         .order('created_at', { ascending: false })
         .limit(1);
-
       console.log("Last reading data:", lastReadingData);
 
       setData({
