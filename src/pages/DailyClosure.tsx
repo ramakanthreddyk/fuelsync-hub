@@ -38,8 +38,9 @@ export default function DailyClosure() {
         closed_at: new Date().toISOString()
       };
 
-      // @ts-ignore: ignore type noise for this table
-      const { data, error } = await supabase
+      // Use "any" to bypass supabase type inference -- solves the TypeScript error!
+      // @ts-expect-error: daily_closure missing from supabase types
+      const { data, error } = await (supabase as any)
         .from('daily_closure')
         .upsert(upsertData)
         .select()
