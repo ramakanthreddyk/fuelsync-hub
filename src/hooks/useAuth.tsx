@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
@@ -135,28 +134,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // First check if user exists in our system with email & is_active
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (userError || !userData) {
-        throw new Error('Invalid credentials or account not found');
-      }
-
-      // Attempt sign in
+      // Only attempt sign in directly with Auth, do NOT check public.users first
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
-        if (signInError.message.includes('Email not confirmed') || 
-            signInError.message.includes('email_not_confirmed') ||
-            signInError.message.includes('signup_disabled')) {
+        if (
+          signInError.message.includes('Email not confirmed') ||
+          signInError.message.includes('email_not_confirmed') ||
+          signInError.message.includes('signup_disabled')
+        ) {
           throw new Error('Email not confirmed');
         }
         throw new Error('Invalid credentials');
