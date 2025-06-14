@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { format } from 'date-fns';
@@ -6,7 +7,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useReadingManagement } from '@/hooks/useReadingManagement';
 import { supabase } from '@/integrations/supabase/client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -142,7 +142,7 @@ export default function DataEntry() {
     }
   };
 
-  // -- Manual entry handlers (same as before) --
+  // -- Manual entry handlers --
   const onSubmitManual = async (data: ManualEntryData) => {
     try {
       setIsSubmitting(true);
@@ -217,322 +217,321 @@ export default function DataEntry() {
   };
 
   // --- UI Renders ---
-  // Redesigned Data Entry page layout
+  // Layout: Remove Card, maximize width, gentle container with tabs.
   return (
-    <div className="flex justify-center bg-muted/20 min-h-[100vh] py-10 px-2">
-      <Card className="w-full max-w-3xl shadow-xl border-none animate-fade-in bg-white/90">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-            <div>
-              <CardTitle>
-                <span className="inline-flex items-center gap-2">
-                  <UploadIcon className="w-6 h-6 text-primary" />
-                  Data Entry <span className="text-primary text-lg">•</span>
-                </span>
-              </CardTitle>
-              <CardDescription>
-                All your daily input tasks: Upload OCR, add manual readings or tenders, and record tank refills quickly.
-              </CardDescription>
+    <div className="flex flex-col items-center bg-muted/20 min-h-[100vh] py-10 px-2">
+      <div className="w-full max-w-4xl animate-fade-in">
+        <div className="mb-8 flex flex-col md:flex-row justify-between md:items-center">
+          <div>
+            <div className="flex items-center gap-2 text-2xl font-semibold text-primary">
+              <UploadIcon className="w-7 h-7" />
+              Data Entry <span className="text-primary text-lg">•</span>
             </div>
-            <span className="rounded px-2 py-0.5 text-xs bg-primary/10 text-primary font-medium mt-3 md:mt-0">
-              Fast entry & OCR in one place!
-            </span>
+            <div className="mt-1 text-muted-foreground text-base">
+              Upload OCR, add readings, tenders, or tank refills quickly.
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="ocr" className="space-y-6">
-            <TabsList className="grid grid-cols-4 gap-2 md:gap-4 w-full mx-auto mb-4">
-              <TabsTrigger value="ocr" className="flex flex-col items-center gap-1 text-sm font-medium">
-                <UploadIcon className="w-5 h-5" />
-                OCR Upload
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="flex flex-col items-center gap-1 text-sm font-medium">
-                <span className="inline-block w-5 h-5 bg-primary/15 rounded-full flex items-center justify-center text-primary text-xs font-bold">M</span>
-                Manual Reading
-              </TabsTrigger>
-              <TabsTrigger value="tender" className="flex flex-col items-center gap-1 text-sm font-medium">
-                <DollarSign className="w-5 h-5" />
-                Tender Entry
-              </TabsTrigger>
-              <TabsTrigger value="refill" className="flex flex-col items-center gap-1 text-sm font-medium">
-                <Fuel className="w-5 h-5" />
-                Tank Refill
-              </TabsTrigger>
-            </TabsList>
-            {/* --- OCR Tab --- */}
-            <TabsContent value="ocr">
-              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-md mb-6">
-                <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+          <span className="rounded px-2 py-0.5 text-xs bg-primary/10 text-primary font-medium mt-3 md:mt-0">
+            Fast entry & OCR in one place!
+          </span>
+        </div>
+
+        <Tabs defaultValue="ocr" className="space-y-6 w-full">
+          <TabsList className="grid grid-cols-4 gap-2 md:gap-4 w-full mx-auto mb-4">
+            <TabsTrigger value="ocr" className="flex flex-col items-center gap-1 text-sm font-medium">
+              <UploadIcon className="w-5 h-5" />
+              OCR Upload
+            </TabsTrigger>
+            <TabsTrigger value="manual" className="flex flex-col items-center gap-1 text-sm font-medium">
+              <span className="inline-block w-5 h-5 bg-primary/15 rounded-full flex items-center justify-center text-primary text-xs font-bold">M</span>
+              Manual Reading
+            </TabsTrigger>
+            <TabsTrigger value="tender" className="flex flex-col items-center gap-1 text-sm font-medium">
+              <DollarSign className="w-5 h-5" />
+              Tender Entry
+            </TabsTrigger>
+            <TabsTrigger value="refill" className="flex flex-col items-center gap-1 text-sm font-medium">
+              <Fuel className="w-5 h-5" />
+              Tank Refill
+            </TabsTrigger>
+          </TabsList>
+          {/* --- OCR Tab --- */}
+          <TabsContent value="ocr">
+            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+              <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                <div className="space-y-2">
+                  <Label htmlFor="ocr-file">Receipt Image/PDF</Label>
+                  <Input
+                    id="ocr-file"
+                    type="file"
+                    accept="image/jpeg,image/png,application/pdf"
+                    onChange={handleOcrFileChange}
+                    required
+                    className="file:bg-primary file:text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ocr-pump-sno">Pump Serial No.</Label>
+                  <Input
+                    id="ocr-pump-sno"
+                    value={ocrPumpSno}
+                    onChange={e => setOcrPumpSno(e.target.value)}
+                    placeholder="Enter pump S.No"
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2 mt-2">
+                  <Button
+                    disabled={ocrLoading}
+                    className="w-full text-base py-2"
+                  >
+                    {ocrLoading ? "Processing..." : "Upload & Run OCR"}
+                  </Button>
+                </div>
+              </form>
+              {/* OCR result preview */}
+              {ocrResult && (
+                <div className="mt-6 bg-muted/50 p-4 rounded border border-muted-foreground/10">
+                  <h4 className="font-bold mb-2 text-primary">OCR Preview</h4>
+                  <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(ocrResult, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          {/* --- Manual Tab --- */}
+          <TabsContent value="manual">
+            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+              <form onSubmit={handleSubmitManual(onSubmitManual)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="ocr-file">Receipt Image/PDF</Label>
-                    <Input
-                      id="ocr-file"
-                      type="file"
-                      accept="image/jpeg,image/png,application/pdf"
-                      onChange={handleOcrFileChange}
-                      required
-                      className="file:bg-primary file:text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="ocr-pump-sno">Pump Serial No.</Label>
-                    <Input
-                      id="ocr-pump-sno"
-                      value={ocrPumpSno}
-                      onChange={e => setOcrPumpSno(e.target.value)}
-                      placeholder="Enter pump S.No"
-                      required
-                    />
-                  </div>
-                  <div className="md:col-span-2 mt-2">
-                    <Button 
-                      disabled={ocrLoading} 
-                      className="w-full text-base py-2"
+                    <Label htmlFor="manual-station">Station</Label>
+                    <Select
+                      value={watchManual('station_id')?.toString() || ''}
+                      onValueChange={(value) => setManualValue('station_id', parseInt(value))}
                     >
-                      {ocrLoading ? "Processing..." : "Upload & Run OCR"}
-                    </Button>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select station" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userStations.map((station) => (
+                          <SelectItem key={station.id} value={station.id.toString()}>
+                            {station.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </form>
-                {/* OCR result preview */}
-                {ocrResult && (
-                  <div className="mt-6 bg-muted/50 p-4 rounded border border-muted-foreground/10">
-                    <h4 className="font-bold mb-2 text-primary">OCR Preview</h4>
-                    <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(ocrResult, null, 2)}</pre>
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-nozzle">Nozzle ID</Label>
+                    <Input
+                      id="manual-nozzle"
+                      type="number"
+                      {...registerManual('nozzle_id', { required: 'Nozzle ID is required', valueAsNumber: true })}
+                    />
+                    {manualErrors.nozzle_id && (
+                      <p className="text-sm text-red-600">{manualErrors.nozzle_id.message}</p>
+                    )}
                   </div>
-                )}
-              </div>
-            </TabsContent>
-            {/* --- Manual Tab --- */}
-            <TabsContent value="manual">
-              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-md mb-6">
-                <form onSubmit={handleSubmitManual(onSubmitManual)} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-station">Station</Label>
-                      <Select
-                        value={watchManual('station_id')?.toString() || ''}
-                        onValueChange={(value) => setManualValue('station_id', parseInt(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select station" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {userStations.map((station) => (
-                            <SelectItem key={station.id} value={station.id.toString()}>
-                              {station.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-nozzle">Nozzle ID</Label>
-                      <Input
-                        id="manual-nozzle"
-                        type="number"
-                        {...registerManual('nozzle_id', { required: 'Nozzle ID is required', valueAsNumber: true })}
-                      />
-                      {manualErrors.nozzle_id && (
-                        <p className="text-sm text-red-600">{manualErrors.nozzle_id.message}</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-volume">Cumulative Volume</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-volume">Cumulative Volume (L)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-muted-foreground">₹</span>
                       <Input
                         id="manual-volume"
                         type="number"
                         step="0.001"
+                        className="pl-7"
                         {...registerManual('cumulative_vol', { required: 'Volume is required', valueAsNumber: true })}
                       />
-                      {manualErrors.cumulative_vol && (
-                        <p className="text-sm text-red-600">{manualErrors.cumulative_vol.message}</p>
-                      )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-date">Date</Label>
-                      <Input
-                        id="manual-date"
-                        type="date"
-                        {...registerManual('reading_date', { required: 'Date is required' })}
-                      />
-                      {manualErrors.reading_date && (
-                        <p className="text-sm text-red-600">{manualErrors.reading_date.message}</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-time">Time</Label>
-                      <Input
-                        id="manual-time"
-                        type="time"
-                        {...registerManual('reading_time', { required: 'Time is required' })}
-                      />
-                      {manualErrors.reading_time && (
-                        <p className="text-sm text-red-600">{manualErrors.reading_time.message}</p>
-                      )}
-                    </div>
+                    {manualErrors.cumulative_vol && (
+                      <p className="text-sm text-red-600">{manualErrors.cumulative_vol.message}</p>
+                    )}
                   </div>
-                  <Button disabled={isSubmitting} className="w-full text-base py-2">
-                    {isSubmitting ? 'Submitting...' : 'Add Manual Reading'}
-                  </Button>
-                </form>
-              </div>
-            </TabsContent>
-            {/* --- Tender Entry --- */}
-            <TabsContent value="tender">
-              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-md mb-6">
-                <form onSubmit={handleSubmitTender(onSubmitTender)} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="tender-station">Station</Label>
-                      <Select 
-                        value={watchTender('station_id')?.toString() || ''} 
-                        onValueChange={(value) => setTenderValue('station_id', parseInt(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select station" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {userStations.map((station) => (
-                            <SelectItem key={station.id} value={station.id.toString()}>
-                              {station.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tender-date">Date</Label>
-                      <Input
-                        id="tender-date"
-                        type="date"
-                        {...registerTender('entry_date', { required: 'Date is required' })}
-                      />
-                      {tenderErrors.entry_date && (
-                        <p className="text-sm text-red-600">{tenderErrors.entry_date.message}</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tender-type">Payment Type</Label>
-                      <Select 
-                        value={watchTender('type') || ''} 
-                        onValueChange={value => setTenderValue('type', value as 'cash' | 'card' | 'upi' | 'credit')}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select payment type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="card">Card</SelectItem>
-                          <SelectItem value="upi">UPI</SelectItem>
-                          <SelectItem value="credit">Credit</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {tenderErrors.type && (
-                        <p className="text-sm text-red-600">{tenderErrors.type.message}</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tender-amount">Amount</Label>
-                      <CurrencyInput
-                        value={watchTender('amount')}
-                        onChange={value => setTenderValue('amount', value)}
-                        placeholder="₹0.00"
-                      />
-                      {tenderErrors.amount && (
-                        <p className="text-sm text-red-600">{tenderErrors.amount.message}</p>
-                      )}
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="tender-payer">Payer Name</Label>
-                      <Input
-                        id="tender-payer"
-                        placeholder="Enter payer name"
-                        {...registerTender('payer', { required: 'Payer name is required' })}
-                      />
-                      {tenderErrors.payer && (
-                        <p className="text-sm text-red-600">{tenderErrors.payer.message}</p>
-                      )}
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-date">Date</Label>
+                    <Input
+                      id="manual-date"
+                      type="date"
+                      {...registerManual('reading_date', { required: 'Date is required' })}
+                    />
+                    {manualErrors.reading_date && (
+                      <p className="text-sm text-red-600">{manualErrors.reading_date.message}</p>
+                    )}
                   </div>
-                  <Button disabled={isSubmitting} className="w-full text-base py-2">
-                    {isSubmitting ? 'Submitting...' : 'Add Tender Entry'}
-                  </Button>
-                </form>
-              </div>
-            </TabsContent>
-            {/* --- Refill Entry --- */}
-            <TabsContent value="refill">
-              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-md mb-6">
-                <form onSubmit={handleSubmitRefill(onSubmitRefill)} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="refill-station">Station</Label>
-                      <Select
-                        value={watchRefill('station_id')?.toString() || ''}
-                        onValueChange={(value) => setRefillValue('station_id', parseInt(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select station" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {userStations.map((station) => (
-                            <SelectItem key={station.id} value={station.id.toString()}>
-                              {station.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="refill-fuel">Fuel Type</Label>
-                      <Select
-                        value={watchRefill('fuel_type')}
-                        onValueChange={value => setRefillValue('fuel_type', value as 'PETROL' | 'DIESEL' | 'CNG' | 'EV')}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select fuel type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="PETROL">Petrol</SelectItem>
-                          <SelectItem value="DIESEL">Diesel</SelectItem>
-                          <SelectItem value="CNG">CNG</SelectItem>
-                          <SelectItem value="EV">EV</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="refill-quantity">Quantity (L)</Label>
-                      <Input
-                        id="refill-quantity"
-                        type="number"
-                        step="100"
-                        {...registerRefill('quantity_l', { required: 'Quantity is required', valueAsNumber: true })}
-                      />
-                      {refillErrors.quantity_l && (
-                        <p className="text-sm text-red-600">{refillErrors.quantity_l.message}</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="refill-date">Filled At</Label>
-                      <Input
-                        id="refill-date"
-                        type="date"
-                        {...registerRefill('filled_at', { required: 'Date is required' })}
-                      />
-                      {refillErrors.filled_at && (
-                        <p className="text-sm text-red-600">{refillErrors.filled_at.message}</p>
-                      )}
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-time">Time</Label>
+                    <Input
+                      id="manual-time"
+                      type="time"
+                      {...registerManual('reading_time', { required: 'Time is required' })}
+                    />
+                    {manualErrors.reading_time && (
+                      <p className="text-sm text-red-600">{manualErrors.reading_time.message}</p>
+                    )}
                   </div>
-                  <Button disabled={isSubmitting} className="w-full text-base py-2">
-                    {isSubmitting ? 'Submitting...' : 'Add Tank Refill'}
-                  </Button>
-                </form>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+                </div>
+                <Button disabled={isSubmitting} className="w-full text-base py-2">
+                  {isSubmitting ? 'Submitting...' : 'Add Manual Reading'}
+                </Button>
+              </form>
+            </div>
+          </TabsContent>
+          {/* --- Tender Entry --- */}
+          <TabsContent value="tender">
+            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+              <form onSubmit={handleSubmitTender(onSubmitTender)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="tender-station">Station</Label>
+                    <Select 
+                      value={watchTender('station_id')?.toString() || ''} 
+                      onValueChange={(value) => setTenderValue('station_id', parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select station" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userStations.map((station) => (
+                          <SelectItem key={station.id} value={station.id.toString()}>
+                            {station.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tender-date">Date</Label>
+                    <Input
+                      id="tender-date"
+                      type="date"
+                      {...registerTender('entry_date', { required: 'Date is required' })}
+                    />
+                    {tenderErrors.entry_date && (
+                      <p className="text-sm text-red-600">{tenderErrors.entry_date.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tender-type">Payment Type</Label>
+                    <Select 
+                      value={watchTender('type') || ''} 
+                      onValueChange={value => setTenderValue('type', value as 'cash' | 'card' | 'upi' | 'credit')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
+                        <SelectItem value="upi">UPI</SelectItem>
+                        <SelectItem value="credit">Credit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {tenderErrors.type && (
+                      <p className="text-sm text-red-600">{tenderErrors.type.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tender-amount">Amount</Label>
+                    <CurrencyInput
+                      value={watchTender('amount')}
+                      onChange={value => setTenderValue('amount', value)}
+                      placeholder="₹0.00"
+                    />
+                    {tenderErrors.amount && (
+                      <p className="text-sm text-red-600">{tenderErrors.amount.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="tender-payer">Payer Name</Label>
+                    <Input
+                      id="tender-payer"
+                      placeholder="Enter payer name"
+                      {...registerTender('payer', { required: 'Payer name is required' })}
+                    />
+                    {tenderErrors.payer && (
+                      <p className="text-sm text-red-600">{tenderErrors.payer.message}</p>
+                    )}
+                  </div>
+                </div>
+                <Button disabled={isSubmitting} className="w-full text-base py-2">
+                  {isSubmitting ? 'Submitting...' : 'Add Tender Entry'}
+                </Button>
+              </form>
+            </div>
+          </TabsContent>
+          {/* --- Refill Entry --- */}
+          <TabsContent value="refill">
+            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+              <form onSubmit={handleSubmitRefill(onSubmitRefill)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="refill-station">Station</Label>
+                    <Select
+                      value={watchRefill('station_id')?.toString() || ''}
+                      onValueChange={(value) => setRefillValue('station_id', parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select station" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userStations.map((station) => (
+                          <SelectItem key={station.id} value={station.id.toString()}>
+                            {station.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="refill-fuel">Fuel Type</Label>
+                    <Select
+                      value={watchRefill('fuel_type')}
+                      onValueChange={value => setRefillValue('fuel_type', value as 'PETROL' | 'DIESEL' | 'CNG' | 'EV')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select fuel type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PETROL">Petrol</SelectItem>
+                        <SelectItem value="DIESEL">Diesel</SelectItem>
+                        <SelectItem value="CNG">CNG</SelectItem>
+                        <SelectItem value="EV">EV</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="refill-quantity">Quantity (L)</Label>
+                    <Input
+                      id="refill-quantity"
+                      type="number"
+                      step="100"
+                      {...registerRefill('quantity_l', { required: 'Quantity is required', valueAsNumber: true })}
+                    />
+                    {refillErrors.quantity_l && (
+                      <p className="text-sm text-red-600">{refillErrors.quantity_l.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="refill-date">Filled At</Label>
+                    <Input
+                      id="refill-date"
+                      type="date"
+                      {...registerRefill('filled_at', { required: 'Date is required' })}
+                    />
+                    {refillErrors.filled_at && (
+                      <p className="text-sm text-red-600">{refillErrors.filled_at.message}</p>
+                    )}
+                  </div>
+                </div>
+                <Button disabled={isSubmitting} className="w-full text-base py-2">
+                  {isSubmitting ? 'Submitting...' : 'Add Tank Refill'}
+                </Button>
+              </form>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
