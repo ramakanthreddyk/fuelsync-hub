@@ -1,4 +1,3 @@
-
 # FuelSync Superadmin API Documentation
 
 ## Overview
@@ -68,45 +67,40 @@ Create an owner user and their station in one transaction.
 ### 2. User Management
 
 #### GET /superadmin-users
-List all users with optional filtering.
+List all users (optionally filtered).
 
-**Query Parameters:**
-- `role` (optional): Filter by user role (`superadmin`, `owner`, `employee`)
-- `stationId` (optional): Filter by station assignment
+#### POST /superadmin-users
+Create a user.
+- To create an employee, supply existing `station_id`
+- To create a new owner (always), supply required owner fields and station details to create the station
+- To assign an owner to a new (extra) station, call this endpoint again with new station fields
 
-**Examples:**
+#### PUT /superadmin-users/{userId}/edit
+Edit user profile fields: name, email, phone, role, is_active.
+
+**Body:**
+```json
+{
+  "name": "string (optional)",
+  "email": "string (optional)",
+  "phone": "string (optional)",
+  "role": "superadmin | owner | employee (optional)",
+  "is_active": "boolean (optional)"
+}
 ```
-GET /superadmin-users
-GET /superadmin-users?role=owner
-GET /superadmin-users?stationId=1
-GET /superadmin-users?role=employee&stationId=1
-```
+
+#### PUT /superadmin-users/{userId}/role
+Change user's role.
+
+#### PUT /superadmin-users/{userId}/status
+Activate/deactivate user.
+
+#### DELETE /superadmin-users/{userId}
+Delete user. Deletes from both "users" and "auth" system if possible.
 
 **Response:**
 ```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "name": "John Doe",
-      "email": "john@example.com",
-      "role": "owner",
-      "is_active": true,
-      "created_at": "2023-12-15T10:30:00Z",
-      "user_stations": [
-        {
-          "station_id": 1,
-          "stations": {
-            "id": 1,
-            "name": "Green Valley IOCL",
-            "brand": "IOCL"
-          }
-        }
-      ]
-    }
-  ]
-}
+{ "success": true, "message": "User deleted successfully" }
 ```
 
 ### 3. Station Management

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import {
   Table,
@@ -38,6 +37,10 @@ const UsersPage = ({ stations }: Props) => {
     station_id: ''
   });
   const [isFetching, setIsFetching] = useState(true);
+  const [editDialog, setEditDialog] = useState<{ open: boolean; user?: User }>({ open: false });
+  const [editForm, setEditForm] = useState<{ name: string; email: string; phone: string; role: User['role']; is_active: boolean, station_id?: number }>({ name: '', email: '', phone: '', role: 'employee', is_active: true });
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { session } = useAuth();
 
@@ -137,19 +140,89 @@ const UsersPage = ({ stations }: Props) => {
     }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin-users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success('User deleted successfully');
+        refetch();
+      } else {
+        throw new Error(data?.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete user');
+    }
+    setIsDeleting(false);
+  };
+
+  const openEditDialog = (user: User) => {
+    setEditForm({
+      name: user.name || '',
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      is_active: user.is_active,
+      station_id: '' // not shown for simplicity
+    });
+    setEditDialog({ open: true, user });
+  };
+  const closeEditDialog = () => {
+    setEditDialog({ open: false, user: undefined });
+  };
+
+  const handleEditUser = async () => {
+    if (!editDialog.user) return;
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin-users/${editDialog.user.id}/edit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify(editForm)
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success('User details updated');
+        refetch();
+        closeEditDialog();
+      } else {
+        throw new Error(data?.error || 'Failed to update user');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update user');
+    }
+    setIsUpdating(false);
+  };
+
   const handleCreateUser = async () => {
     try {
       setIsCreating(true);
-
-      const userData = {
+      const userData: any = {
         name: newUserForm.name,
         email: newUserForm.email,
         phone: newUserForm.phone,
         role: newUserForm.role,
-        password: newUserForm.password,
-        ...(newUserForm.station_id && { station_id: parseInt(newUserForm.station_id, 10) })
+        password: newUserForm.password
       };
-
+      // Employee: assign to station
+      if (newUserForm.role === 'employee' && newUserForm.station_id) {
+        userData.station_id = parseInt(newUserForm.station_id, 10);
+      }
+      // Owner: if selected station (for old owner), else require new station fields
+      if (newUserForm.role === 'owner' && newUserForm.station_id) {
+        userData.station_id = parseInt(newUserForm.station_id, 10);
+      }
+      // let the backend determine creation flow
       const response = await fetch(`${API_BASE_URL}/superadmin-users`, {
         method: 'POST',
         headers: {
@@ -158,18 +231,16 @@ const UsersPage = ({ stations }: Props) => {
         },
         body: JSON.stringify(userData)
       });
-
-      if (response.ok) {
+      const data = await response.json();
+      if (response.ok && data.success) {
         toast.success('User created successfully');
         resetNewUserForm();
         setShowCreateDialog(false);
         refetch();
       } else {
-        const error = await response.json();
-        throw new Error(error.error || error.message || 'Failed to create user');
+        throw new Error(data?.error || 'Failed to create user');
       }
     } catch (error) {
-      console.error('Error creating user:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to create user');
     } finally {
       setIsCreating(false);
@@ -270,6 +341,56 @@ const UsersPage = ({ stations }: Props) => {
         </Dialog>
       </div>
 
+      <Dialog open={editDialog.open} onOpenChange={(open) => { if (!open) closeEditDialog(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Name</Label>
+              <Input id="edit-name" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="edit-email">Email</Label>
+              <Input id="edit-email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input id="edit-phone" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Role</Label>
+              <Select value={editForm.role} onValueChange={value => setEditForm(f => ({ ...f, role: value as User['role'] }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="superadmin">Super Admin</SelectItem>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="employee">Employee</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Button
+                variant={editForm.is_active ? "outline" : "default"}
+                onClick={() => setEditForm(f => ({ ...f, is_active: !f.is_active }))}
+              >
+                {editForm.is_active ? "Deactivate" : "Activate"}
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditUser} disabled={isUpdating}>
+              {isUpdating ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {isFetching ? (
         <p>Loading users...</p>
       ) : (
@@ -319,7 +440,10 @@ const UsersPage = ({ stations }: Props) => {
                   </Button>
                 </TableCell>
                 <TableCell className="text-right">
-                  {/* Add any other actions here if needed */}
+                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(user)}>Edit</Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isDeleting}>
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
