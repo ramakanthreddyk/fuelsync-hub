@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -43,28 +42,22 @@ const UsersPage = ({ stations }: Props) => {
   const fetchUsers = async () => {
     setIsFetching(true);
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select(`
-          *,
-          user_stations (
-            station_id,
-            user_id,
-            created_at
-          ),
-          stations!stations_owner_id_fkey (
-            id,
-            name
-          )
-        `)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      // Transform user_stations to match UserStation type for each user
+      const resp = await fetch('https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
+          'apikey': supabase.supabaseKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      const { success, data, error } = await resp.json();
+      if (!success) throw new Error(error || "Failed to fetch users");
+      // Map user_stations to correct type
       const usersWithFullStations = (data || []).map((user: any) => ({
         ...user,
         user_stations: (user.user_stations || []).map((us: any) => ({
           station_id: us.station_id,
-          user_id: us.user_id ?? user.id, // fallback if not present
+          user_id: us.user_id ?? user.id,
           created_at: us.created_at ?? '',
         })),
       }));
@@ -82,11 +75,10 @@ const UsersPage = ({ stations }: Props) => {
     name: '', email: '', phone: '', role: 'employee', password: '', station_id: ''
   });
 
-  // Create User (insert to Supabase + assign station if needed)
+  // Create User (via Edge Function)
   const handleCreateUser = async () => {
     try {
       setIsCreating(true);
-      // Validate required fields
       if (!newUserForm.name || !newUserForm.email || !newUserForm.role) {
         toast.error('Name/email/role required');
         setIsCreating(false); return;
@@ -96,33 +88,28 @@ const UsersPage = ({ stations }: Props) => {
         setIsCreating(false); return;
       }
 
-      // Create user row
-      const { data: user, error: userErr } = await supabase
-        .from('users')
-        .insert({
-          name: newUserForm.name,
-          email: newUserForm.email,
-          phone: newUserForm.phone,
-          role: newUserForm.role,
-          is_active: true,
-          // password is not stored in users table, only through Auth!
-        })
-        .select('*').single();
+      const payload = {
+        name: newUserForm.name,
+        email: newUserForm.email,
+        phone: newUserForm.phone,
+        role: newUserForm.role,
+        station_id: newUserForm.station_id,
+        // Add more fields if needed
+      };
 
-      if (userErr || !user) throw userErr || new Error('Failed to create user');
-
-      // If needed, assign to station
-      if ((newUserForm.role === 'employee' || newUserForm.role === 'owner') && newUserForm.station_id) {
-        // Remove prior assignment if exists (shouldn't be but for safety)
-        await supabase.from('user_stations').delete().eq('user_id', user.id);
-        await supabase.from('user_stations').insert({
-          user_id: user.id, 
-          station_id: parseInt(newUserForm.station_id, 10)
-        });
-      }
-
+      const resp = await fetch('https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
+          'apikey': supabase.supabaseKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      const { success, data, error } = await resp.json();
+      if (!success) throw new Error(error || "Failed to create user");
       toast.success("User created successfully");
-      resetNewUserForm(); setShowCreateDialog(false); refetch();
+      resetNewUserForm(); setShowCreateDialog(false); fetchUsers();
     } catch (error: any) {
       toast.error(error?.message || 'Failed to create user');
     } finally {
@@ -130,33 +117,11 @@ const UsersPage = ({ stations }: Props) => {
     }
   };
 
-  // Edit User Dialog
-  const openEditDialog = (user: User) => {
-    let stationId: number | undefined = undefined;
-    if (user.role === 'employee' && user.user_stations && user.user_stations.length > 0) {
-      stationId = user.user_stations[0].station_id;
-    } else if (user.role === 'owner' && user.stations && user.stations.length > 0) {
-      stationId = user.stations[0].id;
-    }
-    setEditForm({
-      name: user.name || '',
-      email: user.email,
-      phone: user.phone || '',
-      role: user.role,
-      is_active: user.is_active,
-      station_id: stationId,
-      password: ''
-    });
-    setEditDialog({ open: true, user });
-  };
-  const closeEditDialog = () => setEditDialog({ open: false, user: undefined });
-
-  // Save Edit User (update fields + update station assignment)
+  // Edit User (via Edge Function)
   const handleEditUser = async () => {
     if (!editDialog.user) return;
     setIsUpdating(true);
     try {
-      // Only send changed fields
       const updateFields: any = {};
       ['name','email','phone','role','is_active'].forEach(key => {
         if ((editForm as any)[key] !== (editDialog.user as any)[key]) {
@@ -164,29 +129,28 @@ const UsersPage = ({ stations }: Props) => {
         }
       });
 
-      if (Object.keys(updateFields).length > 0) {
-        // Supabase update
-        const { error: updateError } = await supabase
-          .from('users')
-          .update(updateFields)
-          .eq('id', editDialog.user.id);
-        if (updateError) throw updateError;
+      // Add station_id for relevant roles
+      if ((editForm.role === "employee" || editForm.role === "owner") && editForm.station_id) {
+        updateFields.station_id = editForm.station_id;
       }
 
-      // For employee/owner handle station (reset and insert fresh)
-      if ((editForm.role === 'employee' || editForm.role === 'owner') && editForm.station_id) {
-        await supabase.from('user_stations').delete().eq('user_id', editDialog.user.id);
-        await supabase.from('user_stations').insert({
-          user_id: editDialog.user.id,
-          station_id: Number(editForm.station_id)
-        });
-      } else if (editForm.role === 'superadmin') {
-        // Remove any station assignment
-        await supabase.from('user_stations').delete().eq('user_id', editDialog.user.id);
-      }
-
+      const resp = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users/${editDialog.user.id}/edit`,
+        {
+          method: "PUT",
+          headers: {
+            'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
+            'apikey': supabase.supabaseKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updateFields)
+        }
+      );
+      const { success, data, error } = await resp.json();
+      if (!success) throw new Error(error || "Failed to update user");
       toast.success("User updated successfully");
-      refetch(); closeEditDialog();
+      fetchUsers();
+      closeEditDialog();
     } catch (error: any) {
       toast.error(error?.message || 'Failed to update user');
     }
@@ -223,21 +187,56 @@ const UsersPage = ({ stations }: Props) => {
     } catch (e: any) { toast.error(e?.message || "Failed to update status"); }
   };
 
-  // Delete user
+  // Delete User (via Edge Function)
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
     setIsDeleting(true);
     try {
-      // Cleanup station assignment
-      await supabase.from('user_stations').delete().eq('user_id', userId);
-      // Delete user row
-      const { error } = await supabase.from('users').delete().eq('id', userId);
-      if (error) throw error;
+      const resp = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users/${userId}`,
+        {
+          method: "DELETE",
+          headers: {
+            'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
+            'apikey': supabase.supabaseKey,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      const { success, error } = await resp.json();
+      if (!success && error?.includes('activity log')) {
+        toast.error("Cannot delete user due to activity logs. Remove logs and try again.");
+        return;
+      }
+      if (!success) throw new Error(error || "Failed to delete user");
       toast.success("User deleted successfully");
-      refetch();
-    } catch (e: any) { toast.error(e?.message || "Failed to delete user"); }
+      fetchUsers();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete user");
+    }
     setIsDeleting(false);
   };
+
+  // Edit User Dialog
+  const openEditDialog = (user: User) => {
+    let stationId: number | undefined = undefined;
+    if (user.role === 'employee' && user.user_stations && user.user_stations.length > 0) {
+      stationId = user.user_stations[0].station_id;
+    } else if (user.role === 'owner' && user.stations && user.stations.length > 0) {
+      stationId = user.stations[0].id;
+    }
+    setEditForm({
+      name: user.name || '',
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      is_active: user.is_active,
+      station_id: stationId,
+      password: ''
+    });
+    setEditDialog({ open: true, user });
+  };
+  const closeEditDialog = () => setEditDialog({ open: false, user: undefined });
 
   return (
     <div>

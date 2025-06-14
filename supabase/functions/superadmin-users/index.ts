@@ -28,6 +28,21 @@ serve(async (req) => {
     const pathname = url.pathname.replace('/functions/v1/superadmin-users', '');
     const pathParts = pathname.split('/').filter(Boolean);
 
+    // --- Add/update: always select full user shape for return ---
+    // core select statement for user with user_stations
+    const userSelect = `
+      *,
+      user_stations (
+        user_id,
+        station_id,
+        created_at
+      ),
+      stations!stations_owner_id_fkey (
+        id,
+        name
+      )
+    `;
+
     // --- Put/Edit User ---
     if (pathParts.length === 2 && pathParts[1] === 'edit' && req.method === 'PUT') {
       const userId = pathParts[0];
@@ -53,7 +68,7 @@ serve(async (req) => {
         .from('users')
         .update(updateFields)
         .eq('id', userId)
-        .select()
+        .select(userSelect)
         .single();
       if (updateError) {
         return new Response(JSON.stringify({ success: false, error: `Failed to update user: ${updateError.message}` }), {
@@ -171,7 +186,6 @@ serve(async (req) => {
     // DELETE /superadmin-users/{userId}
     if (pathParts.length === 1 && req.method === 'DELETE') {
       const userId = pathParts[0];
-      console.log('Delete user request for userId:', userId);
 
       // First, get user details
       const { data: userToDelete, error: userFetchError } = await supabaseAdmin
@@ -181,10 +195,8 @@ serve(async (req) => {
         .single();
 
       if (userFetchError || !userToDelete) {
-        console.error('User not found:', userFetchError);
         return new Response(JSON.stringify({
-          success: false,
-          error: 'User not found'
+          success: false, error: 'User not found'
         }), {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -192,23 +204,27 @@ serve(async (req) => {
       }
 
       // Delete user-station assignments first
-      const { error: deleteUserStationsError } = await supabaseAdmin
-        .from('user_stations')
-        .delete()
-        .eq('user_id', userId);
-
-      if (deleteUserStationsError) {
-        console.error('Error deleting user-station assignments:', deleteUserStationsError);
-      }
+      await supabaseAdmin.from('user_stations').delete().eq('user_id', userId);
 
       // Delete from users table
       const { error: deleteUserError } = await supabaseAdmin
         .from('users')
         .delete()
         .eq('id', userId);
-
       if (deleteUserError) {
-        console.error('Error deleting user:', deleteUserError);
+        // handle FK violation with user_activity_log
+        if (
+          typeof deleteUserError.message === 'string'
+          && deleteUserError.message.includes('violates foreign key constraint')
+        ) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Cannot delete user: activity log constraints. Remove logs first.'
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
         return new Response(JSON.stringify({
           success: false,
           error: `Failed to delete user: ${deleteUserError.message}`
@@ -221,12 +237,9 @@ serve(async (req) => {
       // Try to delete from Auth (optional, may fail if no auth_uid)
       if (userToDelete.auth_uid) {
         const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userToDelete.auth_uid);
-        if (deleteAuthError) {
-          console.error('Failed to delete from auth, but user deleted from users table:', deleteAuthError);
-        }
+        // ignore error, as user was deleted from our table
       }
 
-      console.log('User deleted successfully');
       return new Response(JSON.stringify({
         success: true,
         message: 'User deleted successfully'
@@ -235,23 +248,11 @@ serve(async (req) => {
       });
     }
 
+    // GET USERS: Always return user_stations WITH all fields
     if (req.method === 'GET') {
       const { data: users, error } = await supabaseAdmin
         .from('users')
-        .select(`
-          *,
-          user_stations (
-            station_id,
-            stations (
-              id,
-              name
-            )
-          ),
-          stations!stations_owner_id_fkey (
-            id,
-            name
-          )
-        `)
+        .select(userSelect)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -477,7 +478,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error('Superadmin users error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: 'Internal server error'
