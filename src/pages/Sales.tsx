@@ -288,6 +288,7 @@ export default function Sales() {
                     <SelectValue placeholder="Select pump" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All pumps</SelectItem>
                     {availablePumps
                       .filter(pump => pump.id != null && pump.id !== undefined)
                       .map(pump => (
@@ -310,6 +311,7 @@ export default function Sales() {
                     <SelectValue placeholder="Select nozzle" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All nozzles</SelectItem>
                     {availableNozzles
                       .filter(nozzle => nozzle.id != null && nozzle.id !== undefined)
                       .map(nozzle => (
@@ -347,14 +349,15 @@ export default function Sales() {
 
       {/* Filter Bar */}
       <SalesFilterBar
+        // The SalesFilterBar component: send "all" as the default for no filter (not "")
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         productType={productType}
         onProductTypeChange={setProductType}
-        pumpId={barPumpId}
-        onPumpIdChange={val => { setBarPumpId(val); setBarNozzleId(""); }}
-        nozzleId={barNozzleId}
-        onNozzleIdChange={setBarNozzleId}
+        pumpId={barPumpId === "" ? "all" : barPumpId}
+        onPumpIdChange={val => { setBarPumpId(val === "all" ? "" : val); setBarNozzleId(""); }}
+        nozzleId={barNozzleId === "" ? "all" : barNozzleId}
+        onNozzleIdChange={val => setBarNozzleId(val === "all" ? "" : val)}
         pumps={pumpsList}
         nozzles={nozzlesList}
         isMobile={false}
@@ -458,7 +461,7 @@ export default function Sales() {
                 <div>
                   <Label>Pump</Label>
                   <Select
-                    value={selectedPumpId?.toString() ?? "all"}
+                    value={selectedPumpId != null ? String(selectedPumpId) : "all"}
                     onValueChange={value => {
                       setSelectedPumpId(value === "all" ? null : parseInt(value));
                       setSelectedNozzleId(null);
@@ -485,7 +488,7 @@ export default function Sales() {
                 <div>
                   <Label>Nozzle</Label>
                   <Select
-                    value={selectedNozzleId?.toString() ?? "all"}
+                    value={selectedNozzleId != null ? String(selectedNozzleId) : "all"}
                     onValueChange={value => {
                       setSelectedNozzleId(value === "all" ? null : parseInt(value));
                     }}
