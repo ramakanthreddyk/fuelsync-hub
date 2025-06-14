@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from 'sonner';
+import { useAuth } from "@/hooks/useAuth"; // <--- Add this
 // Fix config: hardcode API_BASE_URL for now (replace with your actual API base url if different)
 const API_BASE_URL = '/api';
 import { supabase } from "@/integrations/supabase/client"; // Use direct import not provider
@@ -37,6 +38,11 @@ const UsersPage = ({ stations }: Props) => {
   });
   const [isFetching, setIsFetching] = useState(true);
 
+  const { session } = useAuth(); // <--- get session (contains access_token)
+
+  // Helper to get the session token, fallback to empty string
+  const getAuthToken = () => session?.access_token || "";
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -48,7 +54,7 @@ const UsersPage = ({ stations }: Props) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${getAuthToken()}`
         }
       });
 
@@ -88,7 +94,7 @@ const UsersPage = ({ stations }: Props) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify({ role: newRole })
       });
@@ -112,7 +118,7 @@ const UsersPage = ({ stations }: Props) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify({ is_active: newStatus })
       });
@@ -147,7 +153,7 @@ const UsersPage = ({ stations }: Props) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify(userData)
       });

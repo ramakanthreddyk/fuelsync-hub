@@ -56,7 +56,7 @@ interface RefillData {
 export default function Upload() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userStations } = useUserStations();
-  const supabase = useSupabase();
+  // const supabase = useSupabase();
 
   const {
     register: registerManual,
@@ -123,7 +123,7 @@ export default function Upload() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token ?? ""}`
         },
         body: JSON.stringify(data)
       });
@@ -145,15 +145,15 @@ export default function Upload() {
   const onSubmitTender = async (data: TenderEntryData) => {
     try {
       setIsSubmitting(true);
-      
+
       // Convert amount string to number
       const numericAmount = parseFloat(data.amount.replace(/[^\d.]/g, ''));
-      
+
       const response = await fetch(`${API_BASE_URL}/functions/v1/tender-entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token ?? ""}`
         },
         body: JSON.stringify({
           ...data,
@@ -182,7 +182,7 @@ export default function Upload() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token ?? ""}`
         },
         body: JSON.stringify(data)
       });
