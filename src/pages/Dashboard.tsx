@@ -14,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { SetupChecklist } from "@/components/dashboard/SetupChecklist";
+import { KeyMetricsCards } from "@/components/dashboard/KeyMetricsCards";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { ReadingSummary } from "@/components/dashboard/ReadingSummary";
 
 export default function Dashboard() {
   // ACTIVITY LOGGING: Log "dashboard_view" once per visit (on mount)
@@ -85,132 +89,24 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      {/* ----- SETUP CHECKLIST ----- */}
-      {(incomplete.length > 0) && (
-        <Card className="border-yellow-400 border-2 bg-yellow-50 mb-4 animate-pulse hover:animate-none transition-all duration-500">
-          <CardHeader className="flex items-center gap-3">
-            <ListChecks className="h-8 w-8 text-yellow-800" />
-            <div>
-              <CardTitle className="text-lg text-yellow-900">Finish your Setup</CardTitle>
-              <CardDescription>
-                Please complete the following items to start using the app smoothly.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {checklist.map(item => (
-                <li key={item.key} className="flex items-center gap-3">
-                  {/* Only "check" completed items */}
-                  <span>
-                    {item.completed ? (
-                      <span className="inline-block w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white"><span className="sr-only">Done</span>✔️</span>
-                    ) : (
-                      <span className="inline-block w-6 h-6 rounded-full bg-yellow-500/50 border border-yellow-900 flex items-center justify-center text-yellow-900">!</span>
-                    )}
-                  </span>
-                  <span className={item.completed ? "text-green-800 font-medium" : "text-yellow-900"}>
-                    {item.label}
-                  </span>
-                  {!item.completed &&
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={item.action}
-                    >
-                      Fix
-                    </Button>
-                  }
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-      {/* ----- END SETUP CHECKLIST ----- */}
-
-      {/* Header */}
+      <SetupChecklist checklist={checklist} />
       <div className="space-y-2">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground">
           Welcome back, {user?.name}! Here's what's happening today.
         </p>
       </div>
-
-      {/* Alert Badges */}
       <AlertBadges alerts={data.alerts} />
+      <KeyMetricsCards
+        todaySales={data.todaySales}
+        todayTender={data.todayTender}
+        pendingClosures={data.pendingClosures}
+        premiumRequired={premiumRequired}
+        variance={variance}
+        lockWidgetProps={lockWidgetProps}
+        lockOverlay={lockOverlay}
+      />
 
-      {/* Key Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total Sales Today */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales Today</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">₹{data.todaySales.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              From fuel dispensing
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Total Tender */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tender</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">₹{data.todayTender.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              Cash, card, UPI & credit
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Pending Closures */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Closures</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${data.pendingClosures > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {data.pendingClosures}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {data.pendingClosures > 0 ? 'Need attention' : 'All closed'}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Daily Variance (Premium ONLY) */}
-        <div className="relative">
-          <Card className={`hover:shadow-md transition-shadow ${premiumRequired ? 'pointer-events-auto opacity-60 blur-sm' : ''}`}
-            {...(premiumRequired ? lockWidgetProps : {})}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Daily Variance</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${Math.abs(variance) < 1 ? 'text-green-600' : variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                {Math.abs(variance) < 1 ? 'Balanced' : `${variance > 0 ? '+' : '-'}₹${Math.abs(variance).toFixed(2)}`}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {Math.abs(variance) < 1 ? 'Sales match collections' : variance > 0 ? 'Collection excess' : 'Collection shortage'}
-              </p>
-            </CardContent>
-            {/* Add overlay only if locked */}
-            {premiumRequired && lockOverlay}
-          </Card>
-        </div>
-      </div>
-
-      {/* Charts and Secondary Info */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Trends Chart (Premium ONLY) */}
         <div className="lg:col-span-2 relative">
@@ -219,80 +115,12 @@ export default function Dashboard() {
             {premiumRequired && lockOverlay}
           </div>
         </div>
-
         {/* Fuel Prices and Quick Actions */}
         <div className="space-y-6">
-          {/* Fuel Prices Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Common daily tasks</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 gap-3">
-                <button 
-                  onClick={() => window.location.href = '/upload'}
-                  className="p-3 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
-                >
-                  <div className="font-medium group-hover:text-primary">Add Reading</div>
-                  <div className="text-sm text-muted-foreground">Upload or manual entry</div>
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/daily-closure'}
-                  className="p-3 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
-                >
-                  <div className="font-medium group-hover:text-primary">Daily Closure</div>
-                  <div className="text-sm text-muted-foreground">End of day summary</div>
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/prices'}
-                  className="p-3 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
-                >
-                  <div className="font-medium group-hover:text-primary">Update Prices</div>
-                  <div className="text-sm text-muted-foreground">Fuel price management</div>
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/reports'}
-                  className="p-3 text-left border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200 group"
-                >
-                  <div className="font-medium group-hover:text-primary">View Reports</div>
-                  <div className="text-sm text-muted-foreground">Sales & analytics</div>
-                </button>
-              </div>
-            </CardContent>
-          </Card>
+          <QuickActions />
         </div>
       </div>
-
-      {/* Readings Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Fuel className="h-5 w-5" />
-            Reading Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="text-center p-4 border rounded-lg">
-            <div className="text-2xl font-bold">{data.totalReadings}</div>
-            <div className="text-sm text-muted-foreground">Total Readings</div>
-          </div>
-          <div className="text-center p-4 border rounded-lg">
-            <div className="text-2xl font-bold">
-              {data.lastReading ? new Date(data.lastReading).toLocaleTimeString() : 'None'}
-            </div>
-            <div className="text-sm text-muted-foreground">Last Reading</div>
-          </div>
-          <div className="text-center p-4 border rounded-lg">
-            <div className="text-2xl font-bold">
-              {data.lastReading ? new Date(data.lastReading).toLocaleDateString() : 'No data'}
-            </div>
-            <div className="text-sm text-muted-foreground">Last Reading Date</div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* MODAL */}
+      <ReadingSummary totalReadings={data.totalReadings} lastReading={data.lastReading} />
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
