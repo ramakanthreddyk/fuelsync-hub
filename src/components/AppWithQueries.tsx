@@ -13,6 +13,7 @@ import {
   CreateOwnerWizard 
 } from '@/pages/SuperAdmin';
 import Login from '@/pages/Login';
+import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
 import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
@@ -101,6 +102,14 @@ export function AppWithQueries() {
                 <Login />
               </PublicRoute>
             } 
+          />
+          <Route 
+            path="/signup" 
+            element={
+              <PublicRoute>
+                <Signup />
+              </PublicRoute>
+            }
           />
           
           {/* Super Admin Routes - Completely separate from owner/employee routes */}

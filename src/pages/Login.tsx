@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -244,6 +243,11 @@ export default function Login() {
             </form>
           </CardContent>
         </Card>
+
+        <div className="mt-4 text-center">
+          <span className="text-sm text-gray-600">Don't have an account? </span>
+          <a href="/signup" className="text-blue-600 hover:underline">Sign Up</a>
+        </div>
 
         <Card>
           <CardHeader>
