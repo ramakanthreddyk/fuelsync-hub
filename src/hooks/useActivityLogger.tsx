@@ -29,14 +29,12 @@ export function useActivityLogger() {
         station_id = user.stations[0]?.id;
       }
       // Insert new row in user_activity_log using correct types
-      const { error } = await supabase.from("user_activity_log").insert([
-        {
-          user_id: user.id,
-          station_id: station_id ?? null,
-          activity_type: activityType,
-          details: details ?? null,
-        },
-      ]);
+      const { error } = await supabase.from("user_activity_log").insert({
+        user_id: user.id, // uuid string
+        station_id: station_id ?? null,
+        activity_type: activityType,
+        details: details ?? null,
+      });
       if (error) {
         // For debug, warn in dev
         // console.warn("Failed to log activity:", error.message);
