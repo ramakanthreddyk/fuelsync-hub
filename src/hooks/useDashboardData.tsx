@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+const SUPABASE_URL = "https://untzkhbbsowpkmwrxdws.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVudHpraGJic293cGttd3J4ZHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3MTQ2ODAsImV4cCI6MjA2NTI5MDY4MH0.aEJHq7lKjbKMa0JIqxIT9wjfMY4PGd1bTkC-t2smSGs";
+
 interface DashboardData {
   todaySales: number;
   todayTender: number;
@@ -44,10 +47,23 @@ export const useDashboardData = () => {
 
   const currentStation = user?.stations?.[0];
 
+  // Get the current session's access token for the Authorization header
+  const getAuthHeader = () => {
+    // Get from supabase client if available
+    const token = supabase.auth?.getAuthToken
+      ? supabase.auth.getAuthToken()
+      : (typeof window !== "undefined" && localStorage.getItem('sb-access-token')) || "";
+    // If supabase.auth.getAuthToken is async, fall back to stored value
+    // For react-userland we just use the access_token from localStorage if present
+    // Otherwise, try from user object if available
+    return (token && typeof token !== "object") ? token : (user?.access_token || "");
+  };
+
   useEffect(() => {
     if (currentStation) {
       loadDashboardData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStation]);
 
   const loadDashboardData = async () => {
@@ -61,12 +77,20 @@ export const useDashboardData = () => {
       setIsLoading(true);
       console.log("Loading dashboard data for station", currentStation);
 
-      // Fetch dashboard summary using fetch to pass stationId as a query param
+      // Build headers for Edge Function calls
+      const accessToken = getAuthHeader();
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "authorization": `Bearer ${accessToken}`,
+      };
+
+      // Fetch dashboard summary
       const summaryRes = await fetch(
-        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/dashboard-api/summary?stationId=${currentStation.id}`,
+        `${SUPABASE_URL}/functions/v1/dashboard-api/summary?stationId=${currentStation.id}`,
         {
           method: "GET",
-          headers: { "Content-Type": "application/json" }
+          headers,
         }
       );
       const summaryResult = await summaryRes.json();
@@ -79,10 +103,10 @@ export const useDashboardData = () => {
 
       // Fetch sales trends
       const trendsRes = await fetch(
-        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/dashboard-api/sales-trend?stationId=${currentStation.id}`,
+        `${SUPABASE_URL}/functions/v1/dashboard-api/sales-trend?stationId=${currentStation.id}`,
         {
           method: "GET",
-          headers: { "Content-Type": "application/json" }
+          headers
         }
       );
       const trendsResult = await trendsRes.json();
@@ -91,7 +115,6 @@ export const useDashboardData = () => {
       if (!trendsRes.ok || trendsResult?.error) {
         throw new Error(trendsResult?.error || "Failed to load trends data");
       }
-
       const trends = trendsResult.data || [];
 
       // Get total readings count
