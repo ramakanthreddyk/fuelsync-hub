@@ -75,7 +75,116 @@ serve(async (req) => {
     const pathname = url.pathname.replace('/functions/v1/superadmin-users', '');
     const pathParts = pathname.split('/').filter(Boolean);
 
-    // /superadmin-users/{id}/role, /superadmin-users/{id}/status, /superadmin-users/{id}, or /superadmin-users/{id}/edit
+    // PUT /superadmin-users/{userId}/edit (optional: email/name/phone/role/is_active/station_id)
+    if (pathParts.length === 2 && pathParts[1] === 'edit' && req.method === 'PUT') {
+      const userId = pathParts[0];
+      console.log('Edit user request for userId:', userId);
+      
+      try {
+        const body = await req.json();
+        console.log('Edit user request body:', body);
+        
+        const { name, email, phone, role, is_active, station_id } = body;
+
+        // Validate required fields
+        if (!userId) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'User ID is required'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Build update fields for users table
+        const updateFields: Record<string, any> = {};
+        if (name !== undefined) updateFields.name = name;
+        if (email !== undefined) updateFields.email = email;
+        if (phone !== undefined) updateFields.phone = phone;
+        if (role !== undefined) updateFields.role = role;
+        if (typeof is_active === 'boolean') updateFields.is_active = is_active;
+
+        console.log('Update fields for users table:', updateFields);
+
+        // Update the user record
+        const { data: updated, error: updateError } = await supabaseAdmin
+          .from('users')
+          .update(updateFields)
+          .eq('id', userId)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Error updating user:', updateError);
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Failed to update user: ${updateError.message}`
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        console.log('User updated successfully:', updated);
+
+        // Handle station assignment for employees and owners
+        if (station_id !== undefined) {
+          console.log('Handling station assignment, station_id:', station_id);
+          
+          // First, remove existing station assignments for this user
+          const { error: deleteError } = await supabaseAdmin
+            .from('user_stations')
+            .delete()
+            .eq('user_id', userId);
+
+          if (deleteError) {
+            console.error('Error removing existing station assignments:', deleteError);
+          }
+
+          // If station_id is provided (not null/empty), add new assignment
+          if (station_id && station_id !== '' && station_id !== 'undefined') {
+            const { error: insertError } = await supabaseAdmin
+              .from('user_stations')
+              .insert({ 
+                user_id: userId, 
+                station_id: parseInt(station_id.toString(), 10) 
+              });
+
+            if (insertError) {
+              console.error('Error creating new station assignment:', insertError);
+              return new Response(JSON.stringify({
+                success: false,
+                error: `Failed to assign station: ${insertError.message}`
+              }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
+            }
+            console.log('Station assignment created successfully');
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          data: updated
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Invalid request body'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // /superadmin-users/{id}/role, /superadmin-users/{id}/status
     if (pathParts.length === 2 && (pathParts[1] === 'role' || pathParts[1] === 'status')) {
       const userId = pathParts[0];
 
@@ -95,7 +204,7 @@ serve(async (req) => {
             });
           }
 
-          const { data, error } = await supabase
+          const { data, error } = await supabaseAdmin
             .from('users')
             .update({ role })
             .eq('id', userId)
@@ -133,7 +242,7 @@ serve(async (req) => {
             });
           }
 
-          const { data, error } = await supabase
+          const { data, error } = await supabaseAdmin
             .from('users')
             .update({ is_active })
             .eq('id', userId)
@@ -171,15 +280,17 @@ serve(async (req) => {
     // DELETE /superadmin-users/{userId}
     if (pathParts.length === 1 && req.method === 'DELETE') {
       const userId = pathParts[0];
+      console.log('Delete user request for userId:', userId);
 
-      // First, delete from Supabase Auth (delete by auth UID if available)
-      const { data: userToDelete, error: userFetchError } = await supabase
+      // First, get user details
+      const { data: userToDelete, error: userFetchError } = await supabaseAdmin
         .from('users')
         .select('id, auth_uid')
         .eq('id', userId)
         .single();
 
       if (userFetchError || !userToDelete) {
+        console.error('User not found:', userFetchError);
         return new Response(JSON.stringify({
           success: false,
           error: 'User not found'
@@ -189,34 +300,42 @@ serve(async (req) => {
         });
       }
 
-      if (userToDelete.auth_uid) {
-        // Delete from Auth user pool
-        const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userToDelete.auth_uid);
-        if (deleteAuthError) {
-          return new Response(JSON.stringify({
-            success: false,
-            error: `Failed to remove from user auth pool: ${deleteAuthError.message}`
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
+      // Delete user-station assignments first
+      const { error: deleteUserStationsError } = await supabaseAdmin
+        .from('user_stations')
+        .delete()
+        .eq('user_id', userId);
+
+      if (deleteUserStationsError) {
+        console.error('Error deleting user-station assignments:', deleteUserStationsError);
       }
 
-      // Delete user-station assignments
-      await supabase.from('user_stations').delete().eq('user_id', userId);
+      // Delete from users table
+      const { error: deleteUserError } = await supabaseAdmin
+        .from('users')
+        .delete()
+        .eq('id', userId);
 
-      // Now delete from users table
-      const { error: deleteUserError } = await supabase.from('users').delete().eq('id', userId);
       if (deleteUserError) {
+        console.error('Error deleting user:', deleteUserError);
         return new Response(JSON.stringify({
           success: false,
-          error: 'Failed to delete user'
+          error: `Failed to delete user: ${deleteUserError.message}`
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
+
+      // Try to delete from Auth (optional, may fail if no auth_uid)
+      if (userToDelete.auth_uid) {
+        const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userToDelete.auth_uid);
+        if (deleteAuthError) {
+          console.error('Failed to delete from auth, but user deleted from users table:', deleteAuthError);
+        }
+      }
+
+      console.log('User deleted successfully');
       return new Response(JSON.stringify({
         success: true,
         message: 'User deleted successfully'
@@ -225,55 +344,23 @@ serve(async (req) => {
       });
     }
 
-    // PUT /superadmin-users/{userId}/edit (optional: email/name/phone/role/is_active)
-    if (pathParts.length === 2 && pathParts[1] === 'edit' && req.method === 'PUT') {
-      const userId = pathParts[0];
-      const { name, phone, role, is_active } = await req.json();
-
-      const updateFields: Record<string, any> = {};
-      if (name) updateFields.name = name;
-      if (phone) updateFields.phone = phone;
-      if (role) updateFields.role = role;
-      if (typeof is_active === 'boolean') updateFields.is_active = is_active;
-
-      if (Object.keys(updateFields).length === 0) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'No valid fields provided for update.'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      const { data: updated, error: updateError } = await supabase
-        .from('users')
-        .update(updateFields)
-        .eq('id', userId)
-        .select()
-        .single();
-
-      if (updateError) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: updateError.message
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      return new Response(JSON.stringify({
-        success: true,
-        data: updated
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
     if (req.method === 'GET') {
-      const { data: users, error } = await supabase
+      const { data: users, error } = await supabaseAdmin
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          user_stations (
+            station_id,
+            stations (
+              id,
+              name
+            )
+          ),
+          stations!stations_owner_id_fkey (
+            id,
+            name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -294,8 +381,6 @@ serve(async (req) => {
       });
     }
 
-    // --- Advanced Create User Flow ---
-    // POST /superadmin-users
     if (req.method === 'POST') {
       const { name, email, phone, role, password = 'defaultpass123', station_id, station_name, brand, address } = await req.json();
 
@@ -324,7 +409,7 @@ serve(async (req) => {
         }
 
         // Create owner user
-        const { data: user, error: userErr } = await supabase
+        const { data: user, error: userErr } = await supabaseAdmin
           .from('users')
           .insert({ name, email, phone, role, password, is_active: true })
           .select()
@@ -349,7 +434,7 @@ serve(async (req) => {
 
         if (authErr) {
           // Cleanup users row
-          await supabase.from('users').delete().eq('id', newUser.id);
+          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
           return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -357,7 +442,7 @@ serve(async (req) => {
         }
 
         // Now create a new station for this owner
-        const { data: newStation, error: stationErr } = await supabase
+        const { data: newStation, error: stationErr } = await supabaseAdmin
           .from('stations')
           .insert({
             name: station_name,
@@ -370,7 +455,7 @@ serve(async (req) => {
           .single();
 
         if (stationErr) {
-          await supabase.from('users').delete().eq('id', newUser.id);
+          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
           await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
           return new Response(JSON.stringify({
             success: false,
@@ -400,7 +485,7 @@ serve(async (req) => {
           });
         }
 
-        const { data: user, error: userErr } = await supabase
+        const { data: user, error: userErr } = await supabaseAdmin
           .from('users')
           .insert({ name, email, phone, role, password, is_active: true })
           .select()
@@ -424,7 +509,7 @@ serve(async (req) => {
         });
 
         if (authErr) {
-          await supabase.from('users').delete().eq('id', newUser.id);
+          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
           return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -432,12 +517,12 @@ serve(async (req) => {
         }
 
         // Create user_stations link
-        const { error: userStationErr } = await supabase
+        const { error: userStationErr } = await supabaseAdmin
           .from('user_stations')
           .insert({ user_id: newUser.id, station_id: station_id });
 
         if (userStationErr) {
-          await supabase.from('users').delete().eq('id', newUser.id);
+          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
           await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
           return new Response(JSON.stringify({ success: false, error: 'Failed to assign employee to station' }), {
             status: 500,
@@ -454,7 +539,7 @@ serve(async (req) => {
 
       } else {
         // For superadmin or other roles: old flow
-        const { data: user, error: userErr } = await supabase
+        const { data: user, error: userErr } = await supabaseAdmin
           .from('users')
           .insert({ name, email, phone, role, password, is_active: true })
           .select()
@@ -477,7 +562,7 @@ serve(async (req) => {
         });
 
         if (authErr) {
-          await supabase.from('users').delete().eq('id', newUser.id);
+          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
           return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -491,67 +576,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-    }
-
-    if (req.method === 'PUT') {
-      const { id, name, email, phone, role, is_active } = await req.json();
-      if (!id) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'User ID is required'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      const { data: updatedUser, error } = await supabase.from('users').update({
-        name, email, phone, role, is_active
-      }).eq('id', id).select().single();
-      if (error) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Failed to update user'
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      return new Response(JSON.stringify({
-        success: true,
-        data: updatedUser
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (req.method === 'DELETE') {
-      const url = new URL(req.url);
-      const id = url.searchParams.get('id');
-      if (!id) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'User ID is required'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      const { error } = await supabase.from('users').delete().eq('id', id);
-      if (error) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Failed to delete user'
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'User deleted successfully'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
     }
 
     return new Response(JSON.stringify({
