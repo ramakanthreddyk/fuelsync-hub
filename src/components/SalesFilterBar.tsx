@@ -39,6 +39,10 @@ export function SalesFilterBar({
   // Always use "all" as the value for "All..." items; never ""
   // Ensure that we never render SelectItem value="" by accident
 
+  // Patch controlled value logic: if incoming prop is "", switch to "all" (for productType, pump, nozzle).
+  // And onValueChange, translate "all" back to "" (or however your logic expects).
+  const productTypeValue = productType === "" ? "all" : productType;
+
   return (
     <div className={`flex flex-wrap gap-2 rounded-lg shadow-sm bg-background px-2 py-2 md:flex-nowrap w-full justify-between items-center ${isMobile ? "flex-col space-y-2" : ""}`}>
       <div className="flex flex-wrap gap-2 items-center">
@@ -74,12 +78,15 @@ export function SalesFilterBar({
           </PopoverContent>
         </Popover>
         {/* Product Type */}
-        <Select value={productType} onValueChange={onProductTypeChange}>
+        <Select
+          value={productTypeValue}
+          onValueChange={val => onProductTypeChange(val === "all" ? "" : val)}
+        >
           <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Fuel type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{/* (empty string is safe for product type) */}All</SelectItem>
+            <SelectItem value="all">All</SelectItem>
             <SelectItem value="Petrol">Petrol</SelectItem>
             <SelectItem value="Diesel">Diesel</SelectItem>
           </SelectContent>
