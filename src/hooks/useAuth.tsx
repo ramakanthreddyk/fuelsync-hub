@@ -45,9 +45,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
 
       if (event === 'SIGNED_IN' && session?.user) {
+        // Immediately set a "pending" user to trigger redirects
+        setUser({
+          id: session.user.id,
+          name: session.user.user_metadata.name ?? session.user.email ?? null,
+          email: session.user.email!,
+          phone: session.user.user_metadata.phone ?? null,
+          role: (session.user.user_metadata.role as UserRole) ?? 'employee',
+          is_active: true,
+          created_at: null,
+          updated_at: null,
+          stations: [],
+        });
+        // Fetch full user details from DB in next tick
         setTimeout(() => {
           fetchUserData(session.user.email!);
         }, 0);
+        setLoading(false); // Set loading false so router can react
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
@@ -58,6 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
+        // Same: set temp user then fetch
+        setUser({
+          id: session.user.id,
+          name: session.user.user_metadata.name ?? session.user.email ?? null,
+          email: session.user.email!,
+          phone: session.user.user_metadata.phone ?? null,
+          role: (session.user.user_metadata.role as UserRole) ?? 'employee',
+          is_active: true,
+          created_at: null,
+          updated_at: null,
+          stations: [],
+        });
         fetchUserData(session.user.email!);
       } else {
         setLoading(false);
