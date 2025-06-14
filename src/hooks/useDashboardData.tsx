@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { fuelPriceService } from "@/services/fuelPriceService";
 
 interface DashboardData {
   todaySales: number;
@@ -21,6 +20,13 @@ interface DashboardData {
     CNG?: number;
     EV?: number;
   };
+  alerts: Array<{
+    id: string;
+    type: 'warning' | 'info' | 'error';
+    message: string;
+    severity: 'low' | 'medium' | 'high';
+    tags: string[];
+  }>;
 }
 
 export const useDashboardData = () => {
@@ -32,12 +38,12 @@ export const useDashboardData = () => {
     lastReading: null,
     pendingClosures: 0,
     trendsData: [],
-    fuelPrices: {}
+    fuelPrices: {},
+    alerts: []
   });
   const [isLoading, setIsLoading] = useState(true);
 
   const currentStation = user?.stations?.[0];
-  const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     if (currentStation) {
@@ -49,24 +55,31 @@ export const useDashboardData = () => {
     if (!currentStation) return;
 
     try {
-      // Get today's sales
-      const { data: salesData } = await supabase
-        .from('sales')
-        .select('total_amount')
-        .eq('station_id', currentStation.id)
-        .gte('created_at', `${today}T00:00:00Z`)
-        .lt('created_at', `${today}T23:59:59Z`);
+      setIsLoading(true);
 
-      const todaySales = salesData?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
+      // Load dashboard summary
+      const { data: summaryResult } = await supabase.functions.invoke('dashboard-api/summary', {
+        body: null,
+        method: 'GET'
+      });
 
-      // Get today's tender
-      const { data: tenderData } = await supabase
-        .from('tender_entries')
-        .select('amount')
-        .eq('station_id', currentStation.id)
-        .eq('entry_date', today);
+      if (summaryResult?.error) {
+        throw new Error(summaryResult.error);
+      }
 
-      const todayTender = tenderData?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0;
+      const summary = summaryResult.data;
+
+      // Load sales trends
+      const { data: trendsResult } = await supabase.functions.invoke('dashboard-api/sales-trend', {
+        body: null,
+        method: 'GET'
+      });
+
+      if (trendsResult?.error) {
+        throw new Error(trendsResult.error);
+      }
+
+      const trends = trendsResult.data || [];
 
       // Get total readings count
       const { count: readingsCount } = await supabase
@@ -82,75 +95,27 @@ export const useDashboardData = () => {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      // Get 7-day trends
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-      
-      const trendsData = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(sevenDaysAgo);
-        date.setDate(date.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
-
-        // Get sales for this date
-        const { data: dailySales } = await supabase
-          .from('sales')
-          .select('total_amount')
-          .eq('station_id', currentStation.id)
-          .gte('created_at', `${dateStr}T00:00:00Z`)
-          .lt('created_at', `${dateStr}T23:59:59Z`);
-
-        // Get tender for this date
-        const { data: dailyTender } = await supabase
-          .from('tender_entries')
-          .select('amount')
-          .eq('station_id', currentStation.id)
-          .eq('entry_date', dateStr);
-
-        trendsData.push({
-          date: dateStr,
-          sales: dailySales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0,
-          tender: dailyTender?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0,
-        });
-      }
-
-      // Get pending closures (simplified - count days without closure)
-      const { count: pendingClosures } = await supabase
-        .from('daily_closure')
-        .select('*', { count: 'exact' })
-        .eq('station_id', currentStation.id)
-        .eq('date', today);
-
-      // Get current fuel prices
-      const fuelPrices = {};
-      try {
-        const prices = await fuelPriceService.getFuelPrices(currentStation.id);
-        const fuelTypes = ['PETROL', 'DIESEL', 'CNG', 'EV'] as const;
-        
-        for (const fuelType of fuelTypes) {
-          const latestPrice = prices
-            .filter(p => p.fuel_type === fuelType)
-            .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime())[0];
-          
-          if (latestPrice) {
-            fuelPrices[fuelType] = latestPrice.price_per_litre;
-          }
-        }
-      } catch (error) {
-        console.error('Error loading fuel prices:', error);
-      }
-
       setData({
-        todaySales,
-        todayTender,
+        todaySales: summary.total_sales_today || 0,
+        todayTender: summary.total_tender_today || 0,
         totalReadings: readingsCount || 0,
         lastReading: lastReadingData?.[0]?.created_at || null,
-        pendingClosures: pendingClosures === 0 ? 1 : 0, // Inverted logic: 0 means closure exists
-        trendsData,
-        fuelPrices
+        pendingClosures: summary.pending_closure_count || 0,
+        trendsData: trends,
+        fuelPrices: summary.fuel_prices || {},
+        alerts: summary.alerts || []
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      setData(prev => ({ ...prev, alerts: [
+        {
+          id: 'load_error',
+          type: 'error',
+          message: 'Failed to load dashboard data',
+          severity: 'high',
+          tags: ['system']
+        }
+      ]}));
     } finally {
       setIsLoading(false);
     }

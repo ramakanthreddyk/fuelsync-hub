@@ -32,11 +32,7 @@ export default function Dashboard() {
       </div>
 
       {/* Alert Badges */}
-      <AlertBadges 
-        variance={variance}
-        pendingClosures={data.pendingClosures}
-        lastReading={data.lastReading}
-      />
+      <AlertBadges alerts={data.alerts} />
 
       {/* Key Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

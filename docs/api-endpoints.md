@@ -9,6 +9,97 @@ Complete API documentation for the FuelSync multi-tenant fuel station management
 - **Base URL**: https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1
 - **Authentication**: Not required for these endpoints (verify_jwt = false)
 
+## 📊 Dashboard Management API
+
+### Base Endpoint: `/dashboard-api`
+
+#### GET /dashboard-api/summary
+Get comprehensive dashboard summary with key metrics and alerts.
+
+**Query Parameters:**
+- `stationId` (required): Station ID
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_sales_today": 15000.50,
+    "total_tender_today": 14850.25,
+    "fuel_prices": {
+      "PETROL": 102.50,
+      "DIESEL": 89.75,
+      "CNG": 95.20,
+      "EV": 12.50
+    },
+    "pending_closure_count": 0,
+    "variance": -150.25,
+    "alerts": [
+      {
+        "id": "variance_alert",
+        "type": "warning",
+        "message": "Sales-Collections variance: ₹150.25",
+        "severity": "medium",
+        "tags": ["finance", "reconciliation"]
+      },
+      {
+        "id": "missing_readings",
+        "type": "warning", 
+        "message": "No readings in last 4 hours",
+        "severity": "high",
+        "tags": ["operations", "readings"]
+      }
+    ]
+  }
+}
+```
+
+#### GET /dashboard-api/sales-trend
+Get sales trend data for chart visualization.
+
+**Query Parameters:**
+- `stationId` (required): Station ID
+- `days` (optional): Number of days to fetch (default: 7)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "date": "2024-06-07",
+      "sales": 12500.75,
+      "tender": 12300.50,
+      "day_name": "Mon"
+    },
+    {
+      "date": "2024-06-08", 
+      "sales": 13200.25,
+      "tender": 13100.00,
+      "day_name": "Tue"
+    }
+  ]
+}
+```
+
+### Alert Types and Severity Levels
+
+#### Alert Types:
+- `warning`: Important issues requiring attention
+- `info`: Informational notifications
+- `error`: Critical system errors
+
+#### Severity Levels:
+- `low`: Minor issues, can be addressed later
+- `medium`: Moderate priority issues
+- `high`: High priority issues requiring immediate attention
+
+#### Common Alert IDs:
+- `variance_alert`: Sales vs tender variance exceeds threshold
+- `pending_closure`: Daily closure not completed
+- `missing_readings`: No fuel readings in specified timeframe
+- `load_error`: System error loading dashboard data
+
 ## 🔧 Pump Management API
 
 ### Base Endpoint: `/pumps-api`
@@ -88,23 +179,6 @@ Create a new pump.
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": 3,
-    "station_id": 1,
-    "pump_sno": "P003",
-    "name": "Pump 3 - Side Entry",
-    "status": "active",
-    "location": "Side - Right",
-    "installation_date": "2024-06-12",
-    "created_by": 2
-  }
-}
-```
-
 #### POST /pumps-api/:pumpId/nozzles
 Add a nozzle to a pump.
 
@@ -174,26 +248,6 @@ Create a manual sale entry when OCR fails.
   "pricePerLitre": 102.50,
   "shift": "morning",
   "enteredBy": 3
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": 2,
-    "station_id": 1,
-    "pump_id": 1,
-    "nozzle_id": 1,
-    "delta_volume_l": 25.750,
-    "price_per_litre": 102.50,
-    "total_amount": 2639.375,
-    "shift": "morning",
-    "fuel_type": "PETROL",
-    "entered_by": 3,
-    "is_manual_entry": true
-  }
 }
 ```
 
