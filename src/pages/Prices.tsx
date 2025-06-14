@@ -18,7 +18,8 @@ import { FuelPriceDialog } from "@/components/prices/FuelPriceDialog";
 export default function Prices() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"add" | "edit">("add");
-  const [selectedFuelType, setSelectedFuelType] = useState<string | undefined>(undefined);
+  // Set explicit type!
+  const [selectedFuelType, setSelectedFuelType] = useState<"PETROL" | "DIESEL" | "CNG" | "EV" | undefined>(undefined);
   const [selectedPrice, setSelectedPrice] = useState<string>("");
   const [editId, setEditId] = useState<number | undefined>(undefined); // To identify price entry being edited
 
@@ -47,14 +48,20 @@ export default function Prices() {
     setEditId(undefined);
   };
 
-  const openEditDialog = (fuelType: string, price: number, id: number) => {
+  // openEditDialog: use the union type for fuelType
+  const openEditDialog = (
+    fuelType: "PETROL" | "DIESEL" | "CNG" | "EV",
+    price: number,
+    id: number
+  ) => {
     setDialogMode("edit");
     setDialogOpen(true);
-    setSelectedFuelType(fuelType);
+    setSelectedFuelType(fuelType); // Now correctly typed!
     setSelectedPrice(price.toString());
     setEditId(id);
   };
 
+  // Ensure parameter type is strict union
   const handleDialogSubmit = (
     input: { fuel_type: "PETROL" | "DIESEL" | "CNG" | "EV"; price_per_litre: string }
   ) => {
@@ -167,9 +174,14 @@ export default function Prices() {
       <FuelPriceDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        fuelTypes={dialogMode === "add" ? missingFuelTypes as ("PETROL" | "DIESEL" | "CNG" | "EV")[] : [(selectedFuelType || "PETROL") as "PETROL" | "DIESEL" | "CNG" | "EV"]}
+        // ensure proper typing for fuelTypes, initialFuelType
+        fuelTypes={
+          dialogMode === "add"
+            ? (missingFuelTypes as ("PETROL" | "DIESEL" | "CNG" | "EV")[])
+            : [(selectedFuelType || "PETROL") as "PETROL" | "DIESEL" | "CNG" | "EV"]
+        }
         mode={dialogMode}
-        initialFuelType={selectedFuelType as "PETROL" | "DIESEL" | "CNG" | "EV" | undefined}
+        initialFuelType={selectedFuelType}
         initialPrice={selectedPrice}
         loading={addEditLoading}
         onSubmit={handleDialogSubmit}
