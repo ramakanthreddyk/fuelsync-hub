@@ -29,7 +29,7 @@ export default function Prices() {
   const { data: fuelPrices, isLoading } = useFuelPricesData();
   const { currentStation, isOwner, isAdmin } = useRoleAccess();
 
-  const ALL_FUEL_TYPES = ["PETROL", "DIESEL", "CNG", "EV"];
+  const ALL_FUEL_TYPES: ("PETROL" | "DIESEL" | "CNG" | "EV")[] = ["PETROL", "DIESEL", "CNG", "EV"];
 
   // Find fuel types that don't yet exist
   const presentFuelTypes = fuelPrices?.map(p => p.fuel_type) ?? [];
