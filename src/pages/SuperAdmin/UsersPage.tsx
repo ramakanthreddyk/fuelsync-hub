@@ -164,9 +164,8 @@ const UsersPage = ({ stations }: Props) => {
   };
 
   const openEditDialog = (user: User) => {
-    // Determine which station to set (mainly for employees, optional for owners).
     let stationId: number | undefined = undefined;
-    // For EMPLOYEE: prefer user_stations or stations, for OWNER prefer stations, for SUPERADMIN leave undefined
+    // Only superadmin can be without a station
     if (user.role === 'employee') {
       // Prefer user.user_stations, fallback to user.stations
       if (user.user_stations && user.user_stations.length > 0) {
@@ -175,6 +174,7 @@ const UsersPage = ({ stations }: Props) => {
         stationId = user.stations[0].id;
       }
     } else if (user.role === 'owner') {
+      // Owner must be associated with at least one station
       if (user.stations && user.stations.length > 0) {
         stationId = user.stations[0].id;
       }
@@ -229,15 +229,15 @@ const UsersPage = ({ stations }: Props) => {
         role: newUserForm.role,
         password: newUserForm.password
       };
-      // Employee: assign to station
-      if (newUserForm.role === 'employee' && newUserForm.station_id) {
+      if (newUserForm.role === 'employee' || newUserForm.role === 'owner') {
+        if (!newUserForm.station_id) {
+          toast.error(`${newUserForm.role === 'employee' ? "Employee" : "Owner"} must be associated with a station.`);
+          setIsCreating(false);
+          return;
+        }
         userData.station_id = parseInt(newUserForm.station_id, 10);
       }
-      // Owner: if selected station (for old owner), else require new station fields
-      if (newUserForm.role === 'owner' && newUserForm.station_id) {
-        userData.station_id = parseInt(newUserForm.station_id, 10);
-      }
-      // let the backend determine creation flow
+      // let backend determine flow for superadmin (no station)
       const response = await fetch(`${API_BASE_URL}/superadmin-users`, {
         method: 'POST',
         headers: {
@@ -305,7 +305,7 @@ const UsersPage = ({ stations }: Props) => {
               </div>
               <div>
                 <Label htmlFor="role">Role</Label>
-                <Select value={newUserForm.role} onValueChange={(value) => setNewUserForm({ ...newUserForm, role: value as 'superadmin' | 'owner' | 'employee' })}>
+                <Select value={newUserForm.role} onValueChange={(value) => setNewUserForm({ ...newUserForm, role: value as 'superadmin' | 'owner' | 'employee', station_id: '' })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -385,6 +385,23 @@ const UsersPage = ({ stations }: Props) => {
                 </SelectContent>
               </Select>
             </div>
+            {((editForm.role === 'employee' && stations.length > 0) || (editForm.role === 'owner' && stations.length > 0)) && (
+              <div>
+                <Label htmlFor="edit-station">Station</Label>
+                <Select value={editForm.station_id ? editForm.station_id.toString() : ''} onValueChange={value => setEditForm(f => ({ ...f, station_id: Number(value) }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select station" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stations.map((station: any) => (
+                      <SelectItem key={station.id} value={station.id.toString()}>
+                        {station.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>Status</Label>
               <Button
@@ -413,11 +430,11 @@ const UsersPage = ({ stations }: Props) => {
           <TableCaption>A list of all users in your account.</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]">ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Station</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -425,7 +442,6 @@ const UsersPage = ({ stations }: Props) => {
           <TableBody>
             {users.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.id}</TableCell>
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.phone}</TableCell>
@@ -440,6 +456,21 @@ const UsersPage = ({ stations }: Props) => {
                       <SelectItem value="employee">Employee</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell>
+                  {user.role === 'superadmin' ? (
+                    <span>-</span>
+                  ) : (
+                    (user.stations && user.stations.length > 0)
+                      ? user.stations[0].name
+                      : ((user.user_stations && user.user_stations.length > 0 && stations) ?
+                          (() => {
+                            const assignedStation = stations.find((s: any) => s.id === user.user_stations[0].station_id);
+                            return assignedStation ? assignedStation.name : <span className="text-red-500">None</span>;
+                          })()
+                        : <span className="text-red-500">None</span>
+                        )
+                  )}
                 </TableCell>
                 <TableCell>
                   <Button
