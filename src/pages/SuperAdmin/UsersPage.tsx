@@ -1,12 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { User } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -16,8 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import { useAuth } from "@/hooks/useAuth";
-// Use FULL Supabase Functions URL
-const API_BASE_URL = 'https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1';
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
@@ -38,146 +31,101 @@ const UsersPage = ({ stations }: Props) => {
   });
   const [isFetching, setIsFetching] = useState(true);
   const [editDialog, setEditDialog] = useState<{ open: boolean; user?: User }>({ open: false });
-  const [editForm, setEditForm] = useState<{ name: string; email: string; phone: string; role: User['role']; is_active: boolean, station_id?: number }>({ name: '', email: '', phone: '', role: 'employee', is_active: true });
+  const [editForm, setEditForm] = useState<{ name: string; email: string; phone: string; role: User['role']; is_active: boolean, station_id?: number, password?: string }>({ name: '', email: '', phone: '', role: 'employee', is_active: true });
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { session } = useAuth();
-
-  const getAuthToken = () => session?.access_token || "";
-
   useEffect(() => {
     fetchUsers();
+  // eslint-disable-next-line
   }, []);
 
   const fetchUsers = async () => {
     setIsFetching(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin-users`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAuthToken()}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // API returns { success, data }
-        setUsers(data.data || []);
-      } else {
-        const error = await response.json();
-        throw new Error(error.error || error.message || 'Failed to fetch users');
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to fetch users');
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_stations (
+            station_id
+          ),
+          stations!stations_owner_id_fkey (
+            id,
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to fetch users');
     } finally {
       setIsFetching(false);
     }
   };
 
-  const refetch = () => {
-    fetchUsers();
-  };
+  const refetch = () => fetchUsers();
 
-  const resetNewUserForm = () => {
-    setNewUserForm({
-      name: '',
-      email: '',
-      phone: '',
-      role: 'employee',
-      password: '',
-      station_id: ''
-    });
-  };
+  const resetNewUserForm = () => setNewUserForm({
+    name: '', email: '', phone: '', role: 'employee', password: '', station_id: ''
+  });
 
-  const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'owner' | 'employee') => {
+  // Create User (insert to Supabase + assign station if needed)
+  const handleCreateUser = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin-users/${userId}/role`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAuthToken()}`
-        },
-        body: JSON.stringify({ role: newRole })
-      });
-
-      if (response.ok) {
-        toast.success('User role updated successfully');
-        refetch();
-      } else {
-        const error = await response.json();
-        throw new Error(error.error || error.message || 'Failed to update user role');
+      setIsCreating(true);
+      // Validate required fields
+      if (!newUserForm.name || !newUserForm.email || !newUserForm.role) {
+        toast.error('Name/email/role required');
+        setIsCreating(false); return;
       }
-    } catch (error) {
-      console.error('Error updating user role:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update user role');
+      if ((newUserForm.role === 'employee' || newUserForm.role === 'owner') && !newUserForm.station_id) {
+        toast.error('Employee/Owner must be assigned a station');
+        setIsCreating(false); return;
+      }
+
+      // Create user row
+      const { data: user, error: userErr } = await supabase
+        .from('users')
+        .insert({
+          name: newUserForm.name,
+          email: newUserForm.email,
+          phone: newUserForm.phone,
+          role: newUserForm.role,
+          is_active: true,
+          // password is not stored in users table, only through Auth!
+        })
+        .select('*').single();
+
+      if (userErr || !user) throw userErr || new Error('Failed to create user');
+
+      // If needed, assign to station
+      if ((newUserForm.role === 'employee' || newUserForm.role === 'owner') && newUserForm.station_id) {
+        // Remove prior assignment if exists (shouldn't be but for safety)
+        await supabase.from('user_stations').delete().eq('user_id', user.id);
+        await supabase.from('user_stations').insert({
+          user_id: user.id, 
+          station_id: parseInt(newUserForm.station_id, 10)
+        });
+      }
+
+      toast.success("User created successfully");
+      resetNewUserForm(); setShowCreateDialog(false); refetch();
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to create user');
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  const handleStatusChange = async (userId: string, newStatus: boolean) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/superadmin-users/${userId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAuthToken()}`
-        },
-        body: JSON.stringify({ is_active: newStatus })
-      });
-
-      if (response.ok) {
-        toast.success('User status updated successfully');
-        refetch();
-      } else {
-        const error = await response.json();
-        throw new Error(error.error || error.message || 'Failed to update user status');
-      }
-    } catch (error) {
-      console.error('Error updating user status:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update user status');
-    }
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
-    setIsDeleting(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/superadmin-users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`
-        }
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success('User deleted successfully');
-        refetch();
-      } else {
-        throw new Error(data?.error || 'Failed to delete user');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete user');
-    }
-    setIsDeleting(false);
-  };
-
+  // Edit User Dialog
   const openEditDialog = (user: User) => {
     let stationId: number | undefined = undefined;
-    // Only superadmin can be without a station
-    if (user.role === 'employee') {
-      // Prefer user.user_stations, fallback to user.stations
-      if (user.user_stations && user.user_stations.length > 0) {
-        stationId = user.user_stations[0].station_id;
-      } else if (user.stations && user.stations.length > 0) {
-        stationId = user.stations[0].id;
-      }
-    } else if (user.role === 'owner') {
-      // Owner must be associated with at least one station
-      if (user.stations && user.stations.length > 0) {
-        stationId = user.stations[0].id;
-      }
+    if (user.role === 'employee' && user.user_stations && user.user_stations.length > 0) {
+      stationId = user.user_stations[0].station_id;
+    } else if (user.role === 'owner' && user.stations && user.stations.length > 0) {
+      stationId = user.stations[0].id;
     }
     setEditForm({
       name: user.name || '',
@@ -185,81 +133,99 @@ const UsersPage = ({ stations }: Props) => {
       phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
-      station_id: stationId
+      station_id: stationId,
+      password: ''
     });
     setEditDialog({ open: true, user });
   };
-  const closeEditDialog = () => {
-    setEditDialog({ open: false, user: undefined });
-  };
+  const closeEditDialog = () => setEditDialog({ open: false, user: undefined });
 
+  // Save Edit User (update fields + update station assignment)
   const handleEditUser = async () => {
     if (!editDialog.user) return;
     setIsUpdating(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin-users/${editDialog.user.id}/edit`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAuthToken()}`
-        },
-        body: JSON.stringify(editForm)
+      // Only send changed fields
+      const updateFields: any = {};
+      ['name','email','phone','role','is_active'].forEach(key => {
+        if ((editForm as any)[key] !== (editDialog.user as any)[key]) {
+          updateFields[key] = (editForm as any)[key];
+        }
       });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success('User details updated');
-        refetch();
-        closeEditDialog();
-      } else {
-        throw new Error(data?.error || 'Failed to update user');
+
+      if (Object.keys(updateFields).length > 0) {
+        // Supabase update
+        const { error: updateError } = await supabase
+          .from('users')
+          .update(updateFields)
+          .eq('id', editDialog.user.id);
+        if (updateError) throw updateError;
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update user');
+
+      // For employee/owner handle station (reset and insert fresh)
+      if ((editForm.role === 'employee' || editForm.role === 'owner') && editForm.station_id) {
+        await supabase.from('user_stations').delete().eq('user_id', editDialog.user.id);
+        await supabase.from('user_stations').insert({
+          user_id: editDialog.user.id,
+          station_id: Number(editForm.station_id)
+        });
+      } else if (editForm.role === 'superadmin') {
+        // Remove any station assignment
+        await supabase.from('user_stations').delete().eq('user_id', editDialog.user.id);
+      }
+
+      toast.success("User updated successfully");
+      refetch(); closeEditDialog();
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update user');
     }
     setIsUpdating(false);
   };
 
-  const handleCreateUser = async () => {
+  // Role change from grid (inline)
+  const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'owner' | 'employee') => {
     try {
-      setIsCreating(true);
-      const userData: any = {
-        name: newUserForm.name,
-        email: newUserForm.email,
-        phone: newUserForm.phone,
-        role: newUserForm.role,
-        password: newUserForm.password
-      };
-      if (newUserForm.role === 'employee' || newUserForm.role === 'owner') {
-        if (!newUserForm.station_id) {
-          toast.error(`${newUserForm.role === 'employee' ? "Employee" : "Owner"} must be associated with a station.`);
-          setIsCreating(false);
-          return;
-        }
-        userData.station_id = parseInt(newUserForm.station_id, 10);
+      const { error } = await supabase
+        .from('users')
+        .update({ role: newRole })
+        .eq('id', userId)
+      if (error) throw error;
+      // Clean up stations if superadmin, else preserve existing
+      if (newRole === "superadmin") {
+        await supabase.from('user_stations').delete().eq('user_id', userId);
       }
-      // let backend determine flow for superadmin (no station)
-      const response = await fetch(`${API_BASE_URL}/superadmin-users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAuthToken()}`
-        },
-        body: JSON.stringify(userData)
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success('User created successfully');
-        resetNewUserForm();
-        setShowCreateDialog(false);
-        refetch();
-      } else {
-        throw new Error(data?.error || 'Failed to create user');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create user');
-    } finally {
-      setIsCreating(false);
-    }
+      toast.success("User role updated");
+      refetch();
+    } catch (e: any) { toast.error(e?.message || "Failed to update role"); }
+  };
+
+  // Status update (activate/deactivate)
+  const handleStatusChange = async (userId: string, newStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: newStatus })
+        .eq('id', userId)
+      if (error) throw error;
+      toast.success("User status updated");
+      refetch();
+    } catch (e: any) { toast.error(e?.message || "Failed to update status"); }
+  };
+
+  // Delete user
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
+    setIsDeleting(true);
+    try {
+      // Cleanup station assignment
+      await supabase.from('user_stations').delete().eq('user_id', userId);
+      // Delete user row
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+      if (error) throw error;
+      toast.success("User deleted successfully");
+      refetch();
+    } catch (e: any) { toast.error(e?.message || "Failed to delete user"); }
+    setIsDeleting(false);
   };
 
   return (
@@ -333,16 +299,7 @@ const UsersPage = ({ stations }: Props) => {
                   </Select>
                 </div>
               )}
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newUserForm.password}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                  placeholder="Enter password"
-                />
-              </div>
+              {/* Password not implemented here as auth isn't handled directly via users table */}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
