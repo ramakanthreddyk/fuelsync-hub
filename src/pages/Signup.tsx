@@ -17,28 +17,43 @@ export default function Signup() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Add function to call edge function for auto-confirm
+  // Retry-enabled function to call edge function for auto-confirm
   const confirmUser = async (userEmail: string) => {
-    try {
-      const response = await fetch(
-        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email: userEmail }),
+    const maxAttempts = 6; // Total 6 attempts (0s, 1s, 2s, 3s, 4s, 5s)
+    let lastError = null;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await fetch(
+          `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: userEmail }),
+          }
+        );
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          lastError = result.error || 'Failed to confirm user';
+          // If error is specifically "User not found in system", retry
+          if (lastError === "User not found in system" && attempt < maxAttempts - 1) {
+            await new Promise(res => setTimeout(res, 1000)); // Wait before retrying
+            continue;
+          }
+          throw new Error(lastError);
         }
-      );
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to confirm user');
+        return result;
+      } catch (error) {
+        lastError = error.message || error;
+        if (attempt < maxAttempts - 1) {
+          await new Promise(res => setTimeout(res, 1000)); // Wait before retrying
+          continue;
+        }
+        throw error;
       }
-      return result;
-    } catch (error) {
-      console.error('Error auto-confirming user:', error);
-      throw error;
     }
+    throw new Error(lastError || "Failed to confirm user after retries");
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -86,7 +101,7 @@ export default function Signup() {
       } else {
         let confirmationSucceeded = false;
         try {
-          // Try to confirm user programmatically for allowed/demo emails
+          // Try to confirm user programmatically for allowed/demo emails with retry
           await confirmUser(email);
           confirmationSucceeded = true;
         } catch {
