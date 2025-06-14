@@ -1,291 +1,196 @@
 
-const { OCRReading, Sale, FuelPrice, Pump, Nozzle } = require('../models/multiTenantIndex');
+const { Sale, OCRReading, Station, User, Pump, Nozzle } = require('../models');
 const { Op } = require('sequelize');
 
 /**
- * Multi-tenant sales calculation service
- * Handles cumulative volume-based sales calculation with station isolation
+ * Service for multi-tenant sales business logic
  */
 class MultiTenantSalesService {
-  
   /**
-   * Process OCR readings and calculate sales for a specific station
+   * Derive allowed station IDs for a user, or null for superadmin
    */
-  static async processOCRReadingsForSales(stationId, ocrReadings) {
-    console.log(`🧮 Processing ${ocrReadings.length} OCR readings for station ${stationId}`);
-    
-    const salesResults = [];
-    
-    for (const reading of ocrReadings) {
-      try {
-        const salesData = await this.calculateSaleFromReading(reading);
-        
-        if (salesData && salesData.litresSold > 0) {
-          const sale = await Sale.create({
-            stationId: reading.stationId,
-            pumpId: reading.pumpId,
-            nozzleId: reading.nozzleId,
-            readingId: reading.id,
-            previousReadingId: salesData.previousReadingId,
-            fuelType: reading.fuelType,
-            litresSold: salesData.litresSold,
-            pricePerLitre: salesData.pricePerLitre,
-            totalAmount: salesData.totalAmount,
-            saleDate: reading.readingDate,
-            shift: this.determineShift(reading.readingTime),
-            createdBy: reading.enteredBy
-          });
-          
-          salesResults.push(sale);
-          console.log(`✅ Created sale: ${salesData.litresSold}L @ ₹${salesData.pricePerLitre} = ₹${salesData.totalAmount}`);
-        } else {
-          console.log(`⚠️ No sales calculated for reading ${reading.id} (likely first reading or zero volume)`);
-        }
-        
-      } catch (error) {
-        console.error(`❌ Error processing reading ${reading.id}:`, error);
-      }
+  static async getAllowedStationIds(user) {
+    if (!user) return [];
+    if (user.role === 'superadmin') {
+      return null; // all stations
+    } else if (user.role === 'owner') {
+      const stations = await Station.findAll({ where: { owner_id: user.id }, attributes: ['id'] });
+      return stations.map(s => s.id);
+    } else {
+      // Employee: only own station
+      return user.stationId ? [user.stationId] : [];
     }
-    
-    console.log(`🎯 Processed ${salesResults.length} sales from ${ocrReadings.length} readings`);
-    return salesResults;
   }
-  
+
   /**
-   * Calculate sale data from a single OCR reading
+   * Filter query object for sales API from query params and access
    */
-  static async calculateSaleFromReading(reading) {
-    console.log(`🔍 Calculating sales for reading ${reading.id} - Pump ${reading.pumpSno}, Nozzle ${reading.nozzleId}`);
-    
-    // Find the most recent previous reading for the same pump + nozzle + station
-    const previousReading = await OCRReading.findOne({
-      where: {
-        stationId: reading.stationId,
-        pumpSno: reading.pumpSno,
-        nozzleId: reading.nozzleId,
-        readingDate: {
-          [Op.lt]: reading.readingDate
-        }
-      },
-      order: [['readingDate', 'DESC'], ['readingTime', 'DESC'], ['createdAt', 'DESC']]
-    });
-    
-    if (!previousReading) {
-      console.log(`📊 No previous reading found for Pump ${reading.pumpSno}, Nozzle ${reading.nozzleId} - this might be the first reading`);
-      return null;
+  static buildSalesWhereClause({ allowedStationIds, query }) {
+    const {
+      station_id,
+      from,
+      to,
+      fuel_type,
+      nozzle_id,
+      pump_id,
+    } = query;
+
+    const queryStationId = parseInt(station_id);
+
+    let where = {};
+    if (allowedStationIds) {
+      where.stationId = queryStationId;
+    } else if (queryStationId) {
+      where.stationId = queryStationId;
     }
-    
-    console.log(`📈 Previous reading: ${previousReading.cumulativeVolume}L on ${previousReading.readingDate}`);
-    console.log(`📈 Current reading: ${reading.cumulativeVolume}L on ${reading.readingDate}`);
-    
-    // Calculate litres sold
-    const litresSold = parseFloat(reading.cumulativeVolume) - parseFloat(previousReading.cumulativeVolume);
-    
-    if (litresSold < 0) {
-      console.warn(`⚠️ Negative litres calculated (${litresSold}L) - possible reading error or meter reset`);
-      return null;
+    if (from) {
+      where.saleDate = where.saleDate || {};
+      where.saleDate[Op.gte] = from;
     }
-    
-    if (litresSold === 0) {
-      console.log(`📊 Zero litres sold - no sales to record`);
-      return null;
+    if (to) {
+      where.saleDate = where.saleDate || {};
+      where.saleDate[Op.lte] = to;
     }
-    
-    // Get current fuel price for this station and fuel type
-    const fuelPrice = await FuelPrice.findOne({
-      where: {
-        stationId: reading.stationId,
-        fuelType: reading.fuelType,
-        validFrom: {
-          [Op.lte]: new Date(reading.readingDate)
-        }
-      },
-      order: [['validFrom', 'DESC']]
-    });
-    
-    if (!fuelPrice) {
-      console.error(`❌ No fuel price found for ${reading.fuelType} at station ${reading.stationId}`);
-      throw new Error(`No fuel price configured for ${reading.fuelType}`);
+    if (fuel_type) {
+      where.fuelType = fuel_type.toUpperCase();
     }
-    
-    const pricePerLitre = parseFloat(fuelPrice.price);
-    const totalAmount = parseFloat((litresSold * pricePerLitre).toFixed(2));
-    
-    console.log(`💰 Sales calculation: ${litresSold}L × ₹${pricePerLitre} = ₹${totalAmount}`);
-    
-    return {
-      litresSold,
-      pricePerLitre,
-      totalAmount,
-      previousReadingId: previousReading.id
-    };
+    if (nozzle_id) {
+      where.nozzleId = nozzle_id;
+    }
+    if (pump_id) {
+      where.pumpId = pump_id;
+    }
+    return where;
   }
-  
+
   /**
-   * Determine shift based on reading time
+   * Query sales list (paginated)
    */
-  static determineShift(readingTime) {
-    if (!readingTime) return 'morning';
-    
-    const hour = parseInt(readingTime.split(':')[0]);
-    
-    if (hour >= 6 && hour < 14) return 'morning';
-    if (hour >= 14 && hour < 22) return 'afternoon';
-    return 'night';
-  }
-  
-  /**
-   * Get sales summary for a station within date range
-   */
-  static async getStationSalesSummary(stationId, startDate, endDate) {
-    console.log(`📊 Getting sales summary for station ${stationId} from ${startDate} to ${endDate}`);
-    
-    const sales = await Sale.findAll({
-      where: {
-        stationId,
-        saleDate: {
-          [Op.between]: [startDate, endDate]
-        }
-      },
-      include: [
-        {
-          model: Pump,
-          as: 'pump',
-          attributes: ['pumpSno', 'name']
-        }
-      ]
-    });
-    
-    const summary = sales.reduce((acc, sale) => {
-      const fuelKey = sale.fuelType;
-      
-      if (!acc[fuelKey]) {
-        acc[fuelKey] = {
-          totalLitres: 0,
-          totalRevenue: 0,
-          totalTransactions: 0
-        };
-      }
-      
-      acc[fuelKey].totalLitres += parseFloat(sale.litresSold);
-      acc[fuelKey].totalRevenue += parseFloat(sale.totalAmount);
-      acc[fuelKey].totalTransactions += 1;
-      
-      acc.grandTotal = acc.grandTotal || { totalLitres: 0, totalRevenue: 0, totalTransactions: 0 };
-      acc.grandTotal.totalLitres += parseFloat(sale.litresSold);
-      acc.grandTotal.totalRevenue += parseFloat(sale.totalAmount);
-      acc.grandTotal.totalTransactions += 1;
-      
-      return acc;
-    }, {});
-    
-    console.log(`✅ Sales summary calculated for ${sales.length} transactions`);
-    return summary;
-  }
-  
-  /**
-   * Get pump performance metrics for a station
-   */
-  static async getPumpPerformance(stationId, date) {
-    console.log(`🏭 Getting pump performance for station ${stationId} on ${date}`);
-    
-    const pumps = await Pump.findAll({
-      where: { stationId },
-      include: [
-        {
-          model: Sale,
-          as: 'sales',
-          where: {
-            saleDate: date
+  static async listSalesPaginated({ user, query }) {
+    const {
+      limit = 20,
+      offset = 0,
+      station_id
+    } = query;
+
+    const allowedStationIds = await this.getAllowedStationIds(user);
+
+    // Only allow querying permitted stations
+    const queryStationId = parseInt(station_id);
+    if (
+      allowedStationIds &&
+      (isNaN(queryStationId) || !allowedStationIds.includes(queryStationId))
+    ) {
+      throw new Error("Not allowed to access this station's data");
+    }
+
+    const where = this.buildSalesWhereClause({ allowedStationIds, query });
+
+    // Count & Fetch sales, include Pump and OCRReading
+    const [total_count, sales] = await Promise.all([
+      Sale.count({ where }),
+      Sale.findAll({
+        where,
+        include: [
+          {
+            model: OCRReading,
+            as: 'reading',
+            attributes: ['source'],
           },
-          required: false
-        },
+          {
+            model: Pump,
+            as: 'pump',
+            attributes: ['pumpSno', 'name'],
+          }
+        ],
+        order: [['saleDate', 'DESC'], ['createdAt', 'DESC']],
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      })
+    ]);
+
+    // Compose result list with "source"
+    return {
+      sales: sales.map(sale => {
+        let source = null;
+        if (sale.reading && sale.reading.source) {
+          source = sale.reading.source;
+        } else if (sale.isManualEntry) {
+          source = "manual";
+        } else {
+          source = "ocr";
+        }
+        return {
+          id: sale.id,
+          station_id: sale.stationId,
+          pump_id: sale.pumpId,
+          nozzle_id: sale.nozzleId,
+          fuel_type: sale.fuelType,
+          price_per_litre: sale.pricePerLitre,
+          delta_volume_l: sale.litresSold,
+          total_amount: sale.totalAmount,
+          sale_date: sale.saleDate,
+          shift: sale.shift,
+          source,
+          created_at: sale.createdAt,
+          pump: sale.pump ? { pump_sno: sale.pump.pumpSno, name: sale.pump.name } : null
+        };
+      }),
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total_count
+      }
+    };
+  }
+
+  /**
+   * Query summary info (totals, by source, by fuel_type)
+   */
+  static async getSalesSummary({ user, query }) {
+    const allowedStationIds = await this.getAllowedStationIds(user);
+
+    const { station_id } = query;
+    const queryStationId = parseInt(station_id);
+    if (
+      allowedStationIds &&
+      (isNaN(queryStationId) || !allowedStationIds.includes(queryStationId))
+    ) {
+      throw new Error("Not allowed to access this station's data");
+    }
+
+    const where = this.buildSalesWhereClause({ allowedStationIds, query });
+
+    const sales = await Sale.findAll({
+      where,
+      include: [
         {
-          model: Nozzle,
-          as: 'nozzles',
-          where: { status: 'active' },
-          required: false
+          model: OCRReading,
+          as: 'reading',
+          attributes: ['source'],
         }
       ]
     });
-    
-    const performance = pumps.map(pump => {
-      const pumpSales = pump.sales || [];
-      const totalRevenue = pumpSales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
-      const totalLitres = pumpSales.reduce((sum, sale) => sum + parseFloat(sale.litresSold), 0);
-      
-      return {
-        pumpId: pump.id,
-        pumpSno: pump.pumpSno,
-        name: pump.name,
-        status: pump.status,
-        totalRevenue,
-        totalLitres,
-        totalTransactions: pumpSales.length,
-        activeNozzles: pump.nozzles ? pump.nozzles.length : 0
-      };
-    });
-    
-    console.log(`✅ Pump performance calculated for ${pumps.length} pumps`);
-    return performance;
-  }
-  
-  /**
-   * Auto-create pump and nozzles from OCR data if they don't exist
-   */
-  static async ensurePumpAndNozzlesExist(stationId, pumpSno, nozzleIds, enteredBy) {
-    console.log(`🔧 Ensuring pump ${pumpSno} and nozzles exist for station ${stationId}`);
-    
-    // Find or create pump
-    let pump = await Pump.findOne({
-      where: { stationId, pumpSno }
-    });
-    
-    if (!pump) {
-      console.log(`🆕 Creating new pump ${pumpSno} for station ${stationId}`);
-      pump = await Pump.create({
-        stationId,
-        pumpSno,
-        name: `Pump ${pumpSno}`,
-        location: 'Auto-created from OCR',
-        status: 'active',
-        installationDate: new Date()
-      });
+
+    // Calculate summary
+    let total_sales = 0;
+    let count_by_source = {};
+    let volume_by_fuel_type = {};
+
+    for (const sale of sales) {
+      total_sales += parseFloat(sale.totalAmount);
+      let source = sale.reading && sale.reading.source ? sale.reading.source : (sale.isManualEntry ? "manual" : "ocr");
+      count_by_source[source] = (count_by_source[source] || 0) + 1;
+      let fuelKey = (sale.fuelType || '').toUpperCase();
+      volume_by_fuel_type[fuelKey] = (volume_by_fuel_type[fuelKey] || 0) + parseFloat(sale.litresSold);
     }
-    
-    // Ensure nozzles exist
-    const existingNozzles = await Nozzle.findAll({
-      where: { pumpId: pump.id }
-    });
-    
-    const existingNozzleIds = existingNozzles.map(n => n.nozzleId);
-    
-    // Default fuel type mapping (can be customized per station)
-    const defaultFuelTypeMap = {
-      1: 'petrol',
-      2: 'petrol', 
-      3: 'diesel',
-      4: 'diesel',
-      5: 'petrol',
-      6: 'petrol',
-      7: 'diesel',
-      8: 'diesel'
+
+    return {
+      total_sales,
+      count_by_source,
+      volume_by_fuel_type,
+      total_count: sales.length
     };
-    
-    for (const nozzleId of nozzleIds) {
-      if (!existingNozzleIds.includes(nozzleId)) {
-        console.log(`🆕 Creating new nozzle ${nozzleId} for pump ${pump.id}`);
-        await Nozzle.create({
-          pumpId: pump.id,
-          nozzleId,
-          fuelType: defaultFuelTypeMap[nozzleId] || 'petrol',
-          status: 'active',
-          maxFlowRate: 35.0
-        });
-      }
-    }
-    
-    return pump;
   }
 }
 
