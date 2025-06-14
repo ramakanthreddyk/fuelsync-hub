@@ -99,7 +99,7 @@ export class ApiService {
           fuelType: nozzle.fuel_type === 'PETROL' ? 'Petrol' : 'Diesel',
           status: nozzle.is_active ? 'active' : 'inactive'
         })),
-        lastMaintenanceDate: pump.updated_at,
+        lastMaintenanceDate: pump.created_at, // Changed from updated_at (not all pumps have updated_at)
         totalSalesToday: 0
       })) || []
     };
@@ -130,7 +130,7 @@ export class ApiService {
   }
 
   async getSales(stationId: number) {
-    // @ts-ignore: sales table not typed
+    // @ts-ignore: sales table not present in supabase types
     const { data, error } = await (supabase as any)
       .from('sales')
       .select('*')
@@ -141,25 +141,33 @@ export class ApiService {
 
     // Only return rows with required sales properties
     return {
-      data: Array.isArray(data) ? data.filter(sale =>
-        sale && typeof sale.id !== "undefined" && typeof sale.nozzle_id !== "undefined"
-      ).map(sale => ({
-        id: sale.id.toString(),
-        pumpId: `P${sale.nozzle_id}`,
-        fuelType: 'Petrol' as const, // TODO: fetch real type if needed!
-        litres: sale.delta_volume_l || 0,
-        pricePerLitre: sale.price_per_litre || 0,
-        totalAmount: sale.total_amount || 0,
-        timestamp: sale.created_at,
-        shift: 'morning' as const,
-        nozzleId: sale.nozzle_id
-      })) : []
+      data: Array.isArray(data)
+        ? data
+            .filter(
+              (sale: any) =>
+                sale &&
+                typeof sale.id !== "undefined" &&
+                typeof sale.nozzle_id !== "undefined"
+            )
+            .map((sale: any) => ({
+              id: sale.id.toString(),
+              pumpId: `P${sale.nozzle_id}`,
+              fuelType: 'Petrol' as const,
+              litres: sale.delta_volume_l || 0,
+              pricePerLitre: sale.price_per_litre || 0,
+              totalAmount: sale.total_amount || 0,
+              timestamp: sale.created_at,
+              shift: 'morning' as const,
+              nozzleId: sale.nozzle_id
+            }))
+        : []
     };
   }
 
   async getDailySummary(stationId: number) {
     const today = new Date().toISOString().split('T')[0];
-    const { data, error } = await supabase
+    // @ts-ignore: tender_entries table not present in supabase types
+    const { data, error } = await (supabase as any)
       .from('tender_entries')
       .select('*')
       .eq('entry_date', today)
@@ -175,7 +183,7 @@ export class ApiService {
       total: 0
     };
 
-    data?.forEach(entry => {
+    data?.forEach((entry: any) => {
       const amount = entry.amount || 0;
       if (entry.type === 'cash') summary.cash += amount;
       else if (entry.type === 'card') summary.card += amount;
@@ -188,7 +196,8 @@ export class ApiService {
   }
 
   async generateReport(stationId: number, startDate: string, endDate: string) {
-    const { data, error } = await supabase
+    // @ts-ignore: sales table not present in supabase types
+    const { data, error } = await (supabase as any)
       .from('sales')
       .select('*')
       .eq('station_id', stationId)

@@ -39,7 +39,6 @@ export default function DailyClosure() {
       };
 
       // Use "any" to bypass supabase type inference -- solves the TypeScript error!
-      // @ts-expect-error: daily_closure missing from supabase types
       const { data, error } = await (supabase as any)
         .from('daily_closure')
         .upsert(upsertData)

@@ -150,8 +150,19 @@ export default function Sales() {
   const todayTotal = filteredSales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
   const todayVolume = filteredSales.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0);
 
-  const selectedStationIdParsed = manualEntry.station_id ? parseInt(manualEntry.station_id) : undefined;
-  const selectedPumpIdParsed = manualEntry.pump_id ? parseInt(manualEntry.pump_id) : undefined;
+  // Type correction for ID comparisons
+  // around line 178 and similar:
+  const selectedStationIdParsed = manualEntry.station_id
+    ? typeof manualEntry.station_id === 'string'
+      ? parseInt(manualEntry.station_id, 10)
+      : manualEntry.station_id
+    : undefined;
+
+  const selectedPumpIdParsed = manualEntry.pump_id
+    ? typeof manualEntry.pump_id === 'string'
+      ? parseInt(manualEntry.pump_id, 10)
+      : manualEntry.pump_id
+    : undefined;
 
   const availablePumps = pumps?.filter(pump => 
     !manualEntry.station_id || pump.station_id === selectedStationIdParsed
