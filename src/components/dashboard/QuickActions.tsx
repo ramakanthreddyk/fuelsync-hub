@@ -1,8 +1,12 @@
 
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { Fuel } from "lucide-react";
 
 export function QuickActions() {
+  const { isOwner, isAdmin } = useRoleAccess();
+
   return (
     <Card>
       <CardHeader>
@@ -32,6 +36,18 @@ export function QuickActions() {
             <div className="font-medium group-hover:text-primary">View Reports</div>
             <div className="text-sm text-muted-foreground">Sales & analytics</div>
           </button>
+          {(isOwner || isAdmin) && (
+            <button
+              onClick={() => window.location.href = '/prices'}
+              className="p-3 text-left border rounded-lg hover:bg-blue-50 hover:shadow-md transition-all duration-200 group flex items-center gap-2"
+            >
+              <Fuel className="w-4 h-4 text-blue-600 mr-2" />
+              <div>
+                <div className="font-medium group-hover:text-blue-700">Update Fuel Prices</div>
+                <div className="text-sm text-muted-foreground">Manage & update per litre rates</div>
+              </div>
+            </button>
+          )}
         </div>
       </CardContent>
     </Card>
