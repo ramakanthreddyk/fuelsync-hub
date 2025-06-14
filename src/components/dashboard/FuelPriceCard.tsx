@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Fuel } from "lucide-react";
+import { Fuel, IndianRupee } from "lucide-react";
 
 interface FuelPriceCardProps {
   prices: {
@@ -53,9 +52,10 @@ export const FuelPriceCard: React.FC<FuelPriceCardProps> = ({ prices, isLoading 
               <Badge variant="outline" className={color}>
                 {label}
               </Badge>
-              <div className="text-lg font-semibold">
-                {prices[key as keyof typeof prices] 
-                  ? `₹${prices[key as keyof typeof prices]?.toFixed(2)}/L`
+              <div className="text-lg font-semibold flex items-center gap-1">
+                <IndianRupee className="w-4 h-4 inline" />
+                {prices[key as keyof typeof prices] !== undefined && prices[key as keyof typeof prices] !== null
+                  ? `${prices[key as keyof typeof prices]?.toFixed(2)}/L`
                   : 'Not set'
                 }
               </div>

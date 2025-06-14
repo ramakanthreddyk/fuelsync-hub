@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, Plus, TrendingUp } from "lucide-react";
+import { IndianRupee, Plus, TrendingUp } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useFuelPricesData } from "@/hooks/useFuelPricesData";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -188,7 +187,7 @@ export default function Prices() {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5" />
+                    <IndianRupee className="w-5 h-5" />
                     {price.fuel_type}
                   </CardTitle>
                   <CardDescription>
@@ -201,8 +200,9 @@ export default function Prices() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">
-                ₹{price.price_per_litre.toFixed(2)}
+              <div className="text-3xl font-bold text-primary flex items-center gap-1">
+                <IndianRupee className="w-5 h-5" />
+                {price.price_per_litre.toFixed(2)}
               </div>
               <div className="text-sm text-muted-foreground mt-2">
                 <div>Updated: {new Date(price.valid_from).toLocaleDateString()}</div>
@@ -216,7 +216,7 @@ export default function Prices() {
       {(!fuelPrices || fuelPrices.length === 0) && (
         <Card>
           <CardContent className="pt-6 text-center">
-            <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <IndianRupee className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">No fuel prices set</h3>
             <p className="text-muted-foreground mb-4">
               Get started by setting prices for different fuel types.

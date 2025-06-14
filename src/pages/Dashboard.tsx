@@ -34,6 +34,7 @@ export default function Dashboard() {
 
   const { user } = useAuth();
   const { data, isLoading } = useDashboardData();
+  const { data: fuelPricesList, isLoading: isPricesLoading } = useFuelPricesData();
   const { currentStation } = useRoleAccess();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const checklist = useSetupChecklist();
@@ -43,6 +44,14 @@ export default function Dashboard() {
 
   // --- Lock overlay click handler
   const onLockUpgradeClick = () => setShowUpgrade(true);
+
+  // Build fuel price object for FuelPriceCard
+  const fuelPricesObj = data.fuelPrices
+    ? data.fuelPrices
+    : (fuelPricesList && fuelPricesList.reduce((acc, cur) => {
+        acc[cur.fuel_type] = cur.price_per_litre;
+        return acc;
+      }, {} as Record<string, number>));
 
   if (isLoading) {
     return (
@@ -92,6 +101,7 @@ export default function Dashboard() {
         </div>
         {/* Fuel Prices and Quick Actions */}
         <div className="space-y-6">
+          <FuelPriceCard prices={fuelPricesObj || {}} isLoading={isPricesLoading} />
           <QuickActions />
         </div>
       </div>
