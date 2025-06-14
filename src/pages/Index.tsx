@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import Dashboard from './Dashboard';
-import Upload from './Upload';
+import DataEntry from './DataEntry';
 import Sales from './Sales';
 import Prices from './Prices';
 import Pumps from './Pumps';
@@ -15,8 +16,10 @@ const Index = () => {
   
   const renderPage = () => {
     switch (location.pathname) {
+      // Point old and new routes to DataEntry (backward compatible)
+      case '/data-entry':
       case '/upload':
-        return <Upload />;
+        return <DataEntry />;
       case '/sales':
         return <Sales />;
       case '/prices':
