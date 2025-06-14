@@ -29,6 +29,7 @@ interface DashboardData {
     severity: 'low' | 'medium' | 'high';
     tags: string[];
   }>;
+  premiumRequired?: boolean;
 }
 
 export const useDashboardData = () => {
@@ -42,7 +43,8 @@ export const useDashboardData = () => {
     pendingClosures: 0,
     trendsData: [],
     fuelPrices: {},
-    alerts: []
+    alerts: [],
+    premiumRequired: false
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -94,6 +96,8 @@ export const useDashboardData = () => {
         throw new Error(summaryResult?.error || "Failed to load dashboard summary");
       }
       const summary = summaryResult.data;
+      // Explicitly extract premium_required flag if present
+      const premiumRequired = !!summary.premium_required;
 
       // Fetch sales trends
       const trendsRes = await fetch(
@@ -135,7 +139,8 @@ export const useDashboardData = () => {
         pendingClosures: summary.pending_closure_count || 0,
         trendsData: trends,
         fuelPrices: summary.fuel_prices || {},
-        alerts: summary.alerts || []
+        alerts: summary.alerts || [],
+        premiumRequired
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);

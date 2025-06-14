@@ -14,7 +14,7 @@ export default function Dashboard() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Determine premium restriction from API response
-  const premiumRequired = !!data?.premium_required;
+  const premiumRequired = !!data.premiumRequired;
 
   // --- "blur" style for locked widgets
   const lockWidgetProps = {
