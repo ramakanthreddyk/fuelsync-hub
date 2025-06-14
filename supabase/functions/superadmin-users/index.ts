@@ -1,71 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { authorizeSuperadmin } from "./authorizeSuperadmin.ts";
+import { handleStationAssignment } from "./handleStationAssignment.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
-
-// --- Utility: Superadmin Authorization ---
-async function authorizeSuperadmin(req: Request) {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return { error: 'Missing or invalid authorization header', status: 401 };
-  }
-  const token = authHeader.split(' ')[1];
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
-  const { data: authResp, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !authResp?.user) {
-    return { error: 'Authentication failed', status: 401 };
-  }
-  const authUser = authResp.user;
-  const { data: userData, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('role, is_active')
-    .eq('email', authUser.email)
-    .single();
-
-  if (userError || !userData || userData.role !== 'superadmin') {
-    return { error: 'Insufficient permissions', status: 403 };
-  }
-  return { supabase, supabaseAdmin, authUser };
-}
-
-// --- Utility: Handle station assignment for employee/owner ---
-async function handleStationAssignment(supabaseAdmin: any, userId: string, role: string, station_id: any) {
-  if (role === 'employee' || role === 'owner') {
-    // Remove old assignments
-    const { error: deleteError } = await supabaseAdmin
-      .from('user_stations')
-      .delete()
-      .eq('user_id', userId);
-    if (deleteError) {
-      console.error('[handleStationAssignment] Failed to remove old assignments:', deleteError);
-    }
-    // Add new assignment if provided
-    if (station_id && station_id !== '' && station_id !== 'undefined') {
-      const { error: insertError } = await supabaseAdmin
-        .from('user_stations')
-        .insert({ 
-          user_id: userId, 
-          station_id: parseInt(station_id.toString(), 10) 
-        });
-      if (insertError) {
-        return { error: `Failed to assign station: ${insertError.message}` };
-      }
-    }
-  }
-  return {};
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
