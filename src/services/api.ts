@@ -130,8 +130,8 @@ export class ApiService {
   }
 
   async getSales(stationId: number) {
-    // @ts-ignore
-    const { data, error } = await supabase
+    // @ts-ignore: sales table not typed
+    const { data, error } = await (supabase as any)
       .from('sales')
       .select('*')
       .eq('station_id', stationId)
@@ -139,18 +139,21 @@ export class ApiService {
 
     if (error) throw error;
 
+    // Only return rows with required sales properties
     return {
-      data: data?.map(sale => ({
+      data: Array.isArray(data) ? data.filter(sale =>
+        sale && typeof sale.id !== "undefined" && typeof sale.nozzle_id !== "undefined"
+      ).map(sale => ({
         id: sale.id.toString(),
         pumpId: `P${sale.nozzle_id}`,
-        fuelType: 'Petrol' as const,
+        fuelType: 'Petrol' as const, // TODO: fetch real type if needed!
         litres: sale.delta_volume_l || 0,
         pricePerLitre: sale.price_per_litre || 0,
         totalAmount: sale.total_amount || 0,
         timestamp: sale.created_at,
         shift: 'morning' as const,
         nozzleId: sale.nozzle_id
-      })) || []
+      })) : []
     };
   }
 

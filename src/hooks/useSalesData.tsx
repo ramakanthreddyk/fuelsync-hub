@@ -19,14 +19,13 @@ export function useSalesData(date?: string) {
 
   return useQuery({
     queryKey: ['sales', currentStation?.id, date],
-    queryFn: async () => {
+    queryFn: async (): Promise<Sale[]> => {
       if (!canAccessAllStations && !currentStation?.id) {
         return [];
       }
 
-      // Work around type error for dynamic tables
-      let query = supabase
-        // @ts-ignore - we know the sales table exists, even if supabase types don't see it
+      // @ts-ignore: The sales table isn't always present in generated types
+      let query = (supabase as any)
         .from('sales')
         .select('*')
         .order('created_at', { ascending: false });
@@ -42,9 +41,15 @@ export function useSalesData(date?: string) {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
-      return data as Sale[];
+
+      // Safely filter out nonsense and coerce any to Sale[]
+      return (Array.isArray(data) ? data.filter(
+        (row): row is Sale =>
+          row && typeof row.id === "number" &&
+          typeof row.station_id !== "undefined" &&
+          typeof row.nozzle_id !== "undefined"
+      ) : []) as Sale[];
     },
     enabled: canAccessAllStations || !!currentStation?.id,
   });

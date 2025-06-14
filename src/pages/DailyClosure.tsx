@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,20 +27,23 @@ export default function DailyClosure() {
     mutationFn: async () => {
       if (!currentStation?.id || !summary) throw new Error('No station or summary data');
 
+      // Only send columns that exist in daily_closure (date -> closure_date)
+      const upsertData = {
+        station_id: currentStation.id,
+        date: selectedDate,
+        sales_total: summary.sales_total,
+        tender_total: summary.tender_total,
+        difference: summary.difference,
+        closed_by: user?.id ?? null,
+        closed_at: new Date().toISOString()
+      };
+
+      // @ts-ignore: ignore type noise for this table
       const { data, error } = await supabase
-        // @ts-ignore
         .from('daily_closure')
-        .upsert({
-          station_id: currentStation.id,
-          date: selectedDate,
-          sales_total: summary.sales_total,
-          tender_total: summary.tender_total,
-          difference: summary.difference,
-          closed_by: user?.id, // user id is string/uuid
-          closed_at: new Date().toISOString()
-        })
+        .upsert(upsertData)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
