@@ -73,7 +73,6 @@ export const useDashboardData = () => {
       setIsLoading(true);
       console.log("Loading dashboard data for station", currentStation);
 
-      // Build headers for Edge Function calls
       const accessToken = getAuthHeader();
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -96,24 +95,33 @@ export const useDashboardData = () => {
         throw new Error(summaryResult?.error || "Failed to load dashboard summary");
       }
       const summary = summaryResult.data;
-      // Explicitly extract premium_required flag if present
       const premiumRequired = !!summary.premium_required;
 
-      // Fetch sales trends
-      const trendsRes = await fetch(
-        `${SUPABASE_URL}/functions/v1/dashboard-api/sales-trend?stationId=${currentStation.id}`,
-        {
-          method: "GET",
-          headers
-        }
-      );
-      const trendsResult = await trendsRes.json();
-      console.log("Dashboard trends result:", trendsResult);
+      // We'll only attempt to load trends if the user is premium (otherwise, skip gracefully)
+      let trends: Array<{ date: string; sales: number; tender: number }> = [];
 
-      if (!trendsRes.ok || trendsResult?.error) {
-        throw new Error(trendsResult?.error || "Failed to load trends data");
+      if (!premiumRequired) {
+        // Only fetch trends if premium is NOT required
+        try {
+          const trendsRes = await fetch(
+            `${SUPABASE_URL}/functions/v1/dashboard-api/sales-trend?stationId=${currentStation.id}`,
+            {
+              method: "GET",
+              headers
+            }
+          );
+          const trendsResult = await trendsRes.json();
+          console.log("Dashboard trends result:", trendsResult);
+          if (!trendsRes.ok || trendsResult?.error) {
+            // Unexpected error while fetching trends (other than premium required)
+            throw new Error(trendsResult?.error || "Failed to load trends data");
+          }
+          trends = trendsResult.data || [];
+        } catch (err) {
+          // If trends couldn't load and it wasn't due to premium restriction, add error badge
+          console.error("Error fetching trends data:", err);
+        }
       }
-      const trends = trendsResult.data || [];
 
       // Get total readings count
       const { count: readingsCount } = await supabase
@@ -142,7 +150,8 @@ export const useDashboardData = () => {
         alerts: summary.alerts || [],
         premiumRequired
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Only show critical alert if it's not a premium-gated feature
       console.error('Error loading dashboard data:', error);
       setData(prev => ({
         ...prev,
@@ -150,7 +159,9 @@ export const useDashboardData = () => {
           {
             id: 'load_error',
             type: 'error',
-            message: 'Failed to load dashboard data',
+            message: typeof error?.message === "string"
+              ? error.message
+              : 'Failed to load dashboard data',
             severity: 'high',
             tags: ['system']
           }
