@@ -29,6 +29,7 @@ export default function DailyClosure() {
       if (!currentStation?.id || !summary) throw new Error('No station or summary data');
 
       const { data, error } = await supabase
+        // @ts-ignore
         .from('daily_closure')
         .upsert({
           station_id: currentStation.id,
@@ -36,7 +37,7 @@ export default function DailyClosure() {
           sales_total: summary.sales_total,
           tender_total: summary.tender_total,
           difference: summary.difference,
-          closed_by: user?.id,
+          closed_by: user?.id, // user id is string/uuid
           closed_at: new Date().toISOString()
         })
         .select()

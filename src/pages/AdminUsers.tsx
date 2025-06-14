@@ -13,7 +13,7 @@ import { Plus, Users, Settings, Trash2, Shield } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface UserWithStations {
-  id: number;
+  id: string;
   name: string;
   email: string;
   phone: string;
@@ -118,7 +118,7 @@ export default function AdminUsers() {
 
   // Toggle user status mutation
   const toggleUserStatusMutation = useMutation({
-    mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
+    mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
       const { data, error } = await supabase
         .from('users')
         .update({ is_active: isActive })
@@ -157,7 +157,7 @@ export default function AdminUsers() {
     inviteUserMutation.mutate(newUser);
   };
 
-  const handleToggleStatus = (userId: number, currentStatus: boolean) => {
+  const handleToggleStatus = (userId: string, currentStatus: boolean) => {
     toggleUserStatusMutation.mutate({ userId, isActive: !currentStatus });
   };
 

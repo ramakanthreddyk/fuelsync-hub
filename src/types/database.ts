@@ -1,21 +1,21 @@
-
 // Database types matching the new multi-tenant fuel station schema
 export interface User {
-  id: number;
+  id: string; // UUID user id, not number!
   name: string | null;
   email: string;
   phone: string | null;
-  password: string;
+  password?: string;
   role: 'superadmin' | 'owner' | 'employee';
   is_active: boolean;
   created_at: string;
   updated_at: string;
   user_stations?: UserStation[];
   stations?: Station[];
+  auth_uid?: string | null;
 }
 
 export interface UserStation {
-  user_id: number;
+  user_id: string; // UUID
   station_id: number;
   created_at: string;
 }
@@ -25,11 +25,11 @@ export interface Station {
   name: string;
   brand: 'IOCL' | 'BPCL' | 'HPCL';
   address: string | null;
-  owner_id: number | null;
+  owner_id: string | null; // UUID FK
   current_plan_id: number | null;
   plan_id: number | null;
   is_active: boolean;
-  is_paid: boolean;
+  is_paid?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -80,7 +80,7 @@ export interface OCRReading {
   reading_time: string;
   cumulative_vol: number;
   image_url: string | null;
-  created_by: number | null;
+  created_by: string | null; // UUID, FK to users
   created_at: string;
 }
 
@@ -90,7 +90,7 @@ export interface FuelPrice {
   fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
   price_per_litre: number;
   valid_from: string;
-  created_by: number | null;
+  created_by: string | null; // UUID
   created_at: string;
 }
 

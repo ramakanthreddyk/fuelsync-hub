@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,17 +17,17 @@ interface StationWithDetails {
   name: string;
   brand: 'IOCL' | 'BPCL' | 'HPCL';
   address: string;
-  owner_id: number;
+  owner_id: string; // UUID
   current_plan_id: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  users: { id: number; name: string; email: string; role: string } | null;
+  users: { id: string; name: string; email: string; role: string } | null;
   plans: { id: number; name: string; price_monthly: number } | null;
 }
 
 interface User {
-  id: number;
+  id: string; // UUID
   name: string;
   email: string;
   role: string;
@@ -145,8 +144,8 @@ export default function AdminStations() {
             name: stationData.name,
             brand: stationData.brand,
             address: stationData.address,
-            owner_id: parseInt(stationData.owner_id),
-            current_plan_id: parseInt(stationData.current_plan_id)
+            owner_id: stationData.owner_id,
+            current_plan_id: stationData.current_plan_id
           }),
         }
       );

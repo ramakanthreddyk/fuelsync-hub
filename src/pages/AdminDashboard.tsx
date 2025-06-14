@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,35 +31,35 @@ export default function AdminDashboard() {
   const loadAdminData = async () => {
     try {
       setLoading(true);
-      
-      // Load all users
+
+      // Load all users (use correct type)
       const { data: usersData } = await supabase
         .from('users')
         .select('*')
         .order('created_at', { ascending: false });
-      
-      // Load all stations
+
+      // Load all stations (use correct type)
       const { data: stationsData } = await supabase
         .from('stations')
         .select('*')
         .order('created_at', { ascending: false });
-      
-      // Calculate stats
+
+      // Calculate stats as before...
       const totalUsers = usersData?.length || 0;
       const totalStations = stationsData?.length || 0;
       const totalOwners = usersData?.filter(u => u.role === 'owner').length || 0;
       const totalEmployees = usersData?.filter(u => u.role === 'employee').length || 0;
-      
+
       setStats({
         totalUsers,
         totalStations,
         totalOwners,
         totalEmployees,
-        activeStations: totalStations // All stations are considered active for now
+        activeStations: totalStations
       });
-      
-      setRecentUsers(usersData?.slice(0, 10) || []);
-      setRecentStations(stationsData?.slice(0, 10) || []);
+
+      setRecentUsers((usersData as User[]) || []); // Enforce type
+      setRecentStations((stationsData as Station[]) || []);
     } catch (error) {
       console.error('Error loading admin data:', error);
       toast({

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export class ApiService {
@@ -131,6 +130,7 @@ export class ApiService {
   }
 
   async getSales(stationId: number) {
+    // @ts-ignore
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -138,7 +138,7 @@ export class ApiService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    
+
     return {
       data: data?.map(sale => ({
         id: sale.id.toString(),

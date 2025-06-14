@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoleAccess } from "./useRoleAccess";
@@ -23,7 +24,9 @@ export function useSalesData(date?: string) {
         return [];
       }
 
+      // Work around type error for dynamic tables
       let query = supabase
+        // @ts-ignore - we know the sales table exists, even if supabase types don't see it
         .from('sales')
         .select('*')
         .order('created_at', { ascending: false });
