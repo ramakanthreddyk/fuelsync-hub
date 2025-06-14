@@ -274,197 +274,221 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      const { name, email, phone, role, password = 'defaultpass123', station_id, station_name, brand, address } = await req.json();
+      let debugError;
+      try {
+        const { name, email, phone, role, password = 'defaultpass123', station_id, station_name, brand, address } = await req.json();
 
-      if (!name || !email || !role) {
+        if (!name || !email || !role) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Missing required fields'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        let newUser, userCreateError, stationCreated = null;
+        if (role === 'owner') {
+          // create new station for every new owner (always create even for existing)
+          if (!station_name || !brand || !address) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing station_name, brand, or address for owner creation'
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Create owner user
+          const { data: user, error: userErr } = await supabaseAdmin
+            .from('users')
+            .insert({ name, email, phone, role, password, is_active: true })
+            .select()
+            .single();
+          newUser = user;
+          userCreateError = userErr;
+
+          if (userCreateError) {
+            console.error("[SUPABASE FUNC] users table insert error:", userCreateError);
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Failed to create owner user (users table): ${userCreateError.message || userCreateError}`
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Add Auth User for new owner (if not already exists)
+          const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { name }
+          });
+
+          if (authErr) {
+            // Cleanup users row
+            await supabaseAdmin.from('users').delete().eq('id', newUser.id);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Now create a new station for this owner
+          const { data: newStation, error: stationErr } = await supabaseAdmin
+            .from('stations')
+            .insert({
+              name: station_name,
+              brand: brand,
+              address: address,
+              owner_id: newUser.id,
+              is_active: true
+            })
+            .select()
+            .single();
+
+          if (stationErr) {
+            await supabaseAdmin.from('users').delete().eq('id', newUser.id);
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Failed to create station for owner'
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          stationCreated = newStation;
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: { owner: newUser, station: stationCreated }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } else if (role === 'employee') {
+          // Must assign to existing station
+          if (!station_id) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing station_id for employee creation'
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // More detailed error logging for user creation
+          const { data: user, error: userErr } = await supabaseAdmin
+            .from('users')
+            .insert({ name, email, phone, role, password, is_active: true })
+            .select()
+            .single();
+          newUser = user;
+          userCreateError = userErr;
+
+          if (userCreateError) {
+            console.error("[SUPABASE FUNC] users table insert error:", userCreateError);
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Failed to create employee user (users table): ${userCreateError.message || userCreateError}`
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Create Auth user for employee
+          const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { name }
+          });
+
+          if (authErr) {
+            await supabaseAdmin.from('users').delete().eq('id', newUser.id);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Create user_stations link
+          const { error: userStationErr } = await supabaseAdmin
+            .from('user_stations')
+            .insert({ user_id: newUser.id, station_id: station_id });
+
+          if (userStationErr) {
+            await supabaseAdmin.from('users').delete().eq('id', newUser.id);
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to assign employee to station' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: newUser
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+
+        } else {
+          // For superadmin or other roles: old flow
+          const { data: user, error: userErr } = await supabaseAdmin
+            .from('users')
+            .insert({ name, email, phone, role, password, is_active: true })
+            .select()
+            .single();
+          newUser = user;
+          userCreateError = userErr;
+
+          if (userCreateError) {
+            console.error("[SUPABASE FUNC] users table insert error:", userCreateError);
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Failed to create user (users table): ${userCreateError.message || userCreateError}`
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { name }
+          });
+
+          if (authErr) {
+            await supabaseAdmin.from('users').delete().eq('id', newUser.id);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: newUser
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      } catch (err) {
+        console.error("[SUPABASE FUNC] Unhandled user creation error:", err);
         return new Response(JSON.stringify({
           success: false,
-          error: 'Missing required fields'
+          error: `Unhandled error during user creation: ${err && err.message ? err.message : String(err)}`
         }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // owner/employee assignment
-      let newUser, userCreateError, stationCreated = null;
-      if (role === 'owner') {
-        // create new station for every new owner (always create even for existing)
-        if (!station_name || !brand || !address) {
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'Missing station_name, brand, or address for owner creation'
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Create owner user
-        const { data: user, error: userErr } = await supabaseAdmin
-          .from('users')
-          .insert({ name, email, phone, role, password, is_active: true })
-          .select()
-          .single();
-        newUser = user;
-        userCreateError = userErr;
-
-        if (userCreateError) {
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create owner user (users table)' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Add Auth User for new owner (if not already exists)
-        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { name }
-        });
-
-        if (authErr) {
-          // Cleanup users row
-          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Now create a new station for this owner
-        const { data: newStation, error: stationErr } = await supabaseAdmin
-          .from('stations')
-          .insert({
-            name: station_name,
-            brand: brand,
-            address: address,
-            owner_id: newUser.id,
-            is_active: true
-          })
-          .select()
-          .single();
-
-        if (stationErr) {
-          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
-          await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'Failed to create station for owner'
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-        stationCreated = newStation;
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: { owner: newUser, station: stationCreated }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      } else if (role === 'employee') {
-        // Must assign to existing station
-        if (!station_id) {
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'Missing station_id for employee creation'
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        const { data: user, error: userErr } = await supabaseAdmin
-          .from('users')
-          .insert({ name, email, phone, role, password, is_active: true })
-          .select()
-          .single();
-        newUser = user;
-        userCreateError = userErr;
-
-        if (userCreateError) {
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create employee user (users table)' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Create Auth user for employee
-        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { name }
-        });
-
-        if (authErr) {
-          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Create user_stations link
-        const { error: userStationErr } = await supabaseAdmin
-          .from('user_stations')
-          .insert({ user_id: newUser.id, station_id: station_id });
-
-        if (userStationErr) {
-          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
-          await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to assign employee to station' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: newUser
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-
-      } else {
-        // For superadmin or other roles: old flow
-        const { data: user, error: userErr } = await supabaseAdmin
-          .from('users')
-          .insert({ name, email, phone, role, password, is_active: true })
-          .select()
-          .single();
-        newUser = user;
-        userCreateError = userErr;
-
-        if (userCreateError) {
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create user (users table)' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { name }
-        });
-
-        if (authErr) {
-          await supabaseAdmin.from('users').delete().eq('id', newUser.id);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create authentication user' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: newUser
-        }), {
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
