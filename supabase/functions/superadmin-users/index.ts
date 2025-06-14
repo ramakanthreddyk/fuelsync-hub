@@ -128,11 +128,10 @@ serve(async (req) => {
 
         console.log('User updated successfully:', updated);
 
-        // Handle station assignment for employees and owners
-        if (station_id !== undefined) {
-          console.log('Handling station assignment, station_id:', station_id);
-          
-          // First, remove existing station assignments for this user
+        // Handle station assignment ONLY for employee or owner
+        if ((role === 'employee' || role === 'owner')) {
+          console.log('Handling station assignment for employee/owner, station_id:', station_id);
+          // Remove old station assignments (if any)
           const { error: deleteError } = await supabaseAdmin
             .from('user_stations')
             .delete()
@@ -142,7 +141,7 @@ serve(async (req) => {
             console.error('Error removing existing station assignments:', deleteError);
           }
 
-          // If station_id is provided (not null/empty), add new assignment
+          // If station_id is provided and valid (not empty), assign new station
           if (station_id && station_id !== '' && station_id !== 'undefined') {
             const { error: insertError } = await supabaseAdmin
               .from('user_stations')
@@ -163,6 +162,8 @@ serve(async (req) => {
             }
             console.log('Station assignment created successfully');
           }
+        } else {
+          console.log(`No station assignment change for role [${role}] (should be superadmin)`);
         }
 
         return new Response(JSON.stringify({
