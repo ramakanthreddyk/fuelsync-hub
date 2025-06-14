@@ -6,183 +6,133 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
+// --- Utility: Superadmin Authorization ---
+async function authorizeSuperadmin(req: Request) {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { error: 'Missing or invalid authorization header', status: 401 };
+  }
+  const token = authHeader.split(' ')[1];
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+
+  const { data: authResp, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !authResp?.user) {
+    return { error: 'Authentication failed', status: 401 };
+  }
+  const authUser = authResp.user;
+  const { data: userData, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('role, is_active')
+    .eq('email', authUser.email)
+    .single();
+
+  if (userError || !userData || userData.role !== 'superadmin') {
+    return { error: 'Insufficient permissions', status: 403 };
+  }
+  return { supabase, supabaseAdmin, authUser };
+}
+
+// --- Utility: Handle station assignment for employee/owner ---
+async function handleStationAssignment(supabaseAdmin: any, userId: string, role: string, station_id: any) {
+  if (role === 'employee' || role === 'owner') {
+    // Remove old assignments
+    const { error: deleteError } = await supabaseAdmin
+      .from('user_stations')
+      .delete()
+      .eq('user_id', userId);
+    if (deleteError) {
+      console.error('[handleStationAssignment] Failed to remove old assignments:', deleteError);
+    }
+    // Add new assignment if provided
+    if (station_id && station_id !== '' && station_id !== 'undefined') {
+      const { error: insertError } = await supabaseAdmin
+        .from('user_stations')
+        .insert({ 
+          user_id: userId, 
+          station_id: parseInt(station_id.toString(), 10) 
+        });
+      if (insertError) {
+        return { error: `Failed to assign station: ${insertError.message}` };
+      }
+    }
+  }
+  return {};
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: corsHeaders
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Missing or invalid authorization header'
-      }), {
-        status: 401,
+    // --- Auth and Superadmin check ---
+    const authResult = await authorizeSuperadmin(req);
+    if (authResult.error) {
+      return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+        status: authResult.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+    const { supabase, supabaseAdmin } = authResult;
 
-    const token = authHeader.split(' ')[1];
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      }
-    );
-
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { data: authResp, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authResp?.user) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Authentication failed'
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    const authUser = authResp.user;
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('role, is_active')
-      .eq('email', authUser.email)
-      .single();
-
-    if (userError || !userData || userData.role !== 'superadmin') {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Insufficient permissions'
-      }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Parse the URL to support RESTful subpaths (role/status updates/deletes)
+    // Parse RESTful subpaths
     const url = new URL(req.url);
     const pathname = url.pathname.replace('/functions/v1/superadmin-users', '');
     const pathParts = pathname.split('/').filter(Boolean);
 
-    // PUT /superadmin-users/{userId}/edit (optional: email/name/phone/role/is_active/station_id)
+    // --- Put/Edit User ---
     if (pathParts.length === 2 && pathParts[1] === 'edit' && req.method === 'PUT') {
       const userId = pathParts[0];
-      console.log('Edit user request for userId:', userId);
-      
-      try {
-        const body = await req.json();
-        console.log('Edit user request body:', body);
-        
-        const { name, email, phone, role, is_active, station_id } = body;
-
-        // Validate required fields
-        if (!userId) {
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'User ID is required'
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        // Build update fields for users table
-        const updateFields: Record<string, any> = {};
-        if (name !== undefined) updateFields.name = name;
-        if (email !== undefined) updateFields.email = email;
-        if (phone !== undefined) updateFields.phone = phone;
-        if (role !== undefined) updateFields.role = role;
-        if (typeof is_active === 'boolean') updateFields.is_active = is_active;
-
-        console.log('Update fields for users table:', updateFields);
-
-        // Update the user record
-        const { data: updated, error: updateError } = await supabaseAdmin
-          .from('users')
-          .update(updateFields)
-          .eq('id', userId)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error('Error updating user:', updateError);
-          return new Response(JSON.stringify({
-            success: false,
-            error: `Failed to update user: ${updateError.message}`
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        console.log('User updated successfully:', updated);
-
-        // Handle station assignment ONLY for employee or owner
-        if ((role === 'employee' || role === 'owner')) {
-          console.log('Handling station assignment for employee/owner, station_id:', station_id);
-          // Remove old station assignments (if any)
-          const { error: deleteError } = await supabaseAdmin
-            .from('user_stations')
-            .delete()
-            .eq('user_id', userId);
-
-          if (deleteError) {
-            console.error('Error removing existing station assignments:', deleteError);
-          }
-
-          // If station_id is provided and valid (not empty), assign new station
-          if (station_id && station_id !== '' && station_id !== 'undefined') {
-            const { error: insertError } = await supabaseAdmin
-              .from('user_stations')
-              .insert({ 
-                user_id: userId, 
-                station_id: parseInt(station_id.toString(), 10) 
-              });
-
-            if (insertError) {
-              console.error('Error creating new station assignment:', insertError);
-              return new Response(JSON.stringify({
-                success: false,
-                error: `Failed to assign station: ${insertError.message}`
-              }), {
-                status: 500,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              });
-            }
-            console.log('Station assignment created successfully');
-          }
-        } else {
-          console.log(`No station assignment change for role [${role}] (should be superadmin)`);
-        }
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: updated
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-
-      } catch (parseError) {
-        console.error('Error parsing request body:', parseError);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Invalid request body'
-        }), {
+      let body;
+      try { body = await req.json(); } catch {
+        return new Response(JSON.stringify({ success: false, error: 'Invalid request body' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
+      const { name, email, phone, role, is_active, station_id } = body;
+
+      // Build up update fields
+      const updateFields: Record<string, any> = {};
+      if (name !== undefined) updateFields.name = name;
+      if (email !== undefined) updateFields.email = email;
+      if (phone !== undefined) updateFields.phone = phone;
+      if (role !== undefined) updateFields.role = role;
+      if (typeof is_active === 'boolean') updateFields.is_active = is_active;
+
+      // Update user record
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update(updateFields)
+        .eq('id', userId)
+        .select()
+        .single();
+      if (updateError) {
+        return new Response(JSON.stringify({ success: false, error: `Failed to update user: ${updateError.message}` }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Only assign station for employee/owner, not superadmin
+      const stationResult = await handleStationAssignment(supabaseAdmin, userId, role, station_id);
+      if (stationResult.error) {
+        return new Response(JSON.stringify({ success: false, error: stationResult.error }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({ success: true, data: updated }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // /superadmin-users/{id}/role, /superadmin-users/{id}/status
