@@ -68,11 +68,6 @@ export function AppSidebar() {
       icon: Fuel,
     },
     {
-      title: "Prices",
-      url: "/prices",
-      icon: DollarSign,
-    },
-    {
       title: "Reports",
       url: "/reports",
       icon: FileText,

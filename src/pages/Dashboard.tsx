@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
-import { DollarSign, Fuel, TrendingUp, Clock, AlertTriangle } from "lucide-react";
+import { DollarSign, Fuel, TrendingUp, Clock, AlertTriangle, ListChecks } from "lucide-react";
 import { TrendsChart } from "@/components/dashboard/TrendsChart";
 import { FuelPriceCard } from "@/components/dashboard/FuelPriceCard";
 import { AlertBadges } from "@/components/dashboard/AlertBadges";
@@ -9,6 +9,11 @@ import { UpgradeModal } from "@/components/dashboard/UpgradeModal";
 import { useState } from "react";
 import { useEffect } from "react";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import { useFuelPricesData } from "@/hooks/useFuelPricesData";
+import { Button } from "@/components/ui/button";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
   // ACTIVITY LOGGING: Log "dashboard_view" once per visit (on mount)
@@ -27,8 +32,31 @@ export default function Dashboard() {
   const { data, isLoading } = useDashboardData();
   const [showUpgrade, setShowUpgrade] = useState(false);
 
-  // Determine premium restriction from API response
-  const premiumRequired = !!data.premiumRequired;
+  // Setup checklist - check if fuel prices exist, pumps/nozzles assigned, etc.
+  const { data: fuelPrices, isLoading: fuelPricesLoading } = useFuelPricesData();
+  const { currentStation } = useRoleAccess();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Checklist items: You can expand these as needed, e.g. require at least one pump/nozzle assignment
+  const checklist = [
+    {
+      key: "fuel_price_set",
+      label: "Set fuel prices",
+      completed: !!(fuelPrices && fuelPrices.length > 0),
+      action: () => navigate("/prices"),
+    },
+    {
+      key: "pump_assigned",
+      label: "Assign pumps",
+      completed: !!data && data.trendsData && data.trendsData.length > 0, // This is just an example, you may want stricter checks
+      action: () => navigate("/pumps"),
+    },
+    // Add more items here as needed
+  ];
+
+  // Show checklist only if something is incomplete
+  const incomplete = checklist.filter(item => !item.completed);
 
   // --- "blur" style for locked widgets
   const lockWidgetProps = {
@@ -44,6 +72,7 @@ export default function Dashboard() {
     </div>
   );
 
+  const premiumRequired = !!data.premiumRequired;
   const variance = data.todayTender - data.todaySales;
 
   if (isLoading) {
@@ -56,6 +85,51 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
+      {/* ----- SETUP CHECKLIST ----- */}
+      {(incomplete.length > 0) && (
+        <Card className="border-yellow-400 border-2 bg-yellow-50 mb-4 animate-pulse hover:animate-none transition-all duration-500">
+          <CardHeader className="flex items-center gap-3">
+            <ListChecks className="h-8 w-8 text-yellow-800" />
+            <div>
+              <CardTitle className="text-lg text-yellow-900">Finish your Setup</CardTitle>
+              <CardDescription>
+                Please complete the following items to start using the app smoothly.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {checklist.map(item => (
+                <li key={item.key} className="flex items-center gap-3">
+                  {/* Only "check" completed items */}
+                  <span>
+                    {item.completed ? (
+                      <span className="inline-block w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white"><span className="sr-only">Done</span>✔️</span>
+                    ) : (
+                      <span className="inline-block w-6 h-6 rounded-full bg-yellow-500/50 border border-yellow-900 flex items-center justify-center text-yellow-900">!</span>
+                    )}
+                  </span>
+                  <span className={item.completed ? "text-green-800 font-medium" : "text-yellow-900"}>
+                    {item.label}
+                  </span>
+                  {!item.completed &&
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={item.action}
+                    >
+                      Fix
+                    </Button>
+                  }
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+      {/* ----- END SETUP CHECKLIST ----- */}
+
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
