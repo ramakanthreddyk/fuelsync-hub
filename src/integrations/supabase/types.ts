@@ -37,7 +37,15 @@ export type Database = {
           station_id?: number | null
           valid_from?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fuel_prices_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       nozzles: {
         Row: {
@@ -114,7 +122,15 @@ export type Database = {
           source?: Database["public"]["Enums"]["ocr_source"]
           station_id?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ocr_readings_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ocr_uploads: {
         Row: {

@@ -88,7 +88,8 @@ const UsersPage = ({ stations }: Props) => {
     });
   };
 
-  const handleRoleChange = async (userId: number, newRole: 'superadmin' | 'owner' | 'employee') => {
+  // Update: make sure handleRoleChange and handleStatusChange accept UUID string as userId
+  const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'owner' | 'employee') => {
     try {
       const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users/${userId}/role`, {
         method: 'PUT',
@@ -112,7 +113,7 @@ const UsersPage = ({ stations }: Props) => {
     }
   };
 
-  const handleStatusChange = async (userId: number, newStatus: boolean) => {
+  const handleStatusChange = async (userId: string, newStatus: boolean) => {
     try {
       const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users/${userId}/status`, {
         method: 'PUT',

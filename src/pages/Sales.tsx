@@ -193,12 +193,17 @@ export default function Sales() {
     try {
       await createManualEntry.mutateAsync({
         station_id: parseInt(manualEntry.station_id),
-        // FIX: Always pass nozzle_id as number (deeper fix for assignment type)
-        nozzle_id: typeof manualEntry.nozzle_id === "string"
-          ? parseInt(manualEntry.nozzle_id, 10)
-          : (typeof manualEntry.nozzle_id === "number" ? manualEntry.nozzle_id : 0),
+        // Ensure nozzle_id is always passed as a number
+        nozzle_id:
+          typeof manualEntry.nozzle_id === "string"
+            ? Number.isNaN(parseInt(manualEntry.nozzle_id, 10))
+              ? 0
+              : parseInt(manualEntry.nozzle_id, 10)
+            : typeof manualEntry.nozzle_id === "number"
+            ? manualEntry.nozzle_id
+            : 0,
         cumulative_volume: parseFloat(manualEntry.cumulative_volume),
-        user_id: user?.id || 0
+        user_id: user?.id || 0,
       });
 
       setIsAddSaleOpen(false);
