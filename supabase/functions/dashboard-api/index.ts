@@ -87,6 +87,12 @@ serve(async (req) => {
 
     console.log('Dashboard API Request:', req.method, url.pathname)
 
+    // ---- CALCULATE PREMIUM ACCESS (dummy logic for now, you can improve later) ----
+    // In a real-world scenario, fetch user's subscription/plan info and use that.
+    // For this demo, let's say query param ?isPremium=true simulates premium access,
+    // otherwise return premium_required.
+    const isPremium = url.searchParams.get('isPremium') === 'true';
+
     // GET /dashboard/summary - Get dashboard summary metrics
     if (req.method === 'GET' && pathParts.length === 1 && pathParts[0] === 'summary') {
       const stationId = url.searchParams.get('stationId')
@@ -190,13 +196,20 @@ serve(async (req) => {
         })
       }
 
-      const summary = {
+      let summary = {
         total_sales_today: totalSalesToday,
         total_tender_today: totalTenderToday,
         fuel_prices: fuelPrices,
         pending_closure_count: pendingClosureCount,
         variance: variance,
         alerts
+      }
+
+      if (!isPremium) {
+        summary = {
+          ...summary,
+          premium_required: true
+        }
       }
 
       return new Response(JSON.stringify({ success: true, data: summary }), {
@@ -251,6 +264,18 @@ serve(async (req) => {
           sales: salesTotal,
           tender: tenderTotal,
           day_name: date.toLocaleDateString('en-US', { weekday: 'short' })
+        })
+      }
+
+      // Access control: block if not premium, return empty with premium metadata
+      if (!isPremium) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: "Premium required to access trends",
+          metadata: { premium_required: true }
+        }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 

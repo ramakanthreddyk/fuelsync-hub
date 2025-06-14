@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { DollarSign, Fuel, TrendingUp, Clock, AlertTriangle } from "lucide-react";
@@ -6,10 +5,30 @@ import { TrendsChart } from "@/components/dashboard/TrendsChart";
 import { FuelPriceCard } from "@/components/dashboard/FuelPriceCard";
 import { AlertBadges } from "@/components/dashboard/AlertBadges";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { UpgradeModal } from "@/components/dashboard/UpgradeModal";
+import { useState } from "react";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { data, isLoading } = useDashboardData();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  // Determine premium restriction from API response
+  const premiumRequired = !!data?.premium_required;
+
+  // --- "blur" style for locked widgets
+  const lockWidgetProps = {
+    className: "relative cursor-pointer select-none",
+    onClick: () => setShowUpgrade(true),
+  };
+  const lockOverlay = (
+    <div className="absolute inset-0 bg-white/70 dark:bg-black/60 flex flex-col items-center justify-center z-10 rounded-[inherit] backdrop-blur-[2px]">
+      <span className="text-xs font-semibold text-yellow-500">
+        <span className="flex items-center gap-1"><svg width="1em" height="1em" viewBox="0 0 20 20" className="inline align-middle"><path fill="#facc15" d="M10 2a5 5 0 0 1 5 5v3h1c.6 0 1 .4 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6c0-.6.4-1 1-1h1V7a5 5 0 0 1 5-5m0 2A3 3 0 0 0 7 7v3h6V7a3 3 0 0 0-3-3m0 8a1 1 0 0 0-.99 1v2.01a1 1 0 1 0 2 0V13A1 1 0 0 0 10 12" /></svg>
+        Available on Premium – Upgrade to view detailed insights.</span>
+      </span>
+    </div>
+  );
 
   const variance = data.todayTender - data.todaySales;
 
@@ -36,6 +55,7 @@ export default function Dashboard() {
 
       {/* Key Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Sales Today */}
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Sales Today</CardTitle>
@@ -49,6 +69,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Total Tender */}
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Tender</CardTitle>
@@ -62,6 +83,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Pending Closures */}
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Closures</CardTitle>
@@ -77,34 +99,42 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Daily Variance</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${Math.abs(variance) < 1 ? 'text-green-600' : variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-              {Math.abs(variance) < 1 ? 'Balanced' : `${variance > 0 ? '+' : '-'}₹${Math.abs(variance).toFixed(2)}`}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {Math.abs(variance) < 1 ? 'Sales match collections' : variance > 0 ? 'Collection excess' : 'Collection shortage'}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Daily Variance (Premium ONLY) */}
+        <div className="relative">
+          <Card className={`hover:shadow-md transition-shadow ${premiumRequired ? 'pointer-events-auto opacity-60 blur-sm' : ''}`}
+            {...(premiumRequired ? lockWidgetProps : {})}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Daily Variance</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${Math.abs(variance) < 1 ? 'text-green-600' : variance > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                {Math.abs(variance) < 1 ? 'Balanced' : `${variance > 0 ? '+' : '-'}₹${Math.abs(variance).toFixed(2)}`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {Math.abs(variance) < 1 ? 'Sales match collections' : variance > 0 ? 'Collection excess' : 'Collection shortage'}
+              </p>
+            </CardContent>
+            {/* Add overlay only if locked */}
+            {premiumRequired && lockOverlay}
+          </Card>
+        </div>
       </div>
 
       {/* Charts and Secondary Info */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Trends Chart - Takes 2 columns on large screens */}
-        <div className="lg:col-span-2">
-          <TrendsChart data={data.trendsData} isLoading={isLoading} />
+        {/* Trends Chart (Premium ONLY) */}
+        <div className="lg:col-span-2 relative">
+          <div className={premiumRequired ? "pointer-events-auto opacity-60 blur-sm relative" : ""} {...(premiumRequired ? lockWidgetProps : {})}>
+            <TrendsChart data={data.trendsData} isLoading={isLoading} />
+            {premiumRequired && lockOverlay}
+          </div>
         </div>
 
-        {/* Fuel Prices Card */}
+        {/* Fuel Prices and Quick Actions */}
         <div className="space-y-6">
-          <FuelPriceCard prices={data.fuelPrices} isLoading={isLoading} />
-          
-          {/* Quick Actions */}
+          {/* Fuel Prices Card */}
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
@@ -173,6 +203,9 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* MODAL */}
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }
