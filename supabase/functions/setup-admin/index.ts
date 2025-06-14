@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -94,11 +93,10 @@ serve(async (req) => {
 
     // Step 3: Create admin in auth.users if missing
     if (!authUserExists) {
-      // Compose the payload and log it before sending
+      // Compose payload WITHOUT email_confirm
       const payload = {
         email: adminEmail,
         password: adminPassword,
-        email_confirm: true,
         user_metadata: {
           name: "Super Admin"
         },
