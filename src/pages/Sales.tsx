@@ -262,7 +262,10 @@ export default function Sales() {
                       <SelectValue placeholder="Select station" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(canAccessAllStations ? stations : currentStation ? [currentStation] : []).filter(station => station.id != null && station.id !== undefined).map(station => (
+                      {/* Only show "all" if you want to support it. Otherwise, don't use value="" */}
+                      {(canAccessAllStations ? stations : currentStation ? [currentStation] : [])
+                        .filter(station => station.id != null && station.id !== undefined)
+                        .map(station => (
                         <SelectItem key={station.id} value={String(station.id)}>
                           {station.name}
                         </SelectItem>
@@ -285,11 +288,13 @@ export default function Sales() {
                     <SelectValue placeholder="Select pump" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availablePumps.filter(pump => pump.id != null && pump.id !== undefined).map(pump => (
-                      <SelectItem key={pump.id} value={String(pump.id)}>
-                        {pump.name || `Pump ${pump.pump_sno}`}
-                      </SelectItem>
-                    ))}
+                    {availablePumps
+                      .filter(pump => pump.id != null && pump.id !== undefined)
+                      .map(pump => (
+                        <SelectItem key={pump.id} value={String(pump.id)}>
+                          {pump.name || `Pump ${pump.pump_sno}`}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -305,11 +310,13 @@ export default function Sales() {
                     <SelectValue placeholder="Select nozzle" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableNozzles.filter(nozzle => nozzle.id != null && nozzle.id !== undefined).map(nozzle => (
-                      <SelectItem key={nozzle.id} value={String(nozzle.id)}>
-                        #{nozzle.nozzle_number} - {nozzle.fuel_type}
-                      </SelectItem>
-                    ))}
+                    {availableNozzles
+                      .filter(nozzle => nozzle.id != null && nozzle.id !== undefined)
+                      .map(nozzle => (
+                        <SelectItem key={nozzle.id} value={String(nozzle.id)}>
+                          #{nozzle.nozzle_number} - {nozzle.fuel_type}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
