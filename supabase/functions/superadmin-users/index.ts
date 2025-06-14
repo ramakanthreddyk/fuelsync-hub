@@ -451,8 +451,10 @@ serve(async (req) => {
 
           if (userCreateError) {
             console.error("[SUPABASE FUNC] users table insert error:", userCreateError);
+            // ENHANCEMENT: Log and return detailed error
             return new Response(JSON.stringify({
               success: false,
+              // Expose the error message for easier diagnosis
               error: `Failed to create user (users table): ${userCreateError.message || userCreateError}`
             }), {
               status: 500,
@@ -483,6 +485,7 @@ serve(async (req) => {
           });
         }
       } catch (err) {
+        // ENHANCEMENT: Add more detailed outer catch
         console.error("[SUPABASE FUNC] Unhandled user creation error:", err);
         return new Response(JSON.stringify({
           success: false,
