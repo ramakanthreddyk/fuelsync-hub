@@ -38,14 +38,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accountSetupPending, setAccountSetupPending] = useState(false);
 
   useEffect(() => {
-    // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
 
       if (event === 'SIGNED_IN' && session?.user) {
-        // Immediately set a "pending" user to trigger redirects
         setUser({
           id: session.user.id,
           name: session.user.user_metadata.name ?? session.user.email ?? null,
@@ -57,22 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           updated_at: null,
           stations: [],
         });
-        // Fetch full user details from DB in next tick
-        setTimeout(() => {
-          fetchUserData(session.user.email!);
-        }, 0);
-        setLoading(false); // Set loading false so router can react
+        retryFetchUserData(session.user.email!, 0);
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
       }
     });
 
-    // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        // Same: set temp user then fetch
         setUser({
           id: session.user.id,
           name: session.user.user_metadata.name ?? session.user.email ?? null,
@@ -84,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           updated_at: null,
           stations: [],
         });
-        fetchUserData(session.user.email!);
+        retryFetchUserData(session.user.email!, 0);
       } else {
         setLoading(false);
       }
@@ -95,7 +89,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const fetchUserData = async (email: string) => {
+  const retryFetchUserData = async (email: string, attempt: number) => {
+    setAccountSetupPending(attempt > 0);
+    try {
+      const success = await fetchUserData(email);
+      if (!success && attempt < 5) {
+        setTimeout(() => retryFetchUserData(email, attempt + 1), 3000);
+      }
+    } finally {
+      setAccountSetupPending(false);
+    }
+  };
+
+  const fetchUserData = async (email: string): Promise<boolean> => {
     try {
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -105,14 +111,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (userError || !userData) {
-        setUser(null);
         setLoading(false);
-        return;
+        return false;
       }
 
       let stations = [];
 
-      // role fallback (for older users, should always exist due to default in db)
       const role: UserRole = (userData.role as UserRole) || 'employee';
 
       if (role === 'owner') {
@@ -150,17 +154,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       setUser(transformedUser);
-    } catch (error) {
-      setUser(null);
-    } finally {
       setLoading(false);
+      return true;
+    } catch (error) {
+      setLoading(false);
+      return false;
     }
   };
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Only attempt sign in directly with Auth, do NOT check public.users first
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -176,7 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         throw new Error('Invalid credentials');
       }
-      // User data will be set by the auth state change listener
     } catch (error) {
       setLoading(false);
       throw error;
@@ -203,7 +206,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: logout,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {loading ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-lg">Loading...</div>
+        </div>
+      ) : accountSetupPending ? (
+        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-4">
+          <div className="text-lg font-semibold">Setting up your account…</div>
+          <div className="text-gray-500">Please wait a moment while we finish your registration. This may take a few seconds.</div>
+        </div>
+      ) : (
+        children
+      )}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
