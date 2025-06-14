@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,30 @@ export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Add function to call edge function for auto-confirm
+  const confirmUser = async (userEmail: string) => {
+    try {
+      const response = await fetch(
+        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: userEmail }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to confirm user');
+      }
+      return result;
+    } catch (error) {
+      console.error('Error auto-confirming user:', error);
+      throw error;
+    }
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,11 +84,27 @@ export default function Signup() {
           variant: "destructive"
         });
       } else {
-        toast({
-          title: "Account Created Successfully!",
-          description: "Please check your email and click the confirmation link to complete your registration.",
-        });
-        // Don't navigate immediately, let user confirm email first
+        let confirmationSucceeded = false;
+        try {
+          // Try to confirm user programmatically for allowed/demo emails
+          await confirmUser(email);
+          confirmationSucceeded = true;
+        } catch {
+          confirmationSucceeded = false;
+        }
+
+        if (confirmationSucceeded) {
+          toast({
+            title: "Account Created & Confirmed!",
+            description: "Your account has been auto-confirmed. You can now log in.",
+          });
+        } else {
+          toast({
+            title: "Account Created Successfully!",
+            description: "Please check your email and click the confirmation link to complete your registration.",
+          });
+        }
+
         setEmail('');
         setPassword('');
         setName('');
