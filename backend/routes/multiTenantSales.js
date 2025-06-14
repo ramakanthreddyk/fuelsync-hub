@@ -8,13 +8,16 @@ const router = express.Router();
 // All routes require authentication
 router.use(auth);
 
-// Get sales for user's station
-router.get('/', MultiTenantSalesController.getSales);
+// Main paginated/filterable sales endpoint
+router.get('/', MultiTenantSalesController.salesPageList);
 
-// Get daily summary
-router.get('/daily/:date', MultiTenantSalesController.getDailySummary);
+// Sales summary endpoint
+router.get('/summary', MultiTenantSalesController.salesSummary);
 
-// Get sales trends
+// Trend/daily routes kept for any upstream legacy dash features
 router.get('/trends', MultiTenantSalesController.getSalesTrends);
+
+// Per-day legacy
+router.get('/daily/:date', MultiTenantSalesController.getDailySummary);
 
 module.exports = router;
