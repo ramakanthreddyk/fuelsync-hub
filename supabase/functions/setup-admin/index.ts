@@ -34,73 +34,93 @@ serve(async (req) => {
 
     // Create admin user
     const adminEmail = "admin@fuelsync.com";
+    const adminPassword = "admin123";
     
-    // Check if admin already exists
+    // Check if admin already exists in auth
+    const { data: existingAuthUser } = await supabase.auth.admin.listUsers();
+    const authUserExists = existingAuthUser?.users?.some(user => user.email === adminEmail);
+
+    // Check if admin already exists in public.users
     const { data: existingUser } = await supabase
       .from("users")
       .select("id")
       .eq("email", adminEmail)
       .maybeSingle();
 
-    if (existingUser) {
+    if (authUserExists && existingUser) {
       return new Response(JSON.stringify({ 
         success: true, 
-        message: "Admin user already exists",
+        message: "Admin user already exists in both auth and public tables",
         email: adminEmail 
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Create in public.users with proper enum casting
-    const { data: newUser, error: userError } = await supabase
-      .rpc('create_admin_user', {
-        user_email: adminEmail,
-        user_name: "Super Admin"
-      });
+    let publicUserId = existingUser?.id;
+    let authUserId;
 
-    if (userError) {
-      console.error("Error creating admin user:", userError);
-      return new Response(JSON.stringify({ success: false, error: "Database error creating new user" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Create in public.users if it doesn't exist
+    if (!existingUser) {
+      const { data: newUser, error: userError } = await supabase
+        .rpc('create_admin_user', {
+          user_email: adminEmail,
+          user_name: "Super Admin"
+        });
 
-    // Create in auth.users
-    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-      email: adminEmail,
-      password: "admin123",
-      email_confirm: true,
-      user_metadata: {
-        name: "Super Admin",
-        role: "superadmin"
+      if (userError) {
+        console.error("Error creating admin user:", userError);
+        return new Response(JSON.stringify({ success: false, error: "Database error creating new user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
-    });
 
-    if (authError) {
-      console.error("Error creating auth user:", authError);
-      return new Response(JSON.stringify({ success: false, error: "Failed to create auth user" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      publicUserId = newUser[0]?.id;
     }
 
-    // Update with auth_uid
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({ auth_uid: authUser.user.id })
-      .eq("email", adminEmail);
+    // Create in auth.users if it doesn't exist
+    if (!authUserExists) {
+      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: true,
+        user_metadata: {
+          name: "Super Admin",
+          role: "superadmin"
+        }
+      });
 
-    if (updateError) {
-      console.error("Error updating auth_uid:", updateError);
+      if (authError) {
+        console.error("Error creating auth user:", authError);
+        return new Response(JSON.stringify({ success: false, error: `Failed to create auth user: ${authError.message}` }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      authUserId = authUser.user.id;
+
+      // Update public.users with auth_uid if we have both IDs
+      if (publicUserId && authUserId) {
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({ auth_uid: authUserId })
+          .eq("id", publicUserId);
+
+        if (updateError) {
+          console.error("Error updating auth_uid:", updateError);
+        }
+      }
     }
 
     return new Response(JSON.stringify({ 
       success: true,
       message: "Admin user created successfully",
       email: adminEmail,
-      password: "admin123"
+      password: adminPassword,
+      publicUserId,
+      authUserId
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
