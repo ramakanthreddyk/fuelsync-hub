@@ -13,13 +13,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useFuelPricesData } from "@/hooks/useFuelPricesData";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useAuth } from "@/hooks/useAuth";
+import { FuelPriceDialog } from "@/components/prices/FuelPriceDialog";
 
 export default function Prices() {
-  const [isAddPriceOpen, setIsAddPriceOpen] = useState(false);
-  const [newPrice, setNewPrice] = useState({
-    fuel_type: 'PETROL' as const,
-    price_per_litre: ''
-  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"add" | "edit">("add");
+  const [selectedFuelType, setSelectedFuelType] = useState<string | undefined>(undefined);
+  const [selectedPrice, setSelectedPrice] = useState<string>("");
+  const [editId, setEditId] = useState<number | undefined>(undefined); // To identify price entry being edited
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -27,65 +28,89 @@ export default function Prices() {
   const { data: fuelPrices, isLoading } = useFuelPricesData();
   const { currentStation, isOwner, isAdmin } = useRoleAccess();
 
-  // Add price mutation
-  const addPriceMutation = useMutation({
-    mutationFn: async (priceData: typeof newPrice) => {
-      if (!currentStation?.id) throw new Error('No station selected');
+  const ALL_FUEL_TYPES = ["PETROL", "DIESEL", "CNG", "EV"];
 
-      const { data, error } = await supabase
-        .from('fuel_prices')
-        .insert({
-          station_id: currentStation.id,
-          fuel_type: priceData.fuel_type,
-          price_per_litre: parseFloat(priceData.price_per_litre),
-          created_by: user?.id,
-          valid_from: new Date().toISOString()
-        })
-        .select()
-        .single();
+  // Find fuel types that don't yet exist
+  const presentFuelTypes = fuelPrices?.map(p => p.fuel_type) ?? [];
+  const missingFuelTypes = ALL_FUEL_TYPES.filter(
+    ft => !presentFuelTypes.includes(ft)
+  );
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fuel-prices'] });
-      setIsAddPriceOpen(false);
-      setNewPrice({ fuel_type: 'PETROL', price_per_litre: '' });
-      toast({
-        title: "Success",
-        description: "Fuel price updated successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update fuel price",
-        variant: "destructive",
-      });
-    },
-  });
+  // --- DIALOG HANDLERS ---
+  const [addEditLoading, setAddEditLoading] = useState(false);
 
-  const handleAddPrice = () => {
-    if (!newPrice.price_per_litre) {
+  const openAddDialog = () => {
+    setDialogMode("add");
+    setDialogOpen(true);
+    setSelectedFuelType(undefined);
+    setSelectedPrice("");
+    setEditId(undefined);
+  };
+
+  const openEditDialog = (fuelType: string, price: number, id: number) => {
+    setDialogMode("edit");
+    setDialogOpen(true);
+    setSelectedFuelType(fuelType);
+    setSelectedPrice(price.toString());
+    setEditId(id);
+  };
+
+  const handleDialogSubmit = (input: { fuel_type: string; price_per_litre: string }) => {
+    setAddEditLoading(true);
+
+    // Validation
+    if (!input.price_per_litre) {
       toast({
         title: "Missing Information",
         description: "Please enter the price per litre",
         variant: "destructive",
       });
+      setAddEditLoading(false);
       return;
     }
-
-    const price = parseFloat(newPrice.price_per_litre);
+    const price = parseFloat(input.price_per_litre);
     if (isNaN(price) || price <= 0) {
       toast({
         title: "Invalid Price",
         description: "Please enter a valid price greater than 0",
         variant: "destructive",
       });
+      setAddEditLoading(false);
       return;
     }
 
-    addPriceMutation.mutate(newPrice);
+    // Mutate (always insert, not update)
+    supabase
+      .from("fuel_prices")
+      .insert({
+        station_id: currentStation?.id,
+        fuel_type: input.fuel_type,
+        price_per_litre: price,
+        created_by: user?.id,
+        valid_from: new Date().toISOString(),
+      })
+      .select()
+      .single()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        toast({
+          title: "Success",
+          description: `Fuel price ${dialogMode === "add" ? "added" : "updated"} successfully`,
+        });
+        setDialogOpen(false);
+        setSelectedFuelType(undefined);
+        setSelectedPrice("");
+        setEditId(undefined);
+        queryClient.invalidateQueries({ queryKey: ["fuel-prices"] });
+      })
+      .catch(error => {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update fuel price",
+          variant: "destructive",
+        });
+      })
+      .finally(() => setAddEditLoading(false));
   };
 
   const getFuelTypeColor = (fuelType: string) => {
@@ -126,59 +151,27 @@ export default function Prices() {
         <div>
           <h1 className="text-3xl font-bold">Fuel Prices</h1>
           <p className="text-muted-foreground">
-            Manage fuel prices {currentStation ? `for ${currentStation.name}` : 'across all stations'}
+            Manage fuel prices {currentStation ? `for ${currentStation.name}` : "across all stations"}
           </p>
         </div>
-        
         {(isOwner || isAdmin) && (
-          <Dialog open={isAddPriceOpen} onOpenChange={setIsAddPriceOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Update Price
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Update Fuel Price</DialogTitle>
-                <DialogDescription>
-                  Set a new price for fuel type
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="fuel_type">Fuel Type</Label>
-                  <Select value={newPrice.fuel_type} onValueChange={(value: any) => setNewPrice(prev => ({ ...prev, fuel_type: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PETROL">Petrol</SelectItem>
-                      <SelectItem value="DIESEL">Diesel</SelectItem>
-                      <SelectItem value="CNG">CNG</SelectItem>
-                      <SelectItem value="EV">EV Charging</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="price_per_litre">Price per Litre (₹)</Label>
-                  <Input
-                    id="price_per_litre"
-                    type="number"
-                    step="0.01"
-                    value={newPrice.price_per_litre}
-                    onChange={(e) => setNewPrice(prev => ({ ...prev, price_per_litre: e.target.value }))}
-                    placeholder="e.g., 102.50"
-                  />
-                </div>
-                <Button onClick={handleAddPrice} disabled={addPriceMutation.isPending} className="w-full">
-                  {addPriceMutation.isPending ? 'Updating...' : 'Update Price'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={openAddDialog} disabled={missingFuelTypes.length === 0}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Fuel Price
+          </Button>
         )}
       </div>
+
+      <FuelPriceDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        fuelTypes={dialogMode === "add" ? missingFuelTypes : [selectedFuelType || ""]}
+        mode={dialogMode}
+        initialFuelType={selectedFuelType}
+        initialPrice={selectedPrice}
+        loading={addEditLoading}
+        onSubmit={handleDialogSubmit}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {fuelPrices?.map((price) => (
@@ -208,6 +201,16 @@ export default function Prices() {
                 <div>Updated: {new Date(price.valid_from).toLocaleDateString()}</div>
                 <div>Valid from: {new Date(price.valid_from).toLocaleString()}</div>
               </div>
+              {(isOwner || isAdmin) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => openEditDialog(price.fuel_type, price.price_per_litre, price.id)}
+                >
+                  Edit
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -222,7 +225,7 @@ export default function Prices() {
               Get started by setting prices for different fuel types.
             </p>
             {(isOwner || isAdmin) && (
-              <Button onClick={() => setIsAddPriceOpen(true)}>
+              <Button onClick={openAddDialog}>
                 <Plus className="w-4 h-4 mr-2" />
                 Set First Price
               </Button>
