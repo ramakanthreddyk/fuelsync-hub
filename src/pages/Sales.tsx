@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Card,
@@ -82,9 +83,21 @@ export default function Sales() {
   const [barPumpId, setBarPumpId] = useState<string>("");
   const [barNozzleId, setBarNozzleId] = useState<string>("");
 
-  // Filter logic extended for new filters
+  // Utility: Given nozzleId, find nozzle (and parent pump) in pumpsData
+  const getNozzle = (nozzleId: number) => {
+    if (!nozzleId || !pumps) return null;
+    for (const pump of pumps) {
+      const nozzle = pump.nozzles?.find((n: any) => n.id === nozzleId);
+      if (nozzle) {
+        return { ...nozzle, pump };
+      }
+    }
+    return null;
+  };
+
+  // Filter logic using actual Sale structure and lookup for nozzle/pump/fuel_type details
   const filteredSales = sales?.filter(sale => {
-    // Date
+    // Date filter
     if (
       dateRange.start &&
       dateRange.end &&
@@ -94,17 +107,34 @@ export default function Sales() {
     ) {
       return false;
     }
+
     // Product type (fuel)
-    if (productType && sale.fuel_type !== productType) return false;
-    // Pump
-    if (barPumpId && sale.pump_id?.toString() !== barPumpId) return false;
-    // Nozzle
+    if (productType) {
+      const nozzle = getNozzle(sale.nozzle_id ?? 0);
+      if (!nozzle || nozzle.fuel_type?.toUpperCase() !== productType.toUpperCase()) {
+        return false;
+      }
+    }
+
+    // Pump filter - find the pump object by id, check if this sale's nozzle is part
+    if (barPumpId) {
+      const pump = pumps?.find((p: any) => p.id?.toString() === barPumpId);
+      if (!pump || !pump.nozzles.some((n: any) => n.id === sale.nozzle_id)) {
+        return false;
+      }
+    }
+
+    // Nozzle filter
     if (barNozzleId && sale.nozzle_id?.toString() !== barNozzleId) return false;
+
     if (selectedStationId && sale.station_id !== selectedStationId) return false;
+
     if (selectedPumpId) {
+      // Fallback for pump filter using the normal filter and available data
       const pump = pumps?.find(p => p.id === selectedPumpId);
       if (!pump?.nozzles.some(n => n.id === sale.nozzle_id)) return false;
     }
+
     if (selectedNozzleId && sale.nozzle_id !== selectedNozzleId) return false;
     return true;
   }) || [];
