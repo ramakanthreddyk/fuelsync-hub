@@ -74,7 +74,7 @@ export default function Dashboard() {
         }}
         lockOverlay={
           <LockWidget onClick={onLockUpgradeClick}>
-            {/* Empty: overlay handles its own message */}
+            <></>
           </LockWidget>
         }
       />
