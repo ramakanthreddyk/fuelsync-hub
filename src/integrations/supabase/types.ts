@@ -597,6 +597,77 @@ export type Database = {
           },
         ]
       }
+      tank_inventory: {
+        Row: {
+          current_level_l: number
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          station_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          current_level_l?: number
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          station_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          current_level_l?: number
+          fuel_type?: Database["public"]["Enums"]["fuel_type"]
+          station_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tank_inventory_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tank_refills: {
+        Row: {
+          filled_at: string
+          filled_by: number | null
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          id: number
+          quantity_l: number
+          station_id: number
+        }
+        Insert: {
+          filled_at?: string
+          filled_by?: number | null
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          id?: number
+          quantity_l: number
+          station_id: number
+        }
+        Update: {
+          filled_at?: string
+          filled_by?: number | null
+          fuel_type?: Database["public"]["Enums"]["fuel_type"]
+          id?: number
+          quantity_l?: number
+          station_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tank_refills_filled_by_fkey"
+            columns: ["filled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tank_refills_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_entries: {
         Row: {
           amount: number | null
