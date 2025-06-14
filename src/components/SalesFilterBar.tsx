@@ -36,7 +36,9 @@ export function SalesFilterBar({
   nozzles,
   isMobile,
 }: SalesFilterBarProps) {
-  // Mobile collapsible panel handled in parent, just render horizontal bar here.
+  // Always use "all" as the value for "All..." items; never ""
+  // Ensure that we never render SelectItem value="" by accident
+
   return (
     <div className={`flex flex-wrap gap-2 rounded-lg shadow-sm bg-background px-2 py-2 md:flex-nowrap w-full justify-between items-center ${isMobile ? "flex-col space-y-2" : ""}`}>
       <div className="flex flex-wrap gap-2 items-center">
@@ -77,7 +79,7 @@ export function SalesFilterBar({
             <SelectValue placeholder="Fuel type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All</SelectItem>
+            <SelectItem value="">{/* (empty string is safe for product type) */}All</SelectItem>
             <SelectItem value="Petrol">Petrol</SelectItem>
             <SelectItem value="Diesel">Diesel</SelectItem>
           </SelectContent>
@@ -88,9 +90,9 @@ export function SalesFilterBar({
             <SelectValue placeholder="Pump" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            {pumps.map((pump) => (
-              <SelectItem key={pump.id} value={pump.id.toString()}>
+            <SelectItem value="all">All</SelectItem>
+            {pumps.filter(pump => pump && pump.id != null && pump.id !== "").map((pump) => (
+              <SelectItem key={pump.id} value={String(pump.id)}>
                 {pump.name || `Pump ${pump.pump_sno}`}
               </SelectItem>
             ))}
@@ -102,9 +104,9 @@ export function SalesFilterBar({
             <SelectValue placeholder="Nozzle" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            {nozzles.map((nozzle) => (
-              <SelectItem key={nozzle.id} value={nozzle.id.toString()}>
+            <SelectItem value="all">All</SelectItem>
+            {nozzles.filter(nozzle => nozzle && nozzle.id != null && nozzle.id !== "").map((nozzle) => (
+              <SelectItem key={nozzle.id} value={String(nozzle.id)}>
                 #{nozzle.nozzle_number} ({nozzle.fuel_type})
               </SelectItem>
             ))}
@@ -114,3 +116,4 @@ export function SalesFilterBar({
     </div>
   );
 }
+
