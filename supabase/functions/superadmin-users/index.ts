@@ -70,6 +70,104 @@ serve(async (req) => {
       });
     }
 
+    // Parse the URL to support RESTful subpaths for role/status updates
+    const url = new URL(req.url);
+    const pathname = url.pathname.replace('/functions/v1/superadmin-users', '');
+    const pathParts = pathname.split('/').filter(Boolean);
+
+    // /superadmin-users/{id}/role or /superadmin-users/{id}/status
+    if (pathParts.length === 2 && (pathParts[1] === 'role' || pathParts[1] === 'status')) {
+      const userId = pathParts[0];
+
+      if (req.method === 'PUT') {
+        const body = await req.json();
+
+        if (pathParts[1] === 'role') {
+          // Update role only
+          const { role } = body;
+          if (!role) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing role field'
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          const { data, error } = await supabase
+            .from('users')
+            .update({ role })
+            .eq('id', userId)
+            .select()
+            .single();
+
+          if (error) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Failed to update user role'
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            data
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        if (pathParts[1] === 'status') {
+          // Update is_active status
+          const { is_active } = body;
+          if (typeof is_active !== 'boolean') {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing or invalid is_active (must be boolean)'
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          const { data, error } = await supabase
+            .from('users')
+            .update({ is_active })
+            .eq('id', userId)
+            .select()
+            .single();
+
+          if (error) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Failed to update user status'
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            data
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Method not allowed'
+        }), {
+          status: 405,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     if (req.method === 'GET') {
       const { data: users, error } = await supabase
         .from('users')
