@@ -78,49 +78,63 @@ export function SalesFilterBar({
           </PopoverContent>
         </Popover>
         {/* Product Type */}
-        <Select
-          value={productTypeValue}
-          onValueChange={val => onProductTypeChange(val === "all" ? "" : val)}
-        >
-          <SelectTrigger className="w-[120px]">
-            <SelectValue placeholder="Fuel type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="Petrol">Petrol</SelectItem>
-            <SelectItem value="Diesel">Diesel</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col items-start min-w-[120px]">
+          <Select
+            value={productTypeValue}
+            onValueChange={val => onProductTypeChange(val === "all" ? "" : val)}
+          >
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Fuel type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="Petrol">Petrol</SelectItem>
+              <SelectItem value="Diesel">Diesel</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground mt-1">
+            Filter sales by fuel type (e.g., Petrol, Diesel).
+          </span>
+        </div>
         {/* Pump */}
-        <Select value={pumpId} onValueChange={onPumpIdChange}>
-          <SelectTrigger className="w-[120px]">
-            <SelectValue placeholder="Pump" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {pumps.filter(pump => pump && pump.id != null && pump.id !== "").map((pump) => (
-              <SelectItem key={pump.id} value={String(pump.id)}>
-                {pump.name || `Pump ${pump.pump_sno}`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col items-start min-w-[120px]">
+          <Select value={pumpId} onValueChange={onPumpIdChange}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Pump" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {pumps.filter(pump => pump && pump.id != null && pump.id !== "").map((pump) => (
+                <SelectItem key={pump.id} value={String(pump.id)}>
+                  {pump.name || `Pump ${pump.pump_sno}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground mt-1">
+            Filter sales by a specific pump.
+          </span>
+        </div>
         {/* Nozzle */}
-        <Select value={nozzleId} onValueChange={onNozzleIdChange}>
-          <SelectTrigger className="w-[120px]">
-            <SelectValue placeholder="Nozzle" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {nozzles.filter(nozzle => nozzle && nozzle.id != null && nozzle.id !== "").map((nozzle) => (
-              <SelectItem key={nozzle.id} value={String(nozzle.id)}>
-                #{nozzle.nozzle_number} ({nozzle.fuel_type})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col items-start min-w-[120px]">
+          <Select value={nozzleId} onValueChange={onNozzleIdChange}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Nozzle" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {nozzles.filter(nozzle => nozzle && nozzle.id != null && nozzle.id !== "").map((nozzle) => (
+                <SelectItem key={nozzle.id} value={String(nozzle.id)}>
+                  #{nozzle.nozzle_number} ({nozzle.fuel_type})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground mt-1">
+            Filter sales by a specific nozzle on a pump.
+          </span>
+        </div>
       </div>
     </div>
   );
 }
-
