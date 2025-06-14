@@ -52,20 +52,19 @@ serve(async (req) => {
       });
     }
 
-    // Create in public.users
+    // Create in public.users with proper enum casting
     const { data: newUser, error: userError } = await supabase
-      .from("users")
-      .insert([{ 
-        email: adminEmail, 
-        name: "Super Admin", 
-        role: "superadmin", 
-        is_active: true 
-      }])
-      .select()
-      .single();
+      .rpc('create_admin_user', {
+        user_email: adminEmail,
+        user_name: "Super Admin"
+      });
 
     if (userError) {
-      throw userError;
+      console.error("Error creating admin user:", userError);
+      return new Response(JSON.stringify({ success: false, error: "Database error creating new user" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Create in auth.users
@@ -80,16 +79,22 @@ serve(async (req) => {
     });
 
     if (authError) {
-      // Clean up if auth creation fails
-      await supabase.from("users").delete().eq("id", newUser.id);
-      throw authError;
+      console.error("Error creating auth user:", authError);
+      return new Response(JSON.stringify({ success: false, error: "Failed to create auth user" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Update with auth_uid
-    await supabase
+    const { error: updateError } = await supabase
       .from("users")
       .update({ auth_uid: authUser.user.id })
-      .eq("id", newUser.id);
+      .eq("email", adminEmail);
+
+    if (updateError) {
+      console.error("Error updating auth_uid:", updateError);
+    }
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -101,6 +106,7 @@ serve(async (req) => {
     });
 
   } catch (err) {
+    console.error("Setup admin error:", err);
     return new Response(JSON.stringify({ success: false, error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
