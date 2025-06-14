@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import {
   Table,
@@ -7,18 +8,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 import { User } from '@/types/database';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
-import { useAuth } from "@/hooks/useAuth"; // <--- Add this
-// Fix config: hardcode API_BASE_URL for now (replace with your actual API base url if different)
-const API_BASE_URL = '/api';
-import { supabase } from "@/integrations/supabase/client"; // Use direct import not provider
+import { useAuth } from "@/hooks/useAuth";
+// Use FULL Supabase Functions URL
+const API_BASE_URL = 'https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1';
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   stations: any[]
@@ -34,13 +35,12 @@ const UsersPage = ({ stations }: Props) => {
     phone: '',
     role: 'employee' as 'superadmin' | 'owner' | 'employee',
     password: '',
-    station_id: '' // Added station_id field
+    station_id: ''
   });
   const [isFetching, setIsFetching] = useState(true);
 
-  const { session } = useAuth(); // <--- get session (contains access_token)
+  const { session } = useAuth();
 
-  // Helper to get the session token, fallback to empty string
   const getAuthToken = () => session?.access_token || "";
 
   useEffect(() => {
@@ -50,7 +50,7 @@ const UsersPage = ({ stations }: Props) => {
   const fetchUsers = async () => {
     setIsFetching(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users`, {
+      const response = await fetch(`${API_BASE_URL}/superadmin-users`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -60,10 +60,11 @@ const UsersPage = ({ stations }: Props) => {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        // API returns { success, data }
+        setUsers(data.data || []);
       } else {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch users');
+        throw new Error(error.error || error.message || 'Failed to fetch users');
       }
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -88,10 +89,9 @@ const UsersPage = ({ stations }: Props) => {
     });
   };
 
-  // Update: make sure handleRoleChange and handleStatusChange accept UUID string as userId
   const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'owner' | 'employee') => {
     try {
-      const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users/${userId}/role`, {
+      const response = await fetch(`${API_BASE_URL}/superadmin-users/${userId}/role`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ const UsersPage = ({ stations }: Props) => {
         refetch();
       } else {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to update user role');
+        throw new Error(error.error || error.message || 'Failed to update user role');
       }
     } catch (error) {
       console.error('Error updating user role:', error);
@@ -115,7 +115,7 @@ const UsersPage = ({ stations }: Props) => {
 
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users/${userId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/superadmin-users/${userId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -129,7 +129,7 @@ const UsersPage = ({ stations }: Props) => {
         refetch();
       } else {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to update user status');
+        throw new Error(error.error || error.message || 'Failed to update user status');
       }
     } catch (error) {
       console.error('Error updating user status:', error);
@@ -140,7 +140,7 @@ const UsersPage = ({ stations }: Props) => {
   const handleCreateUser = async () => {
     try {
       setIsCreating(true);
-      
+
       const userData = {
         name: newUserForm.name,
         email: newUserForm.email,
@@ -150,7 +150,7 @@ const UsersPage = ({ stations }: Props) => {
         ...(newUserForm.station_id && { station_id: parseInt(newUserForm.station_id, 10) })
       };
 
-      const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users`, {
+      const response = await fetch(`${API_BASE_URL}/superadmin-users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +166,7 @@ const UsersPage = ({ stations }: Props) => {
         refetch();
       } else {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to create user');
+        throw new Error(error.error || error.message || 'Failed to create user');
       }
     } catch (error) {
       console.error('Error creating user:', error);
