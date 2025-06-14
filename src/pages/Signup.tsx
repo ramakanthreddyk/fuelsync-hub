@@ -12,6 +12,7 @@ import { RefreshCw } from "lucide-react";
 export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -28,6 +29,16 @@ export default function Signup() {
       });
       return;
     }
+
+    if (password.length < 6) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -35,7 +46,11 @@ export default function Signup() {
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin + "/"
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            name: name || email.split('@')[0],
+            role: 'employee'
+          }
         }
       });
 
@@ -47,15 +62,18 @@ export default function Signup() {
         });
       } else {
         toast({
-          title: "Account Created",
-          description: "Check your email to confirm your account.",
+          title: "Account Created Successfully!",
+          description: "Please check your email and click the confirmation link to complete your registration.",
         });
-        setTimeout(() => navigate('/login'), 1000);
+        // Don't navigate immediately, let user confirm email first
+        setEmail('');
+        setPassword('');
+        setName('');
       }
     } catch (err: any) {
       toast({
         title: "Sign Up Error",
-        description: err.message || "An error occurred.",
+        description: err.message || "An error occurred during signup.",
         variant: "destructive"
       });
     } finally {
@@ -74,11 +92,23 @@ export default function Signup() {
           <CardHeader>
             <CardTitle>Sign Up</CardTitle>
             <CardDescription>
-              Enter your email and password to create a new account.
+              Create a new account to get started with FuelSync.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignup} className="space-y-4">
+              <div>
+                <Label htmlFor="name">Full Name (Optional)</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Enter your full name"
+                  className="w-full"
+                  disabled={isLoading}
+                />
+              </div>
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -100,10 +130,11 @@ export default function Signup() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    placeholder="Enter your password (min 6 characters)"
                     required
                     className="w-full pr-10"
                     disabled={isLoading}
+                    minLength={6}
                   />
                   <Button
                     type="button"
@@ -124,16 +155,21 @@ export default function Signup() {
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Signing up...
+                    Creating account...
                   </>
                 ) : (
-                  "Sign Up"
+                  "Create Account"
                 )}
               </Button>
             </form>
             <div className="mt-4 text-center">
               <span className="text-sm text-gray-600">Already have an account? </span>
               <Link to="/login" className="text-blue-600 hover:underline">Log In</Link>
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-700">
+                📧 After signing up, you'll receive a confirmation email. Please click the link in the email to activate your account.
+              </p>
             </div>
           </CardContent>
         </Card>
