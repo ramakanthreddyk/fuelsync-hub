@@ -151,7 +151,6 @@ export default function Sales() {
   const todayVolume = filteredSales.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0);
 
   // Type correction for ID comparisons
-  // around line 178 and similar:
   const selectedStationIdParsed = manualEntry.station_id
     ? typeof manualEntry.station_id === 'string'
       ? parseInt(manualEntry.station_id, 10)

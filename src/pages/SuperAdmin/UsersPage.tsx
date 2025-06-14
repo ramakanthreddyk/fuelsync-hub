@@ -146,7 +146,7 @@ const UsersPage = ({ stations }: Props) => {
         phone: newUserForm.phone,
         role: newUserForm.role,
         password: newUserForm.password,
-        ...(newUserForm.station_id && { station_id: parseInt(newUserForm.station_id) })
+        ...(newUserForm.station_id && { station_id: parseInt(newUserForm.station_id, 10) })
       };
 
       const response = await fetch(`${API_BASE_URL}/functions/v1/superadmin-users`, {
