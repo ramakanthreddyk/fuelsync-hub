@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -24,8 +25,6 @@ import Pumps from '@/pages/Pumps';
 import Prices from '@/pages/Prices';
 import Reports from '@/pages/Reports';
 import AppLayout from '@/components/AppLayout';
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
 
 const queryClient = new QueryClient();
 
@@ -79,20 +78,7 @@ function RoleBasedRedirect() {
   return <Navigate to="/dashboard" replace />;
 }
 
-function useStationsForSuperAdmin() {
-  return useQuery({
-    queryKey: ["all-stations"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("stations").select("id, name, brand");
-      if (error) throw error;
-      return data || [];
-    }
-  });
-}
-
 function App() {
-  const stationsQuery = useStationsForSuperAdmin();
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -115,18 +101,7 @@ function App() {
                   <RequireRole role="superadmin">
                     <SuperAdminLayout>
                       <Routes>
-                        <Route
-                          path="/users"
-                          element={
-                            stationsQuery.isLoading
-                              ? (
-                                  <div className="flex items-center justify-center min-h-screen">Loading stations…</div>
-                                )
-                              : (
-                                  <UsersPage stations={stationsQuery.data || []} />
-                                )
-                          }
-                        />
+                        <Route path="/users" element={<UsersPage />} />
                         <Route path="/stations" element={<StationsPage />} />
                         <Route path="/pumps" element={<PumpsPage />} />
                         <Route path="/plans" element={<PlansPage />} />

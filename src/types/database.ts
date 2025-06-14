@@ -17,7 +17,6 @@ export interface User {
 export interface UserStation {
   user_id: number;
   station_id: number;
-  created_at: string;
 }
 
 export interface Station {
@@ -25,11 +24,8 @@ export interface Station {
   name: string;
   brand: 'IOCL' | 'BPCL' | 'HPCL';
   address: string | null;
-  owner_id: number | null;
+  owner_id: number;
   current_plan_id: number | null;
-  plan_id: number | null;
-  is_active: boolean;
-  is_paid: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -74,7 +70,6 @@ export interface OCRReading {
   id: number;
   station_id: number;
   nozzle_id: number;
-  pump_sno: string;
   source: 'ocr' | 'manual';
   reading_date: string;
   reading_time: string;
@@ -142,28 +137,4 @@ export interface EventLog {
   event_type: string;
   payload: any;
   occurred_at: string;
-}
-
-// Form data interfaces for UI
-export interface ManualEntryData {
-  station_id: number;
-  nozzle_id: number;
-  cumulative_vol: number;
-  reading_date: string;
-  reading_time: string;
-}
-
-export interface TenderEntryData {
-  station_id: number;
-  entry_date: string;
-  type: 'cash' | 'card' | 'upi' | 'credit';
-  payer: string;
-  amount: number;
-}
-
-export interface RefillData {
-  station_id: number;
-  fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
-  quantity_l: number;
-  filled_at: string;
 }
