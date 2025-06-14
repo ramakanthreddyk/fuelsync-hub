@@ -64,7 +64,6 @@ export default function Signup() {
           title: "Account Created!",
           description: "Your account has been created. You can now log in.",
         });
-
         setEmail('');
         setPassword('');
         setName('');
