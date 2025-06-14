@@ -419,8 +419,8 @@ export default function Sales() {
                 {canAccessAllStations && (
                   <div>
                     <Label>Station</Label>
-                    <Select value={selectedStationId?.toString() || 'all'} onValueChange={(value) => {
-                      setSelectedStationId(value === 'all' ? null : parseInt(value));
+                    <Select value={selectedStationId?.toString() ?? "all"} onValueChange={(value) => {
+                      setSelectedStationId(value === "all" ? null : parseInt(value));
                       setSelectedPumpId(null);
                       setSelectedNozzleId(null);
                     }}>
@@ -430,7 +430,7 @@ export default function Sales() {
                       <SelectContent>
                         <SelectItem value="all">All stations</SelectItem>
                         {stations
-                          .filter(station => !!station.id)
+                          .filter(station => !!station.id) // Only valid IDs
                           .map((station) => (
                             <SelectItem
                               key={station.id}
@@ -447,8 +447,8 @@ export default function Sales() {
                 {/* Pump Filter */}
                 <div>
                   <Label>Pump</Label>
-                  <Select value={selectedPumpId?.toString() || 'all'} onValueChange={(value) => {
-                    setSelectedPumpId(value === 'all' ? null : parseInt(value));
+                  <Select value={selectedPumpId?.toString() ?? "all"} onValueChange={(value) => {
+                    setSelectedPumpId(value === "all" ? null : parseInt(value));
                     setSelectedNozzleId(null);
                   }}>
                     <SelectTrigger>
@@ -472,8 +472,8 @@ export default function Sales() {
                 {/* Nozzle Filter */}
                 <div>
                   <Label>Nozzle</Label>
-                  <Select value={selectedNozzleId?.toString() || 'all'} onValueChange={(value) => {
-                    setSelectedNozzleId(value === 'all' ? null : parseInt(value));
+                  <Select value={selectedNozzleId?.toString() ?? "all"} onValueChange={(value) => {
+                    setSelectedNozzleId(value === "all" ? null : parseInt(value));
                   }}>
                     <SelectTrigger>
                       <SelectValue placeholder="All nozzles" />
