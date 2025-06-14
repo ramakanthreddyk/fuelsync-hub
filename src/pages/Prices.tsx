@@ -55,7 +55,9 @@ export default function Prices() {
     setEditId(id);
   };
 
-  const handleDialogSubmit = (input: { fuel_type: string; price_per_litre: string }) => {
+  const handleDialogSubmit = (
+    input: { fuel_type: "PETROL" | "DIESEL" | "CNG" | "EV"; price_per_litre: string }
+  ) => {
     setAddEditLoading(true);
 
     // Validation
@@ -103,7 +105,7 @@ export default function Prices() {
         setEditId(undefined);
         queryClient.invalidateQueries({ queryKey: ["fuel-prices"] });
       })
-      .catch(error => {
+      .catch((error) => {
         toast({
           title: "Error",
           description: error.message || "Failed to update fuel price",
@@ -165,9 +167,9 @@ export default function Prices() {
       <FuelPriceDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        fuelTypes={dialogMode === "add" ? missingFuelTypes : [selectedFuelType || ""]}
+        fuelTypes={dialogMode === "add" ? missingFuelTypes as ("PETROL" | "DIESEL" | "CNG" | "EV")[] : [(selectedFuelType || "PETROL") as "PETROL" | "DIESEL" | "CNG" | "EV"]}
         mode={dialogMode}
-        initialFuelType={selectedFuelType}
+        initialFuelType={selectedFuelType as "PETROL" | "DIESEL" | "CNG" | "EV" | undefined}
         initialPrice={selectedPrice}
         loading={addEditLoading}
         onSubmit={handleDialogSubmit}

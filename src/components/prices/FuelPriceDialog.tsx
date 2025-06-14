@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -58,7 +57,10 @@ export const FuelPriceDialog: React.FC<FuelPriceDialogProps> = ({
           className="space-y-4"
           onSubmit={e => {
             e.preventDefault();
-            onSubmit({ fuel_type: fuelType, price_per_litre: price });
+            onSubmit({ 
+              fuel_type: fuelType as "PETROL" | "DIESEL" | "CNG" | "EV",
+              price_per_litre: price
+            });
           }}
         >
           {isAdd && (
@@ -92,7 +94,7 @@ export const FuelPriceDialog: React.FC<FuelPriceDialogProps> = ({
               autoFocus
             />
           </div>
-          <Button type="submit" loading={loading ? 1 : undefined} disabled={loading} className="w-full">
+          <Button type="submit" disabled={loading} className="w-full">
             {loading ? (isAdd ? "Adding..." : "Updating...") : isAdd ? "Add Price" : "Update Price"}
           </Button>
         </form>
