@@ -151,24 +151,31 @@ export default function Sales() {
   const todayVolume = filteredSales.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0);
 
   // Type correction for ID comparisons
-  const selectedStationIdParsed = manualEntry.station_id
-    ? typeof manualEntry.station_id === 'string'
+  const selectedStationIdParsed =
+    manualEntry.station_id && typeof manualEntry.station_id === "string"
       ? parseInt(manualEntry.station_id, 10)
       : manualEntry.station_id
-    : undefined;
+      ? manualEntry.station_id
+      : undefined;
 
-  const selectedPumpIdParsed = manualEntry.pump_id
-    ? typeof manualEntry.pump_id === 'string'
+  const selectedPumpIdParsed =
+    manualEntry.pump_id && typeof manualEntry.pump_id === "string"
       ? parseInt(manualEntry.pump_id, 10)
       : manualEntry.pump_id
-    : undefined;
+      ? manualEntry.pump_id
+      : undefined;
 
-  const availablePumps = pumps?.filter(pump => 
-    !manualEntry.station_id || pump.station_id === selectedStationIdParsed
+  // Fix: Ensure availablePumps uses correct number type
+  const availablePumps = pumps?.filter(
+    (pump) =>
+      !manualEntry.station_id ||
+      pump.station_id === selectedStationIdParsed
   ) || [];
 
-  const availableNozzles = availablePumps
-    .find(pump => pump.id === selectedPumpIdParsed)?.nozzles || [];
+  // Fix: Ensure availableNozzles uses correct number type
+  const availableNozzles =
+    availablePumps.find((pump) => pump.id === selectedPumpIdParsed)?.nozzles ||
+    [];
 
   const handleManualEntry = async () => {
     if (!manualEntry.station_id || !manualEntry.nozzle_id || !manualEntry.cumulative_volume) {

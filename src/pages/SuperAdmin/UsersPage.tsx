@@ -305,7 +305,15 @@ const UsersPage = ({ stations }: Props) => {
                   </Select>
                 </TableCell>
                 <TableCell>
-                  <Button variant="outline" onClick={() => handleStatusChange(user.id, !user.is_active)}>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      handleStatusChange(
+                        typeof user.id === "string" ? parseInt(user.id, 10) : user.id,
+                        !user.is_active
+                      )
+                    }
+                  >
                     {user.is_active ? 'Deactivate' : 'Activate'}
                   </Button>
                 </TableCell>

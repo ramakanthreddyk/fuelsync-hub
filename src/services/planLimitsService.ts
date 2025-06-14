@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PlanLimits {
@@ -66,22 +65,21 @@ export const planLimitsService = {
   async getCurrentUsage(stationId: number): Promise<PlanUsage> {
     const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('plan_usage')
       .select('*')
       .eq('station_id', stationId)
       .eq('month', currentMonth)
       .maybeSingle();
-
     if (error && error.code !== 'PGRST116') {
       throw new Error(`Failed to fetch plan usage: ${error.message}`);
     }
-
+    // Defensive check for shape
     return {
-      ocrCount: data?.ocr_count || 0,
-      pumpsUsed: data?.pumps_used || 0,
-      nozzlesUsed: data?.nozzles_used || 0,
-      employeesCount: data?.employees_count || 0,
+      ocrCount: typeof data?.ocr_count === 'number' ? data.ocr_count : 0,
+      pumpsUsed: typeof data?.pumps_used === 'number' ? data.pumps_used : 0,
+      nozzlesUsed: typeof data?.nozzles_used === 'number' ? data.nozzles_used : 0,
+      employeesCount: typeof data?.employees_count === 'number' ? data.employees_count : 0,
     };
   },
 
@@ -166,10 +164,9 @@ export const planLimitsService = {
       .select('*', { count: 'exact' })
       .eq('station_id', stationId)
       .eq('is_active', true);
-
-    const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
     
-    await supabase
+    const currentMonth = new Date().toISOString().slice(0, 7) + '-01';
+    await (supabase as any)
       .from('plan_usage')
       .upsert({
         station_id: stationId,
