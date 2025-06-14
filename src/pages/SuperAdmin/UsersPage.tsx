@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -12,8 +13,12 @@ import { toast } from 'sonner';
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+// Use the public anon key directly
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVudHpraGJic293cGttd3J4ZHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3MTQ2ODAsImV4cCI6MjA2NTI5MDY4MH0.aEJHq7lKjbKMa0JIqxIT9wjfMY4PGd1bTkC-t2smSGs";
+const SUPABASE_URL = "https://untzkhbbsowpkmwrxdws.supabase.co";
+
 interface Props {
-  stations: any[]
+  stations: any[];
 }
 
 const UsersPage = ({ stations }: Props) => {
@@ -36,30 +41,47 @@ const UsersPage = ({ stations }: Props) => {
 
   useEffect(() => {
     fetchUsers();
-  // eslint-disable-next-line
+    // eslint-disable-next-line
   }, []);
+
+  // Helper to get current auth token (async)
+  const getAccessToken = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    return data?.session?.access_token || '';
+  };
 
   const fetchUsers = async () => {
     setIsFetching(true);
     try {
-      const resp = await fetch('https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users', {
+      const access_token = await getAccessToken();
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/superadmin-users`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
-          'apikey': supabase.supabaseKey,
+          'Authorization': `Bearer ${access_token}`,
+          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json'
         }
       });
       const { success, data, error } = await resp.json();
       if (!success) throw new Error(error || "Failed to fetch users");
-      // Map user_stations to correct type
+      // Defensive: ensure both stations and user_stations exist, always arrays
       const usersWithFullStations = (data || []).map((user: any) => ({
         ...user,
-        user_stations: (user.user_stations || []).map((us: any) => ({
-          station_id: us.station_id,
-          user_id: us.user_id ?? user.id,
-          created_at: us.created_at ?? '',
-        })),
+        user_stations: Array.isArray(user.user_stations)
+          ? user.user_stations.map((us: any) => ({
+            user_id: us.user_id ?? user.id,
+            station_id: us.station_id,
+            created_at: us.created_at ?? '',
+          }))
+          : [],
+        stations: Array.isArray(user.stations)
+          ? user.stations.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            brand: s.brand,
+            address: s.address,
+          }))
+          : [],
       }));
       setUsers(usersWithFullStations);
     } catch (error: any) {
@@ -75,7 +97,7 @@ const UsersPage = ({ stations }: Props) => {
     name: '', email: '', phone: '', role: 'employee', password: '', station_id: ''
   });
 
-  // Create User (via Edge Function)
+  // Create User (only employees/owners get stations)
   const handleCreateUser = async () => {
     try {
       setIsCreating(true);
@@ -83,25 +105,27 @@ const UsersPage = ({ stations }: Props) => {
         toast.error('Name/email/role required');
         setIsCreating(false); return;
       }
+      // Only require station for employee/owner, not for superadmin
       if ((newUserForm.role === 'employee' || newUserForm.role === 'owner') && !newUserForm.station_id) {
         toast.error('Employee/Owner must be assigned a station');
         setIsCreating(false); return;
       }
-
-      const payload = {
+      const payload: any = {
         name: newUserForm.name,
         email: newUserForm.email,
         phone: newUserForm.phone,
         role: newUserForm.role,
-        station_id: newUserForm.station_id,
-        // Add more fields if needed
       };
+      if (newUserForm.role !== 'superadmin') {
+        payload.station_id = newUserForm.station_id;
+      }
 
-      const resp = await fetch('https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users', {
+      const access_token = await getAccessToken();
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/superadmin-users`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
-          'apikey': supabase.supabaseKey,
+          'Authorization': `Bearer ${access_token}`,
+          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
@@ -117,30 +141,28 @@ const UsersPage = ({ stations }: Props) => {
     }
   };
 
-  // Edit User (via Edge Function)
+  // Edit User
   const handleEditUser = async () => {
     if (!editDialog.user) return;
     setIsUpdating(true);
     try {
       const updateFields: any = {};
-      ['name','email','phone','role','is_active'].forEach(key => {
+      ['name', 'email', 'phone', 'role', 'is_active'].forEach(key => {
         if ((editForm as any)[key] !== (editDialog.user as any)[key]) {
           updateFields[key] = (editForm as any)[key];
         }
       });
-
-      // Add station_id for relevant roles
       if ((editForm.role === "employee" || editForm.role === "owner") && editForm.station_id) {
         updateFields.station_id = editForm.station_id;
       }
-
+      const access_token = await getAccessToken();
       const resp = await fetch(
-        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users/${editDialog.user.id}/edit`,
+        `${SUPABASE_URL}/functions/v1/superadmin-users/${editDialog.user.id}/edit`,
         {
           method: "PUT",
           headers: {
-            'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
-            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${access_token}`,
+            'apikey': SUPABASE_ANON_KEY,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(updateFields)
@@ -157,48 +179,19 @@ const UsersPage = ({ stations }: Props) => {
     setIsUpdating(false);
   };
 
-  // Role change from grid (inline)
-  const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'owner' | 'employee') => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ role: newRole })
-        .eq('id', userId)
-      if (error) throw error;
-      // Clean up stations if superadmin, else preserve existing
-      if (newRole === "superadmin") {
-        await supabase.from('user_stations').delete().eq('user_id', userId);
-      }
-      toast.success("User role updated");
-      refetch();
-    } catch (e: any) { toast.error(e?.message || "Failed to update role"); }
-  };
-
-  // Status update (activate/deactivate)
-  const handleStatusChange = async (userId: string, newStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_active: newStatus })
-        .eq('id', userId)
-      if (error) throw error;
-      toast.success("User status updated");
-      refetch();
-    } catch (e: any) { toast.error(e?.message || "Failed to update status"); }
-  };
-
-  // Delete User (via Edge Function)
+  // Delete User
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
     setIsDeleting(true);
     try {
+      const access_token = await getAccessToken();
       const resp = await fetch(
-        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/superadmin-users/${userId}`,
+        `${SUPABASE_URL}/functions/v1/superadmin-users/${userId}`,
         {
           method: "DELETE",
           headers: {
-            'Authorization': `Bearer ${supabase.auth.getSession()?.data.session?.access_token || ''}`,
-            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${access_token}`,
+            'apikey': SUPABASE_ANON_KEY,
             'Content-Type': 'application/json'
           }
         }
@@ -236,6 +229,7 @@ const UsersPage = ({ stations }: Props) => {
     });
     setEditDialog({ open: true, user });
   };
+
   const closeEditDialog = () => setEditDialog({ open: false, user: undefined });
 
   return (
@@ -292,6 +286,7 @@ const UsersPage = ({ stations }: Props) => {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Only owners/employees need station selection */}
               {(newUserForm.role === 'owner' || newUserForm.role === 'employee') && (
                 <div>
                   <Label htmlFor="station">Station</Label>
@@ -309,7 +304,6 @@ const UsersPage = ({ stations }: Props) => {
                   </Select>
                 </div>
               )}
-              {/* Password not implemented here as auth isn't handled directly via users table */}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
@@ -352,6 +346,7 @@ const UsersPage = ({ stations }: Props) => {
                 </SelectContent>
               </Select>
             </div>
+            {/* Only show station edit for owner/employee */}
             {((editForm.role === 'employee' && stations.length > 0) || (editForm.role === 'owner' && stations.length > 0)) && (
               <div>
                 <Label htmlFor="edit-station">Station</Label>
@@ -413,16 +408,8 @@ const UsersPage = ({ stations }: Props) => {
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.phone}</TableCell>
                 <TableCell>
-                  <Select value={user.role} onValueChange={(value) => handleRoleChange(user.id, value as 'superadmin' | 'owner' | 'employee')}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="superadmin">Super Admin</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Station/owner can change; superadmin cannot have station */}
+                  <span className="capitalize">{user.role}</span>
                 </TableCell>
                 <TableCell>
                   {user.role === 'superadmin' ? (
@@ -443,9 +430,8 @@ const UsersPage = ({ stations }: Props) => {
                   <Button
                     variant="outline"
                     onClick={() =>
-                      handleStatusChange(
-                        user.id,
-                        !user.is_active
+                      handleEditUser(
+                        openEditDialog(user)
                       )
                     }
                   >
