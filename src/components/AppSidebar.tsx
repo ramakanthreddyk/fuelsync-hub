@@ -28,10 +28,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FuelSyncLogo from './FuelSyncLogo';
+import { useSidebar } from '@/components/ui/sidebar';
 
 export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   // This sidebar is ONLY for owners and employees
   // Superadmins should never see this - they have their own layout
@@ -107,6 +109,11 @@ export function AppSidebar() {
     }
   };
 
+  // Helper to close sidebar on mobile when a menu item is clicked
+  const handleItemClick = () => {
+    if (isMobile) setOpenMobile(false);
+  };
+
   return (
     <Sidebar className="w-64">
       <SidebarHeader>
@@ -125,7 +132,7 @@ export function AppSidebar() {
                     asChild
                     isActive={location.pathname === item.url}
                   >
-                    <Link to={item.url}>
+                    <Link to={item.url} onClick={handleItemClick}>
                       <item.icon className="w-4 h-4" />
                       <span>{item.title}</span>
                     </Link>
