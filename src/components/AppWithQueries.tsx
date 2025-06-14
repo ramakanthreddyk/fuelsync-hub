@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from '@/components/ui/toaster';
@@ -18,7 +17,7 @@ import Dashboard from '@/pages/Dashboard';
 import Settings from '@/pages/Settings';
 import AdminUsers from '@/pages/AdminUsers';
 import AdminStations from '@/pages/AdminStations';
-import Upload from '@/pages/Upload';
+import DataEntry from '@/pages/DataEntry'; // UPDATED: use DataEntry
 import Sales from '@/pages/Sales';
 import DailyClosure from '@/pages/DailyClosure';
 import Pumps from '@/pages/Pumps';
@@ -145,7 +144,8 @@ export function AppWithQueries() {
                 <AppLayout>
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/upload" element={<Upload />} />
+                    {/* CHANGED: Use /data-entry route instead of /upload */}
+                    <Route path="/data-entry" element={<DataEntry />} />
                     <Route path="/sales" element={<Sales />} />
                     <Route path="/daily-closure" element={<DailyClosure />} />
                     <Route path="/pumps" element={<Pumps />} />
@@ -154,6 +154,8 @@ export function AppWithQueries() {
                     <Route path="/admin/users" element={<AdminUsers />} />
                     <Route path="/admin/stations" element={<AdminStations />} />
                     <Route path="/settings" element={<Settings />} />
+                    {/* Optionally: for backward compatibility, can also keep /upload as DataEntry */}
+                    <Route path="/upload" element={<DataEntry />} />
                     <Route path="/" element={<RoleBasedRedirect />} />
                   </Routes>
                 </AppLayout>
