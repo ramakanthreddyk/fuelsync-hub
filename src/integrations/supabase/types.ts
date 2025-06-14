@@ -39,6 +39,41 @@ export type Database = {
         }
         Relationships: []
       }
+      nozzles: {
+        Row: {
+          created_at: string | null
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          id: number
+          is_active: boolean | null
+          nozzle_number: number
+          pump_id: number
+        }
+        Insert: {
+          created_at?: string | null
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          id?: number
+          is_active?: boolean | null
+          nozzle_number: number
+          pump_id: number
+        }
+        Update: {
+          created_at?: string | null
+          fuel_type?: Database["public"]["Enums"]["fuel_type"]
+          id?: number
+          is_active?: boolean | null
+          nozzle_number?: number
+          pump_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nozzles_pump_id_fkey"
+            columns: ["pump_id"]
+            isOneToOne: false
+            referencedRelation: "pumps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ocr_readings: {
         Row: {
           created_at: string | null
@@ -110,6 +145,83 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          allow_manual_entry: boolean | null
+          created_at: string | null
+          features: Json | null
+          id: number
+          is_active: boolean | null
+          max_employees: number | null
+          max_nozzles: number | null
+          max_ocr_monthly: number | null
+          max_pumps: number | null
+          name: string
+          price_monthly: number | null
+        }
+        Insert: {
+          allow_manual_entry?: boolean | null
+          created_at?: string | null
+          features?: Json | null
+          id?: number
+          is_active?: boolean | null
+          max_employees?: number | null
+          max_nozzles?: number | null
+          max_ocr_monthly?: number | null
+          max_pumps?: number | null
+          name: string
+          price_monthly?: number | null
+        }
+        Update: {
+          allow_manual_entry?: boolean | null
+          created_at?: string | null
+          features?: Json | null
+          id?: number
+          is_active?: boolean | null
+          max_employees?: number | null
+          max_nozzles?: number | null
+          max_ocr_monthly?: number | null
+          max_pumps?: number | null
+          name?: string
+          price_monthly?: number | null
+        }
+        Relationships: []
+      }
+      pumps: {
+        Row: {
+          created_at: string | null
+          id: number
+          is_active: boolean | null
+          name: string | null
+          pump_sno: string
+          station_id: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          name?: string | null
+          pump_sno: string
+          station_id: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          name?: string | null
+          pump_sno?: string
+          station_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pumps_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       station_plans: {
         Row: {
           effective_from: string
@@ -136,6 +248,64 @@ export type Database = {
           station_id?: number
         }
         Relationships: []
+      }
+      stations: {
+        Row: {
+          address: string | null
+          brand: Database["public"]["Enums"]["fuel_brand"]
+          created_at: string | null
+          current_plan_id: number | null
+          id: number
+          is_active: boolean | null
+          name: string
+          owner_id: string | null
+          plan_id: number | null
+        }
+        Insert: {
+          address?: string | null
+          brand: Database["public"]["Enums"]["fuel_brand"]
+          created_at?: string | null
+          current_plan_id?: number | null
+          id?: number
+          is_active?: boolean | null
+          name: string
+          owner_id?: string | null
+          plan_id?: number | null
+        }
+        Update: {
+          address?: string | null
+          brand?: Database["public"]["Enums"]["fuel_brand"]
+          created_at?: string | null
+          current_plan_id?: number | null
+          id?: number
+          is_active?: boolean | null
+          name?: string
+          owner_id?: string | null
+          plan_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stations_current_plan_id_fkey"
+            columns: ["current_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stations_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stations_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tank_inventory: {
         Row: {
@@ -211,6 +381,39 @@ export type Database = {
           user_id?: number
         }
         Relationships: []
+      }
+      user_stations: {
+        Row: {
+          created_at: string | null
+          station_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          station_id: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          station_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_stations_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_stations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
