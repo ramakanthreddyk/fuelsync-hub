@@ -7,14 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Only allow POST
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Must use service_role key for this admin endpoint
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
 
@@ -25,8 +23,6 @@ serve(async (req) => {
       });
     }
 
-    // For manual admin/protected endpoint, you may want an extra "admin secret" or disable JWT AND run behind a firewall!
-    // Here it simply requires the service role key in "Authorization" header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ success: false, error: "Missing or invalid Authorization header" }), {
@@ -41,7 +37,6 @@ serve(async (req) => {
       });
     }
 
-    // Parse body
     if (req.method !== "POST") {
       return new Response(JSON.stringify({ success: false, error: "Only POST allowed" }), {
         status: 405,
@@ -52,7 +47,6 @@ serve(async (req) => {
     const body = await req.json();
     const { email, name, phone, role = "employee", is_active = true } = body;
 
-    // Basic validation
     if (!email || typeof email !== "string") {
       return new Response(JSON.stringify({ success: false, error: "Email is required" }), {
         status: 400,
@@ -60,10 +54,9 @@ serve(async (req) => {
       });
     }
 
-    // Insert into users table
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Check for existing user
+    // Check for existing user in public.users
     const { data: existing, error: readError } = await supabase
       .from("users")
       .select("id")
@@ -77,20 +70,65 @@ serve(async (req) => {
       });
     }
 
-    const { data, error } = await supabase
+    // Step 1: Create user in public.users table
+    const { data: newUser, error: userError } = await supabase
       .from("users")
       .insert([{ email, name, phone, role, is_active }])
       .select()
-      .maybeSingle();
+      .single();
 
-    if (error) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+    if (userError) {
+      return new Response(JSON.stringify({ success: false, error: userError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ success: true, user: data }), {
+    // Step 2: Create corresponding auth user
+    const defaultPassword = role === 'superadmin' ? 'admin123' : 
+                           role === 'owner' ? 'owner123' : 'emp123';
+
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password: defaultPassword,
+      email_confirm: true,
+      user_metadata: {
+        name: name || email.split('@')[0],
+        phone: phone || null,
+        role: role
+      }
+    });
+
+    if (authError) {
+      // If auth user creation fails, clean up the public.users entry
+      await supabase.from("users").delete().eq("id", newUser.id);
+      
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: `Failed to create auth user: ${authError.message}` 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Step 3: Update the public.users record with the auth_uid
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ auth_uid: authUser.user.id })
+      .eq("id", newUser.id);
+
+    if (updateError) {
+      console.warn("Failed to update auth_uid, but user created successfully:", updateError);
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      user: newUser,
+      auth_user: authUser.user,
+      default_password: defaultPassword,
+      message: "User created successfully in both public.users and auth.users"
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

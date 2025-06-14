@@ -1,3 +1,4 @@
+
 project_id = "untzkhbbsowpkmwrxdws"
 
 [api]
@@ -143,6 +144,9 @@ verify_jwt = true
 
 [functions.seed-user]
 verify_jwt = true
+
+[functions.setup-admin]
+verify_jwt = false
 
 [db]
 port = 54322
