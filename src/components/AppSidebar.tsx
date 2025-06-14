@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -47,8 +46,8 @@ export function AppSidebar() {
       icon: Home,
     },
     {
-      title: "Upload OCR",
-      url: "/upload",
+      title: "Data Entry",
+      url: "/data-entry",
       icon: Upload,
     },
     {
