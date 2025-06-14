@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Card,
@@ -35,6 +34,9 @@ import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { useSalesManagement } from "@/hooks/useSalesManagement";
 import { SalesCharts } from "@/components/SalesCharts";
+import { SalesFilterBar } from "@/components/SalesFilterBar";
+import { SalesTable } from "@/components/SalesTable";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Sales() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -50,6 +52,9 @@ export default function Sales() {
     nozzle_id: '',
     cumulative_volume: ''
   });
+  // NEW: Add pagination/page state
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -67,7 +72,34 @@ export default function Sales() {
     }
   }, [canAccessAllStations, currentStation]);
 
+  // FILTERS - controlled by filter bar
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: new Date(),
+    end: new Date(),
+  });
+  const [productType, setProductType] = useState<string>("");
+  // Add filter bar controlled state for pumpId and nozzleId
+  const [barPumpId, setBarPumpId] = useState<string>("");
+  const [barNozzleId, setBarNozzleId] = useState<string>("");
+
+  // Filter logic extended for new filters
   const filteredSales = sales?.filter(sale => {
+    // Date
+    if (
+      dateRange.start &&
+      dateRange.end &&
+      sale.created_at &&
+      (new Date(sale.created_at) < dateRange.start ||
+        new Date(sale.created_at) > dateRange.end)
+    ) {
+      return false;
+    }
+    // Product type (fuel)
+    if (productType && sale.fuel_type !== productType) return false;
+    // Pump
+    if (barPumpId && sale.pump_id?.toString() !== barPumpId) return false;
+    // Nozzle
+    if (barNozzleId && sale.nozzle_id?.toString() !== barNozzleId) return false;
     if (selectedStationId && sale.station_id !== selectedStationId) return false;
     if (selectedPumpId) {
       const pump = pumps?.find(p => p.id === selectedPumpId);
@@ -76,6 +108,14 @@ export default function Sales() {
     if (selectedNozzleId && sale.nozzle_id !== selectedNozzleId) return false;
     return true;
   }) || [];
+
+  // Pagination
+  const pagedSales = filteredSales.slice((page - 1) * pageSize, page * pageSize);
+
+  // Get pumps and nozzles list for filter bar
+  const pumpsList = pumps || [];
+  const nozzlesList = pumpsList
+    .find(p => p.id?.toString() === barPumpId)?.nozzles || [];
 
   const todayTotal = filteredSales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
   const todayVolume = filteredSales.reduce((sum, sale) => sum + (sale.delta_volume_l || 0), 0);
@@ -144,14 +184,18 @@ export default function Sales() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4 md:p-6 max-w-7xl ml-4 lg:ml-6">
-        <div className="text-center">Loading sales data...</div>
+      <div className="container mx-auto p-4 max-w-7xl ml-4 lg:ml-6">
+        <Skeleton className="h-12 w-full mb-4" />
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-80 w-full" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl ml-4 lg:ml-6">
+    <div className="container mx-auto p-2 md:p-6 max-w-7xl flex flex-col gap-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Sales Management</h1>
@@ -264,6 +308,21 @@ export default function Sales() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Filter Bar */}
+      <SalesFilterBar
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        productType={productType}
+        onProductTypeChange={setProductType}
+        pumpId={barPumpId}
+        onPumpIdChange={val => { setBarPumpId(val); setBarNozzleId(""); }}
+        nozzleId={barNozzleId}
+        onNozzleIdChange={setBarNozzleId}
+        pumps={pumpsList}
+        nozzles={nozzlesList}
+        isMobile={false}
+      />
 
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
@@ -397,46 +456,20 @@ export default function Sales() {
             </CardContent>
           </Card>
 
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₹{todayTotal.toFixed(2)}</div>
-                <p className="text-xs text-muted-foreground">
-                  {isToday ? 'Today' : `${selectedDate}${endDate ? ` to ${endDate}` : ''}`}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Volume</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{todayVolume.toFixed(2)}L</div>
-                <p className="text-xs text-muted-foreground">
-                  Fuel dispensed
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{filteredSales.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  Total transactions
-                </p>
-              </CardContent>
-            </Card>
+          {/* Modern styled summary cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            <div className="rounded-lg bg-gradient-to-r from-blue-400 via-blue-600 to-blue-700 p-4 shadow-sm text-white">
+              <div className="text-xs font-semibold">Total Revenue</div>
+              <div className="font-bold text-2xl">₹{filteredSales.reduce((s, sale) => s + (sale.total_amount || 0), 0).toFixed(2)}</div>
+            </div>
+            <div className="rounded-lg bg-gradient-to-r from-green-400 via-green-600 to-green-700 p-4 shadow-sm text-white">
+              <div className="text-xs font-semibold">Total Volume</div>
+              <div className="font-bold text-2xl">{filteredSales.reduce((s, sale) => s + (sale.delta_volume_l || 0), 0).toFixed(2)} L</div>
+            </div>
+            <div className="rounded-lg bg-gradient-to-r from-orange-500 via-yellow-400 to-orange-700 p-4 shadow-sm text-white">
+              <div className="text-xs font-semibold">Transactions</div>
+              <div className="font-bold text-2xl">{filteredSales.length}</div>
+            </div>
           </div>
         </TabsContent>
 
@@ -458,54 +491,17 @@ export default function Sales() {
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-6">
-          {/* Sales list */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Sales Transactions</CardTitle>
-              <CardDescription>
-                {isToday ? `Today's sales` : `Sales from ${selectedDate}${endDate ? ` to ${endDate}` : ''}`}
-                {(selectedStationId || selectedPumpId || selectedNozzleId) && ' (filtered)'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {filteredSales && filteredSales.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredSales.map((sale) => (
-                    <div key={sale.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4 shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-center gap-4">
-                        <div>
-                          <p className="font-medium">Nozzle #{sale.nozzle_id}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(sale.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm">{sale.delta_volume_l.toFixed(3)}L</p>
-                          <p className="text-sm text-muted-foreground">
-                            @ ₹{sale.price_per_litre.toFixed(2)}/L
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg">₹{sale.total_amount.toFixed(2)}</p>
-                        <Badge variant="outline">
-                          {sale.reading_id ? 'Auto' : 'Manual'}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No sales found</h3>
-                  <p className="text-muted-foreground mb-4">
-                    No sales transactions found for the selected filters
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Sales Table */}
+          <div className="bg-background rounded-lg shadow-sm p-2">
+            <SalesTable
+              sales={pagedSales}
+              loading={isLoading}
+              page={page}
+              pageSize={pageSize}
+              total={filteredSales.length}
+              onPageChange={setPage}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
