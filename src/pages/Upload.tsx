@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client'; // Use direct import
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 // Update to fetch stations directly, fallback to empty
 const useUserStations = () => {
@@ -56,7 +57,9 @@ interface RefillData {
 export default function Upload() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userStations } = useUserStations();
-  // const supabase = useSupabase();
+
+  // Get session/access_token for API calls
+  const { session } = useAuth();
 
   const {
     register: registerManual,
@@ -123,7 +126,7 @@ export default function Upload() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.auth.session()?.access_token ?? ""}`
+          'Authorization': `Bearer ${session?.access_token ?? ""}`,
         },
         body: JSON.stringify(data)
       });
@@ -153,7 +156,7 @@ export default function Upload() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.auth.session()?.access_token ?? ""}`
+          'Authorization': `Bearer ${session?.access_token ?? ""}`,
         },
         body: JSON.stringify({
           ...data,
@@ -182,7 +185,7 @@ export default function Upload() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.auth.session()?.access_token ?? ""}`
+          'Authorization': `Bearer ${session?.access_token ?? ""}`,
         },
         body: JSON.stringify(data)
       });
