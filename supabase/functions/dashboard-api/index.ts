@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -75,8 +74,17 @@ serve(async (req) => {
     )
 
     const url = new URL(req.url)
-    const pathParts = url.pathname.split('/').filter(Boolean)
-    
+
+    // ----------- FIX: strip dashboard-api prefix ------------
+    // E.g. for /functions/v1/dashboard-api/summary, the path is /dashboard-api/summary
+    // We want to only match ['summary'] etc.
+    let pathParts = url.pathname.split('/').filter(Boolean)
+    const dashboardApiIdx = pathParts.indexOf('dashboard-api')
+    if (dashboardApiIdx !== -1) {
+      pathParts = pathParts.slice(dashboardApiIdx + 1)
+    }
+    // --------------------------------------------------------
+
     console.log('Dashboard API Request:', req.method, url.pathname)
 
     // GET /dashboard/summary - Get dashboard summary metrics
