@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { format } from 'date-fns';
@@ -16,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyInput } from '@/components/inputs/CurrencyInput';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload as UploadIcon, DollarSign, Fuel } from 'lucide-react';
+import { Upload as UploadIcon, IndianRupee, Fuel } from 'lucide-react';
 
 const useUserStations = () => {
   const [userStations, setUserStations] = useState<any[]>([]);
@@ -219,45 +218,49 @@ export default function DataEntry() {
   // --- UI Renders ---
   // Layout: Remove Card, maximize width, gentle container with tabs.
   return (
-    <div className="flex flex-col items-center bg-muted/20 min-h-[100vh] py-10 px-2">
+    <div className="flex flex-col items-center bg-gradient-to-tr from-primary/10 via-muted/40 to-secondary/20 min-h-[100vh] py-10 px-2 transition-all duration-500">
       <div className="w-full max-w-4xl animate-fade-in">
         <div className="mb-8 flex flex-col md:flex-row justify-between md:items-center">
           <div>
             <div className="flex items-center gap-2 text-2xl font-semibold text-primary">
-              <UploadIcon className="w-7 h-7" />
-              Data Entry <span className="text-primary text-lg">•</span>
+              <UploadIcon className="w-7 h-7 text-fuel-blue" />
+              Data Entry <span className="text-fuel-blue text-lg">•</span>
             </div>
             <div className="mt-1 text-muted-foreground text-base">
               Upload OCR, add readings, tenders, or tank refills quickly.
             </div>
           </div>
-          <span className="rounded px-2 py-0.5 text-xs bg-primary/10 text-primary font-medium mt-3 md:mt-0">
+          <span className="rounded px-2 py-0.5 text-xs bg-primary/10 text-primary font-medium mt-3 md:mt-0 shadow">
             Fast entry & OCR in one place!
           </span>
         </div>
-
         <Tabs defaultValue="ocr" className="space-y-6 w-full">
           <TabsList className="grid grid-cols-4 gap-2 md:gap-4 w-full mx-auto mb-4">
             <TabsTrigger value="ocr" className="flex flex-col items-center gap-1 text-sm font-medium">
-              <UploadIcon className="w-5 h-5" />
-              OCR Upload
+              <UploadIcon className="w-5 h-5 text-fuel-blue" />
+              <span className="text-fuel-blue">OCR Upload</span>
             </TabsTrigger>
             <TabsTrigger value="manual" className="flex flex-col items-center gap-1 text-sm font-medium">
-              <span className="inline-block w-5 h-5 bg-primary/15 rounded-full flex items-center justify-center text-primary text-xs font-bold">M</span>
-              Manual Reading
+              <span className="inline-block w-5 h-5 bg-fuel-orange/90 rounded-full flex items-center justify-center text-white text-xs font-bold shadow">
+                M
+              </span>
+              <span className="text-fuel-orange">Manual Reading</span>
             </TabsTrigger>
             <TabsTrigger value="tender" className="flex flex-col items-center gap-1 text-sm font-medium">
-              <DollarSign className="w-5 h-5" />
-              Tender Entry
+              <IndianRupee className="w-5 h-5 text-green-600" />
+              <span className="text-green-700">Tender Entry</span>
             </TabsTrigger>
             <TabsTrigger value="refill" className="flex flex-col items-center gap-1 text-sm font-medium">
-              <Fuel className="w-5 h-5" />
-              Tank Refill
+              <Fuel className="w-5 h-5 text-yellow-500" />
+              <span className="text-yellow-700">Tank Refill</span>
             </TabsTrigger>
           </TabsList>
           {/* --- OCR Tab --- */}
           <TabsContent value="ocr">
-            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+            <div className="rounded-xl p-6 mb-6 shadow-sm bg-sky-50 border border-border/30">
+              <h3 className="text-fuel-blue text-xl font-semibold mb-4 flex items-center gap-2">
+                <UploadIcon className="w-5 h-5 text-fuel-blue" /> OCR Upload
+              </h3>
               <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                 <div className="space-y-2">
                   <Label htmlFor="ocr-file">Receipt Image/PDF</Label>
@@ -292,7 +295,7 @@ export default function DataEntry() {
               {/* OCR result preview */}
               {ocrResult && (
                 <div className="mt-6 bg-muted/50 p-4 rounded border border-muted-foreground/10">
-                  <h4 className="font-bold mb-2 text-primary">OCR Preview</h4>
+                  <h4 className="font-bold mb-2 text-fuel-blue">OCR Preview</h4>
                   <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(ocrResult, null, 2)}</pre>
                 </div>
               )}
@@ -300,7 +303,11 @@ export default function DataEntry() {
           </TabsContent>
           {/* --- Manual Tab --- */}
           <TabsContent value="manual">
-            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+            <div className="rounded-xl p-6 mb-6 shadow-sm bg-orange-50 border border-border/30">
+              <h3 className="text-fuel-orange text-xl font-semibold mb-4 flex items-center gap-2">
+                <span className="inline-block w-6 h-6 bg-fuel-orange rounded-full flex items-center justify-center text-white text-sm font-bold">M</span>
+                Manual Reading
+              </h3>
               <form onSubmit={handleSubmitManual(onSubmitManual)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -379,7 +386,11 @@ export default function DataEntry() {
           </TabsContent>
           {/* --- Tender Entry --- */}
           <TabsContent value="tender">
-            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+            <div className="rounded-xl p-6 mb-6 shadow-sm bg-green-50 border border-border/30">
+              <h3 className="text-green-700 text-xl font-semibold mb-4 flex items-center gap-2">
+                <IndianRupee className="w-6 h-6 text-green-700" />
+                Tender Entry
+              </h3>
               <form onSubmit={handleSubmitTender(onSubmitTender)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -462,7 +473,11 @@ export default function DataEntry() {
           </TabsContent>
           {/* --- Refill Entry --- */}
           <TabsContent value="refill">
-            <div className="bg-white border border-border/40 rounded-xl p-6 shadow-sm mb-6">
+            <div className="rounded-xl p-6 mb-6 shadow-sm bg-yellow-50 border border-border/30">
+              <h3 className="text-yellow-700 text-xl font-semibold mb-4 flex items-center gap-2">
+                <Fuel className="w-6 h-6 text-yellow-500" />
+                Tank Refill
+              </h3>
               <form onSubmit={handleSubmitRefill(onSubmitRefill)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
