@@ -174,8 +174,11 @@ export default function Sales() {
 
   // Fix: Ensure availableNozzles uses correct number type
   const availableNozzles =
-    availablePumps.find((pump) => pump.id === selectedPumpIdParsed)?.nozzles ||
-    [];
+    availablePumps.find((pump) => pump.id === (
+      typeof manualEntry.pump_id === "string"
+        ? parseInt(manualEntry.pump_id, 10)
+        : manualEntry.pump_id
+    ))?.nozzles || [];
 
   const handleManualEntry = async () => {
     if (!manualEntry.station_id || !manualEntry.nozzle_id || !manualEntry.cumulative_volume) {
