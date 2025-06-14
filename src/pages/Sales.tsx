@@ -203,7 +203,7 @@ export default function Sales() {
             ? manualEntry.nozzle_id
             : 0,
         cumulative_volume: parseFloat(manualEntry.cumulative_volume),
-        user_id: user?.id || 0,
+        user_id: typeof user?.id === "string" ? user.id : "",
       });
 
       setIsAddSaleOpen(false);

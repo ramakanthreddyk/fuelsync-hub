@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
@@ -7,7 +6,7 @@ interface ManualEntryData {
   station_id: number;
   nozzle_id: number;
   cumulative_volume: number;
-  user_id: number;
+  user_id: string;
 }
 
 interface SalesFilters {
