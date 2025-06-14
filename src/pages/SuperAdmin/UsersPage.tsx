@@ -309,7 +309,7 @@ const UsersPage = ({ stations }: Props) => {
                     variant="outline"
                     onClick={() =>
                       handleStatusChange(
-                        typeof user.id === "string" ? parseInt(user.id, 10) : user.id,
+                        user.id,
                         !user.is_active
                       )
                     }
