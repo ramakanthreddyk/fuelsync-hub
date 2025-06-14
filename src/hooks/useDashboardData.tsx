@@ -32,7 +32,8 @@ interface DashboardData {
 }
 
 export const useDashboardData = () => {
-  const { user } = useAuth();
+  // Use both user and session from useAuth
+  const { user, session } = useAuth();
   const [data, setData] = useState<DashboardData>({
     todaySales: 0,
     todayTender: 0,
@@ -49,14 +50,7 @@ export const useDashboardData = () => {
 
   // Get the current session's access token for the Authorization header
   const getAuthHeader = () => {
-    // Get from supabase client if available
-    const token = supabase.auth?.getAuthToken
-      ? supabase.auth.getAuthToken()
-      : (typeof window !== "undefined" && localStorage.getItem('sb-access-token')) || "";
-    // If supabase.auth.getAuthToken is async, fall back to stored value
-    // For react-userland we just use the access_token from localStorage if present
-    // Otherwise, try from user object if available
-    return (token && typeof token !== "object") ? token : (user?.access_token || "");
+    return session?.access_token || "";
   };
 
   useEffect(() => {
@@ -64,7 +58,7 @@ export const useDashboardData = () => {
       loadDashboardData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStation]);
+  }, [currentStation, session]);
 
   const loadDashboardData = async () => {
     if (!currentStation) {
@@ -145,15 +139,18 @@ export const useDashboardData = () => {
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      setData(prev => ({ ...prev, alerts: [
-        {
-          id: 'load_error',
-          type: 'error',
-          message: 'Failed to load dashboard data',
-          severity: 'high',
-          tags: ['system']
-        }
-      ]}));
+      setData(prev => ({
+        ...prev,
+        alerts: [
+          {
+            id: 'load_error',
+            type: 'error',
+            message: 'Failed to load dashboard data',
+            severity: 'high',
+            tags: ['system']
+          }
+        ]
+      }));
     } finally {
       setIsLoading(false);
     }
