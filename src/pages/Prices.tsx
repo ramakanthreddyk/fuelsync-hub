@@ -40,6 +40,11 @@ export default function Prices() {
   // --- DIALOG HANDLERS ---
   const [addEditLoading, setAddEditLoading] = useState(false);
 
+  // Type guard for allowed fuel types
+  function isValidFuelType(ft: string): ft is "PETROL" | "DIESEL" | "CNG" | "EV" {
+    return ["PETROL", "DIESEL", "CNG", "EV"].includes(ft);
+  }
+
   const openAddDialog = () => {
     setDialogMode("add");
     setDialogOpen(true);
@@ -50,18 +55,23 @@ export default function Prices() {
 
   // openEditDialog: use the union type for fuelType
   const openEditDialog = (
-    fuelType: "PETROL" | "DIESEL" | "CNG" | "EV",
+    fuelType: string,
     price: number,
     id: number
   ) => {
-    setDialogMode("edit");
-    setDialogOpen(true);
-    setSelectedFuelType(fuelType); // Now correctly typed!
-    setSelectedPrice(price.toString());
-    setEditId(id);
+    // Ensure only valid fuel types are accepted
+    if (isValidFuelType(fuelType)) {
+      setDialogMode("edit");
+      setDialogOpen(true);
+      setSelectedFuelType(fuelType);
+      setSelectedPrice(price.toString());
+      setEditId(id);
+    } else {
+      // Optionally show a toast or error here
+      return;
+    }
   };
 
-  // Ensure parameter type is strict union
   const handleDialogSubmit = (
     input: { fuel_type: "PETROL" | "DIESEL" | "CNG" | "EV"; price_per_litre: string }
   ) => {
@@ -88,18 +98,20 @@ export default function Prices() {
       return;
     }
 
-    // Mutate (always insert, not update)
-    supabase
-      .from("fuel_prices")
-      .insert({
-        station_id: currentStation?.id,
-        fuel_type: input.fuel_type,
-        price_per_litre: price,
-        created_by: user?.id,
-        valid_from: new Date().toISOString(),
-      })
-      .select()
-      .single()
+    // Always insert (not update)
+    Promise.resolve(
+      supabase
+        .from("fuel_prices")
+        .insert({
+          station_id: currentStation?.id,
+          fuel_type: input.fuel_type,
+          price_per_litre: price,
+          created_by: user?.id,
+          valid_from: new Date().toISOString(),
+        })
+        .select()
+        .single()
+    )
       .then(({ data, error }) => {
         if (error) throw error;
         toast({
