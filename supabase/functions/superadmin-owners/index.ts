@@ -78,11 +78,11 @@ serve(async (req) => {
       }
       const authUser = authUserResp.user;
 
-      // 2. Create user in DB, using Auth UID
+      // 2. Insert user in DB (no password field!), use Auth UID as PK + auth_uid
       const { data: ownerData, error: ownerError } = await supabaseAdmin
         .from('users')
         .insert({
-          id: authUser.id, // Use Auth UID as PK for your table
+          id: authUser.id, // Auth UID as PK
           email,
           phone,
           name,
