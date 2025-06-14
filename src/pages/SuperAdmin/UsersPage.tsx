@@ -170,7 +170,8 @@ const UsersPage = ({ stations }: Props) => {
       phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
-      station_id: '' // not shown for simplicity
+      // If station_id comes as string, convert to number or undefined
+      station_id: user.station_id ? Number(user.station_id) : undefined
     });
     setEditDialog({ open: true, user });
   };
