@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -427,13 +426,10 @@ const UsersPage = ({ stations }: Props) => {
                   )}
                 </TableCell>
                 <TableCell>
+                  {/* Correction: just open edit dialog */}
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      handleEditUser(
-                        openEditDialog(user)
-                      )
-                    }
+                    onClick={() => openEditDialog(user)}
                   >
                     {user.is_active ? 'Deactivate' : 'Activate'}
                   </Button>
