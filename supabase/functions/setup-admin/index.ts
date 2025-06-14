@@ -36,16 +36,23 @@ serve(async (req) => {
     const adminEmail = "admin@fuelsync.com";
     const adminPassword = "admin123";
     
-    // Check if admin already exists in auth
-    const { data: existingAuthUser } = await supabase.auth.admin.listUsers();
-    const authUserExists = existingAuthUser?.users?.some(user => user.email === adminEmail);
-
     // Check if admin already exists in public.users
     const { data: existingUser } = await supabase
       .from("users")
-      .select("id")
+      .select("id, auth_uid")
       .eq("email", adminEmail)
       .maybeSingle();
+
+    // Check if admin already exists in auth - only if we have auth_uid
+    let authUserExists = false;
+    if (existingUser?.auth_uid) {
+      try {
+        const { data: authUser } = await supabase.auth.admin.getUserById(existingUser.auth_uid);
+        authUserExists = !!authUser?.user;
+      } catch (error) {
+        console.log("Auth user not found for existing public user");
+      }
+    }
 
     if (authUserExists && existingUser) {
       return new Response(JSON.stringify({ 
@@ -79,44 +86,78 @@ serve(async (req) => {
       publicUserId = newUser[0]?.id;
     }
 
-    // Create in auth.users if it doesn't exist
+    // Create in auth.users if it doesn't exist or if auth_uid is missing
     if (!authUserExists) {
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: adminEmail,
-        password: adminPassword,
-        email_confirm: true,
-        user_metadata: {
-          name: "Super Admin",
-          role: "superadmin"
-        }
-      });
+      try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+          email: adminEmail,
+          password: adminPassword,
+          email_confirm: true,
+          user_metadata: {
+            name: "Super Admin"
+          },
+          app_metadata: {
+            role: "superadmin"
+          }
+        });
 
-      if (authError) {
-        console.error("Error creating auth user:", authError);
-        return new Response(JSON.stringify({ success: false, error: `Failed to create auth user: ${authError.message}` }), {
+        if (authError) {
+          console.error("Error creating auth user:", authError);
+          
+          // If user already exists in auth, try to get the existing user
+          if (authError.message?.includes("already registered")) {
+            try {
+              const { data: existingAuthUsers } = await supabase.auth.admin.listUsers();
+              const existingAuthUser = existingAuthUsers?.users?.find(user => user.email === adminEmail);
+              
+              if (existingAuthUser) {
+                authUserId = existingAuthUser.id;
+                console.log("Found existing auth user:", authUserId);
+              }
+            } catch (listError) {
+              console.error("Error listing users:", listError);
+            }
+          }
+          
+          if (!authUserId) {
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: `Failed to create auth user: ${authError.message}` 
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } else {
+          authUserId = authUser.user?.id;
+        }
+
+        // Update public.users with auth_uid if we have both IDs
+        if (publicUserId && authUserId) {
+          const { error: updateError } = await supabase
+            .from("users")
+            .update({ auth_uid: authUserId })
+            .eq("id", publicUserId);
+
+          if (updateError) {
+            console.error("Error updating auth_uid:", updateError);
+          }
+        }
+      } catch (unexpectedError) {
+        console.error("Unexpected error during auth user creation:", unexpectedError);
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: `Unexpected error: ${unexpectedError.message}` 
+        }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      }
-
-      authUserId = authUser.user.id;
-
-      // Update public.users with auth_uid if we have both IDs
-      if (publicUserId && authUserId) {
-        const { error: updateError } = await supabase
-          .from("users")
-          .update({ auth_uid: authUserId })
-          .eq("id", publicUserId);
-
-        if (updateError) {
-          console.error("Error updating auth_uid:", updateError);
-        }
       }
     }
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: "Admin user created successfully",
+      message: "Admin user setup completed successfully",
       email: adminEmail,
       password: adminPassword,
       publicUserId,
