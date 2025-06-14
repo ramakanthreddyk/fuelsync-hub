@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,28 +51,39 @@ export const useDashboardData = () => {
   }, [currentStation]);
 
   const loadDashboardData = async () => {
-    if (!currentStation) return;
+    if (!currentStation) {
+      console.warn("No currentStation selected in useDashboardData");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       setIsLoading(true);
+      console.log("Loading dashboard data for station", currentStation);
 
       // Load dashboard summary
-      const { data: summaryResult } = await supabase.functions.invoke('dashboard-api/summary', {
+      const { data: summaryResult, error: summaryError } = await supabase.functions.invoke('dashboard-api/summary', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'GET',
         body: null,
-        method: 'GET'
+        // Add query params directly to the URL (invoke doesn't accept them, so fallback below if needed)
       });
+
+      console.log("Dashboard summary result:", summaryResult);
 
       if (summaryResult?.error) {
         throw new Error(summaryResult.error);
       }
-
       const summary = summaryResult.data;
 
       // Load sales trends
-      const { data: trendsResult } = await supabase.functions.invoke('dashboard-api/sales-trend', {
+      const { data: trendsResult, error: trendsError } = await supabase.functions.invoke('dashboard-api/sales-trend', {
+        headers: { 'Content-Type': 'application/json' },
+        method: 'GET',
         body: null,
-        method: 'GET'
       });
+
+      console.log("Dashboard trends result:", trendsResult);
 
       if (trendsResult?.error) {
         throw new Error(trendsResult.error);
@@ -84,8 +94,10 @@ export const useDashboardData = () => {
       // Get total readings count
       const { count: readingsCount } = await supabase
         .from('ocr_readings')
-        .select('*', { count: 'exact' })
+        .select('*', { count: 'exact', head: true })
         .eq('station_id', currentStation.id);
+
+      console.log("Total readings count:", readingsCount);
 
       // Get last reading time
       const { data: lastReadingData } = await supabase
@@ -94,6 +106,8 @@ export const useDashboardData = () => {
         .eq('station_id', currentStation.id)
         .order('created_at', { ascending: false })
         .limit(1);
+
+      console.log("Last reading data:", lastReadingData);
 
       setData({
         todaySales: summary.total_sales_today || 0,
