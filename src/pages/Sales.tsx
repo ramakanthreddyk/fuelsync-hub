@@ -262,7 +262,6 @@ export default function Sales() {
                       <SelectValue placeholder="Select station" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Only show "all" if you want to support it. Otherwise, don't use value="" */}
                       {(canAccessAllStations ? stations : currentStation ? [currentStation] : [])
                         .filter(station => station.id != null && station.id !== undefined)
                         .map(station => (
@@ -288,7 +287,6 @@ export default function Sales() {
                     <SelectValue placeholder="Select pump" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All pumps</SelectItem>
                     {availablePumps
                       .filter(pump => pump.id != null && pump.id !== undefined)
                       .map(pump => (
@@ -311,7 +309,6 @@ export default function Sales() {
                     <SelectValue placeholder="Select nozzle" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All nozzles</SelectItem>
                     {availableNozzles
                       .filter(nozzle => nozzle.id != null && nozzle.id !== undefined)
                       .map(nozzle => (
