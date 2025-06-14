@@ -368,19 +368,43 @@ export default function Sales() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Modern styled summary cards */}
+          {/* Lucid Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            <div className="rounded-lg bg-gradient-to-r from-blue-400 via-blue-600 to-blue-700 p-4 shadow-sm text-white">
-              <div className="text-xs font-semibold">Total Revenue</div>
-              <div className="font-bold text-2xl">₹{filteredSales.reduce((s, sale) => s + (sale.total_amount || 0), 0).toFixed(2)}</div>
+            <div className="flex flex-col gap-2 rounded-xl p-5 shadow-sm bg-gradient-to-r from-blue-50/90 via-blue-100/80 to-blue-300/30 border border-blue-100 min-h-[124px]">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-blue-500 p-2 text-white shadow">
+                  <svg width="24" height="24"><use href="#lucide-indian-rupee"/></svg>
+                </span>
+                <span className="text-xs md:text-sm font-semibold text-blue-900 uppercase tracking-wide">Total Revenue</span>
+              </div>
+              <div className="text-2xl md:text-3xl font-bold text-blue-900 tracking-tight">
+                ₹{filteredSales.reduce((s, sale) => s + (sale.total_amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs md:text-sm text-blue-700">All Pumps · All Time</div>
             </div>
-            <div className="rounded-lg bg-gradient-to-r from-green-400 via-green-600 to-green-700 p-4 shadow-sm text-white">
-              <div className="text-xs font-semibold">Total Volume</div>
-              <div className="font-bold text-2xl">{filteredSales.reduce((s, sale) => s + (sale.delta_volume_l || 0), 0).toFixed(2)} L</div>
+            <div className="flex flex-col gap-2 rounded-xl p-5 shadow-sm bg-gradient-to-r from-green-50/70 via-green-100/80 to-green-300/30 border border-green-100 min-h-[124px]">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-green-500 p-2 text-white shadow">
+                  <svg width="22" height="22"><use href="#lucide-droplet"/></svg>
+                </span>
+                <span className="text-xs md:text-sm font-semibold text-green-900 uppercase tracking-wide">Total Volume</span>
+              </div>
+              <div className="text-2xl md:text-3xl font-bold text-green-900 tracking-tight">
+                {filteredSales.reduce((s, sale) => s + (sale.delta_volume_l || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} L
+              </div>
+              <div className="text-xs md:text-sm text-green-700">Litres · This Range</div>
             </div>
-            <div className="rounded-lg bg-gradient-to-r from-orange-500 via-yellow-400 to-orange-700 p-4 shadow-sm text-white">
-              <div className="text-xs font-semibold">Transactions</div>
-              <div className="font-bold text-2xl">{filteredSales.length}</div>
+            <div className="flex flex-col gap-2 rounded-xl p-5 shadow-sm bg-gradient-to-r from-orange-100/80 via-orange-200/80 to-yellow-200/30 border border-orange-100 min-h-[124px]">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-orange-500 p-2 text-white shadow">
+                  <svg width="21" height="21"><use href="#lucide-list"/></svg>
+                </span>
+                <span className="text-xs md:text-sm font-semibold text-orange-900 uppercase tracking-wide">Transactions</span>
+              </div>
+              <div className="text-2xl md:text-3xl font-bold text-orange-900 tracking-tight">
+                {filteredSales.length}
+              </div>
+              <div className="text-xs md:text-sm text-orange-700">Sale Entries</div>
             </div>
           </div>
         </TabsContent>
@@ -419,3 +443,25 @@ export default function Sales() {
     </div>
   );
 }
+
+// Lucide Icon SVG symbol sprite injection for inlined icons (for currencies, droplet, transactions)
+const _LucideSVGSprite = () => (
+  <svg style={{ display: 'none' }}>
+    <symbol id="lucide-indian-rupee" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M6 3h12M6 8.5h12M9 3l5.5 8a4.5 4.5 0 1 1-4.86 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </symbol>
+    <symbol id="lucide-droplet" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M12 2.1l.01 0C12 2.1 18 8.41 18 13.5A6 6 0 0 1 6 13.5c0-5.09 6-11.4 6-11.4Z" />
+      <path d="M12 22a4 4 0 0 0 4-4" />
+    </symbol>
+    <symbol id="lucide-list" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <line x1="8" x2="21" y1="6" y2="6" />
+      <line x1="8" x2="21" y1="12" y2="12" />
+      <line x1="8" x2="21" y1="18" y2="18" />
+      <line x1="3" x2="3" y1="6" y2="6" />
+      <line x1="3" x2="3" y1="12" y2="12" />
+      <line x1="3" x2="3" y1="18" y2="18" />
+    </symbol>
+  </svg>
+);
+// Render this sprite in your app root (e.g., in App.tsx) to make the symbols available everywhere.
