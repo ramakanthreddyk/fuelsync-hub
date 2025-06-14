@@ -48,7 +48,9 @@ const UsersPage = ({ stations }: Props) => {
         .select(`
           *,
           user_stations (
-            station_id
+            station_id,
+            user_id,
+            created_at
           ),
           stations!stations_owner_id_fkey (
             id,
@@ -57,7 +59,16 @@ const UsersPage = ({ stations }: Props) => {
         `)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setUsers(data || []);
+      // Transform user_stations to match UserStation type for each user
+      const usersWithFullStations = (data || []).map((user: any) => ({
+        ...user,
+        user_stations: (user.user_stations || []).map((us: any) => ({
+          station_id: us.station_id,
+          user_id: us.user_id ?? user.id, // fallback if not present
+          created_at: us.created_at ?? '',
+        })),
+      }));
+      setUsers(usersWithFullStations);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to fetch users');
     } finally {
