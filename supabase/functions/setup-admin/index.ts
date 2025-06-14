@@ -24,6 +24,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
 
     if (!serviceRoleKey || !supabaseUrl) {
+      console.error("[setup-admin] Missing env vars", { serviceRoleKey, supabaseUrl });
       return new Response(JSON.stringify({ success: false, error: "Missing environment variables" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -32,29 +33,35 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Create admin user
+    // Admin details
     const adminEmail = "admin@fuelsync.com";
     const adminPassword = "admin123";
-    
-    // Check if admin already exists in public.users
-    const { data: existingUser } = await supabase
+
+    // Step 1: Check for admin in public.users
+    const { data: existingUser, error: userCheckErr } = await supabase
       .from("users")
       .select("id, auth_uid")
       .eq("email", adminEmail)
       .maybeSingle();
 
-    // Check if admin already exists in auth - only if we have auth_uid
+    console.log("[setup-admin] existingUser in public.users:", existingUser, "error:", userCheckErr);
+
+    // Check for admin in auth.users if auth_uid exists
     let authUserExists = false;
+    let authUserId: string | undefined = undefined;
     if (existingUser?.auth_uid) {
       try {
         const { data: authUser } = await supabase.auth.admin.getUserById(existingUser.auth_uid);
         authUserExists = !!authUser?.user;
+        authUserId = authUser?.user?.id;
+        console.log("[setup-admin] existingUser has auth_uid, authUserExists:", authUserExists, "authUserId:", authUserId);
       } catch (error) {
-        console.log("Auth user not found for existing public user");
+        console.warn("[setup-admin] Could not find user in Auth for existing public user:", error);
       }
     }
 
     if (authUserExists && existingUser) {
+      console.log("[setup-admin] Admin exists in both places.");
       return new Response(JSON.stringify({ 
         success: true, 
         message: "Admin user already exists in both auth and public tables",
@@ -64,10 +71,9 @@ serve(async (req) => {
       });
     }
 
-    let publicUserId = existingUser?.id;
-    let authUserId;
+    let publicUserId: string | undefined = existingUser?.id;
 
-    // Create in public.users if it doesn't exist
+    // Step 2: Create admin in public.users if missing
     if (!existingUser) {
       const { data: newUser, error: userError } = await supabase
         .rpc('create_admin_user', {
@@ -75,100 +81,104 @@ serve(async (req) => {
           user_name: "Super Admin"
         });
 
+      console.log("[setup-admin] create_admin_user RPC newUser:", newUser, "error:", userError);
+
       if (userError) {
-        console.error("Error creating admin user:", userError);
-        return new Response(JSON.stringify({ success: false, error: "Database error creating new user" }), {
+        return new Response(JSON.stringify({ success: false, error: "Database error creating new user (public)" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
       publicUserId = newUser[0]?.id;
     }
 
-    // Create in auth.users if it doesn't exist or if auth_uid is missing
+    // Step 3: Create admin in auth.users if missing
     if (!authUserExists) {
+      // Compose the payload and log it before sending
+      const payload = {
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: true,
+        user_metadata: {
+          name: "Super Admin"
+        },
+        app_metadata: {
+          role: "superadmin"
+        }
+      };
+      console.log("[setup-admin] About to call supabase.auth.admin.createUser with payload:", JSON.stringify(payload));
+
+      let createUserErrorMessage: string | undefined = undefined;
+      let createdAuthUserId: string | undefined = undefined;
+
       try {
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-          email: adminEmail,
-          password: adminPassword,
-          email_confirm: true,
-          user_metadata: {
-            name: "Super Admin"
-          },
-          app_metadata: {
-            role: "superadmin"
-          }
-        });
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser(payload);
+
+        console.log("[setup-admin] Result from supabase.auth.admin.createUser:", authUser, "Error:", authError);
 
         if (authError) {
-          console.error("Error creating auth user:", authError);
-          
-          // If user already exists in auth, try to get the existing user
-          if (authError.message?.includes("already registered")) {
-            try {
-              const { data: existingAuthUsers } = await supabase.auth.admin.listUsers();
-              const existingAuthUser = existingAuthUsers?.users?.find(user => user.email === adminEmail);
-              
-              if (existingAuthUser) {
-                authUserId = existingAuthUser.id;
-                console.log("Found existing auth user:", authUserId);
-              }
-            } catch (listError) {
-              console.error("Error listing users:", listError);
+          createUserErrorMessage = authError.message;
+        }
+        if (authUser?.user?.id) {
+          createdAuthUserId = authUser.user.id;
+          authUserId = createdAuthUserId;
+        }
+      } catch (err) {
+        createUserErrorMessage = "[EXCEPTION] " + (err?.message || err);
+        console.error("[setup-admin] EXCEPTION calling createUser:", err);
+      }
+
+      // If failed: Try to find the user if it's a duplicate
+      if (createUserErrorMessage) {
+        if (createUserErrorMessage.includes("already registered")) {
+          try {
+            const { data: usersList, error: listErr } = await supabase.auth.admin.listUsers();
+            const existingAuthUser = usersList?.users?.find(u => u.email === adminEmail);
+            console.log("[setup-admin] Found existing auth user in listUsers", existingAuthUser);
+            if (existingAuthUser?.id) {
+              authUserId = existingAuthUser.id;
             }
-          }
-          
-          if (!authUserId) {
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: `Failed to create auth user: ${authError.message}` 
-            }), {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-        } else {
-          authUserId = authUser.user?.id;
-        }
-
-        // Update public.users with auth_uid if we have both IDs
-        if (publicUserId && authUserId) {
-          const { error: updateError } = await supabase
-            .from("users")
-            .update({ auth_uid: authUserId })
-            .eq("id", publicUserId);
-
-          if (updateError) {
-            console.error("Error updating auth_uid:", updateError);
+          } catch (err) {
+            console.error("[setup-admin] Error running listUsers after duplicate:", err);
           }
         }
-      } catch (unexpectedError) {
-        console.error("Unexpected error during auth user creation:", unexpectedError);
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: `Unexpected error: ${unexpectedError.message}` 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        if (!authUserId) {
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: `Failed to create auth user: ${createUserErrorMessage}`
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+      }
+      // If we have both publicUserId and authUserId, update linking field
+      if (publicUserId && authUserId) {
+        const { error: updateErr } = await supabase
+          .from("users")
+          .update({ auth_uid: authUserId })
+          .eq("id", publicUserId);
+
+        console.log("[setup-admin] Updated public.users with auth_uid:", updateErr);
       }
     }
 
+    // Return results
     return new Response(JSON.stringify({ 
       success: true,
       message: "Admin user setup completed successfully",
       email: adminEmail,
       password: adminPassword,
       publicUserId,
-      authUserId
+      authUserId,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err) {
-    console.error("Setup admin error:", err);
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
+    // General exception handling
+    console.error("[setup-admin] Unexpected setup admin error:", err);
+    return new Response(JSON.stringify({ success: false, error: `[UNEXPECTED ERROR]: ${err?.message || err}` }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
