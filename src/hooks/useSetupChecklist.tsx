@@ -17,12 +17,11 @@ export function useSetupChecklist() {
       action: () => navigate("/prices"),
     },
     {
-      key: "pump_assigned",
-      label: "Assign pumps",
+      key: "sales_data_entered",
+      label: "Enter sales data",
       completed: !!data && data.trendsData && data.trendsData.length > 0,
-      action: () => navigate("/pumps"),
+      action: () => navigate("/sales"),
     },
     // Add more as needed
   ];
 }
-
