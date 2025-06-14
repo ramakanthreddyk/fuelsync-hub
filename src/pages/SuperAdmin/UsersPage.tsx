@@ -164,14 +164,28 @@ const UsersPage = ({ stations }: Props) => {
   };
 
   const openEditDialog = (user: User) => {
+    // Determine which station to set (mainly for employees, optional for owners).
+    let stationId: number | undefined = undefined;
+    // For EMPLOYEE: prefer user_stations or stations, for OWNER prefer stations, for SUPERADMIN leave undefined
+    if (user.role === 'employee') {
+      // Prefer user.user_stations, fallback to user.stations
+      if (user.user_stations && user.user_stations.length > 0) {
+        stationId = user.user_stations[0].station_id;
+      } else if (user.stations && user.stations.length > 0) {
+        stationId = user.stations[0].id;
+      }
+    } else if (user.role === 'owner') {
+      if (user.stations && user.stations.length > 0) {
+        stationId = user.stations[0].id;
+      }
+    }
     setEditForm({
       name: user.name || '',
       email: user.email,
       phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
-      // If station_id comes as string, convert to number or undefined
-      station_id: user.station_id ? Number(user.station_id) : undefined
+      station_id: stationId
     });
     setEditDialog({ open: true, user });
   };
