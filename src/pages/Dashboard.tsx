@@ -7,8 +7,22 @@ import { AlertBadges } from "@/components/dashboard/AlertBadges";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { UpgradeModal } from "@/components/dashboard/UpgradeModal";
 import { useState } from "react";
+import { useEffect } from "react";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 export default function Dashboard() {
+  // ACTIVITY LOGGING: Log "dashboard_view" once per visit (on mount)
+  const logActivity = useActivityLogger();
+  useEffect(() => {
+    logActivity("dashboard_view", {
+      // You can include additional info here if desired, e.g.:
+      browser: window.navigator.userAgent,
+      path: window.location.pathname,
+    });
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const { user } = useAuth();
   const { data, isLoading } = useDashboardData();
   const [showUpgrade, setShowUpgrade] = useState(false);
