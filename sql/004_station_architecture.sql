@@ -1,4 +1,3 @@
-
 -- FuelSync Multi-Tenant Station Architecture
 -- Azure PostgreSQL compatible database schema
 
@@ -190,6 +189,19 @@ CREATE TABLE sales (
         total_amount = ROUND(litres_sold * price_per_litre, 2)
     )
 );
+
+-- User Activity Log table
+CREATE TABLE user_activity_log (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    station_id INTEGER REFERENCES stations(id),
+    activity_type TEXT NOT NULL,
+    details JSONB,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_user_activity_user_id ON user_activity_log(user_id);
+CREATE INDEX idx_user_activity_station_id ON user_activity_log(station_id);
+CREATE INDEX idx_user_activity_type ON user_activity_log(activity_type);
 
 -- Create comprehensive indexes for performance
 CREATE INDEX idx_stations_active ON stations(is_active);

@@ -22,28 +22,24 @@ export function useActivityLogger() {
       details?: Record<string, any>,
       stationId?: number
     ) => {
-      try {
-        if (!user) return;
-        // Try to find a station context
-        let station_id = stationId;
-        if (!station_id && user.stations && user.stations.length > 0) {
-          station_id = user.stations[0]?.id;
-        }
-        const { error } = await supabase.from("user_activity_log").insert([
-          {
-            user_id: user.id,
-            activity_type: activityType,
-            station_id: station_id ?? null,
-            details: details ? JSON.stringify(details) : null,
-          },
-        ]);
-        if (error) {
-          // You may want to warn here iff desired for debugging
-          // console.warn("Failed to log activity:", error.message);
-        }
-      } catch (e) {
-        // You may want to warn here iff desired for debugging
-        // console.warn("Error logging activity:", e);
+      if (!user?.id) return;
+      // Use provided stationId or user's first (if available)
+      let station_id = stationId;
+      if (!station_id && user.stations && user.stations.length > 0) {
+        station_id = user.stations[0]?.id;
+      }
+      // Insert new row in user_activity_log using correct types
+      const { error } = await supabase.from("user_activity_log").insert([
+        {
+          user_id: user.id,
+          station_id: station_id ?? null,
+          activity_type: activityType,
+          details: details ?? null,
+        },
+      ]);
+      if (error) {
+        // For debug, warn in dev
+        // console.warn("Failed to log activity:", error.message);
       }
     },
     [user]
@@ -51,4 +47,3 @@ export function useActivityLogger() {
 
   return logActivity;
 }
-

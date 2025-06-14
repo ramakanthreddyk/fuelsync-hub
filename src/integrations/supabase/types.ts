@@ -716,6 +716,48 @@ export type Database = {
           },
         ]
       }
+      user_activity_log: {
+        Row: {
+          activity_type: string
+          details: Json | null
+          id: number
+          occurred_at: string
+          station_id: number | null
+          user_id: number
+        }
+        Insert: {
+          activity_type: string
+          details?: Json | null
+          id?: number
+          occurred_at?: string
+          station_id?: number | null
+          user_id: number
+        }
+        Update: {
+          activity_type?: string
+          details?: Json | null
+          id?: number
+          occurred_at?: string
+          station_id?: number | null
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_log_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_stations: {
         Row: {
           created_at: string | null

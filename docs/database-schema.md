@@ -282,6 +282,29 @@ CREATE TABLE plan_usage (
 );
 ```
 
+### 17. User Activity Log
+
+Table tracks user events for analytics or compliance.
+
+```sql
+CREATE TABLE user_activity_log (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  station_id INTEGER REFERENCES stations(id),
+  activity_type TEXT NOT NULL,
+  details JSONB,
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+- **Description**: Tracks each user action. Useful for auditing/dashboard.
+- **Columns**:
+  - `user_id`: User performing action
+  - `station_id`: Optional, where action occurred (if relevant)
+  - `activity_type`: Short string describing the type of event (e.g. "dashboard_view")
+  - `details`: Arbitrary JSON for extra data
+  - `occurred_at`: When the action was logged
+
 ## Custom Types (Enums)
 
 ```sql
