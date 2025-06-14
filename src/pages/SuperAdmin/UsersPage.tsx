@@ -10,13 +10,14 @@ import {
 } from "@/components/ui/table"
 import { User } from '@/types/database';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from 'sonner';
-import { API_BASE_URL } from '@/config';
-import { useSupabase } from '@/providers/SupabaseProvider';
+// Fix config: hardcode API_BASE_URL for now (replace with your actual API base url if different)
+const API_BASE_URL = '/api';
+import { supabase } from "@/integrations/supabase/client"; // Use direct import not provider
 
 interface Props {
   stations: any[]
@@ -26,7 +27,6 @@ const UsersPage = ({ stations }: Props) => {
   const [users, setUsers] = useState<User[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const { supabase } = useSupabase();
   const [newUserForm, setNewUserForm] = useState({
     name: '',
     email: '',

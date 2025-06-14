@@ -15,20 +15,17 @@ export interface CurrencyInputProps {
 export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
   ({ value, onChange, onBlur, disabled, name, placeholder = "₹0.00", className, ...props }, ref) => {
     const formatCurrency = (val: string) => {
-      // Remove all non-digit characters except decimal point
+      // Remove all non-digit except decimal point
       const cleanValue = val.replace(/[^\d.]/g, '');
-      
-      // Ensure only one decimal point
+      // Only one decimal point
       const parts = cleanValue.split('.');
       if (parts.length > 2) {
         return parts[0] + '.' + parts.slice(1).join('');
       }
-      
       // Limit to 2 decimal places
       if (parts[1] && parts[1].length > 2) {
         return parts[0] + '.' + parts[1].substring(0, 2);
       }
-      
       return cleanValue;
     };
 
@@ -37,6 +34,7 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
       onChange(formatted);
     };
 
+    // Show Indian Rupees format with ₹, but only if value is not empty
     const displayValue = value ? `₹${value}` : '';
 
     return (

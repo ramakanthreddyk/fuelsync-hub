@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client'; // Use direct import
 
-import { useUserStations } from '@/hooks/useUserStations';
-import { useSupabase } from '@/integrations/supabase/useSupabase';
-import { API_BASE_URL } from '@/config';
+// Update to fetch stations directly, fallback to empty
+const useUserStations = () => {
+  const [userStations, setUserStations] = useState<any[]>([]);
+  useEffect(() => {
+    supabase.from('stations').select('id, name').then(({ data }) => setUserStations(data || []));
+  }, []);
+  return { userStations };
+};
+
+const API_BASE_URL = '/api';
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
