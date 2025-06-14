@@ -1,268 +1,455 @@
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
 
-import React, { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useToast } from "@/hooks/use-toast";
-import { CurrencyInput } from "@/components/inputs/CurrencyInput";
-import { DataEntryStickyBar } from "@/components/DataEntryStickyBar";
-import { useRoleAccess } from "@/hooks/useRoleAccess";
-import { useReadingManagement } from "@/hooks/useReadingManagement";
-import { useSalesManagement } from "@/hooks/useSalesManagement";
-import { useAuth } from "@/hooks/useAuth";
+import { useUserStations } from '@/hooks/useUserStations';
+import { useSupabase } from '@/integrations/supabase/useSupabase';
+import { API_BASE_URL } from '@/config';
 
-const tenderTypes = [
-  { value: "cash", label: "Cash" },
-  { value: "card", label: "Card" },
-  { value: "upi", label: "UPI" },
-  { value: "credit", label: "Credit" },
-  { value: "refill", label: "Refill" },
-];
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CurrencyInput } from '@/components/inputs/CurrencyInput';
 
-// Zod schemas for validation (you can expand as needed)
-const tenderSchema = z.object({
-  amount: z.coerce.number({ invalid_type_error: "Amount is required" })
-    .positive("Enter a valid amount")
-    .refine(val => !isNaN(val), "Amount is required"),
-  type: z.string().nonempty("Tender type is required"),
-  date: z.date({ required_error: "Date is required" })
-});
-type TenderFormValues = z.infer<typeof tenderSchema>;
+interface ManualEntryData {
+  station_id: number;
+  nozzle_id: number;
+  cumulative_vol: number;
+  reading_date: string;
+  reading_time: string;
+}
+
+interface TenderEntryData {
+  station_id: number;
+  entry_date: string;
+  type: 'cash' | 'card' | 'upi' | 'credit';
+  payer: string;
+  amount: string; // Changed to string for currency input
+}
+
+interface RefillData {
+  station_id: number;
+  fuel_type: 'PETROL' | 'DIESEL' | 'CNG' | 'EV';
+  quantity_l: number;
+  filled_at: string;
+}
 
 export default function Upload() {
-  const [activeTab, setActiveTab] = useState<"ocr" | "manual" | "tender" | "refill">("ocr");
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const { currentStation } = useRoleAccess();
-  const { submitManualReading } = useReadingManagement();
-  const { createManualEntry } = useSalesManagement();
-  // Tender form state/logic
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { userStations } = useUserStations();
+  const supabase = useSupabase();
+
   const {
-    control,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setValue,
-    watch,
-  } = useForm<TenderFormValues>({
-    resolver: zodResolver(tenderSchema),
+    register: registerManual,
+    handleSubmit: handleSubmitManual,
+    formState: { errors: manualErrors },
+    reset: resetManual,
+    setValue: setManualValue,
+    watch: watchManual
+  } = useForm<ManualEntryData>({
     defaultValues: {
-      amount: "",
-      type: "",
-      date: undefined,
-    } as any,
+      station_id: userStations[0]?.id || 0,
+      nozzle_id: 1,
+      cumulative_vol: 0,
+      reading_date: format(new Date(), 'yyyy-MM-dd'),
+      reading_time: format(new Date(), 'HH:mm'),
+    }
   });
 
-  // Format INR currency for label
-  const currencyValue = watch("amount");
-  const formattedINR = typeof currencyValue === "number"
-    ? currencyValue.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 })
-    : "";
-
-  // If user is not authenticated, show message
-  if (!user) {
-    return (
-      <div className="w-full h-[60vh] flex items-center justify-center">
-        <div className="bg-muted px-6 py-8 rounded-lg border max-w-sm w-full space-y-4 text-center">
-          <h2 className="text-xl font-semibold">Authentication Required</h2>
-          <Button variant="outline" onClick={() => (window.location.href = "/login")}>
-            Go to Login
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Tender form submit logic
-  const onTenderSubmit = async (values: TenderFormValues) => {
-    if (!currentStation) {
-      toast({
-        title: "Error",
-        description: "No station selected.",
-        variant: "destructive",
-      });
-      return;
+  const {
+    register: registerTender,
+    handleSubmit: handleSubmitTender,
+    formState: { errors: tenderErrors },
+    reset: resetTender,
+    setValue: setTenderValue,
+    watch: watchTender
+  } = useForm<TenderEntryData>({
+    defaultValues: {
+      station_id: userStations[0]?.id || 0,
+      entry_date: format(new Date(), 'yyyy-MM-dd'),
+      type: 'cash',
+      payer: '',
+      amount: ''
     }
+  });
+
+  const {
+    register: registerRefill,
+    handleSubmit: handleSubmitRefill,
+    formState: { errors: refillErrors },
+    reset: resetRefill,
+    setValue: setRefillValue,
+    watch: watchRefill
+  } = useForm<RefillData>({
+    defaultValues: {
+      station_id: userStations[0]?.id || 0,
+      fuel_type: 'PETROL',
+      quantity_l: 0,
+      filled_at: format(new Date(), 'yyyy-MM-dd'),
+    }
+  });
+
+  useEffect(() => {
+    if (userStations.length > 0) {
+      setManualValue('station_id', userStations[0].id);
+      setTenderValue('station_id', userStations[0].id);
+      setRefillValue('station_id', userStations[0].id);
+    }
+  }, [userStations, setManualValue, setTenderValue, setRefillValue]);
+
+  const onSubmitManual = async (data: ManualEntryData) => {
     try {
-      await createManualEntry.mutateAsync({
-        station_id: currentStation.id,
-        nozzle_id: 1, // Default nozzle for tender entries
-        cumulative_volume: values.amount,
-        user_id: user?.id || 0,
-        type: values.type,
-        entry_date: values.date ? format(values.date, "yyyy-MM-dd") : "",
+      setIsSubmitting(true);
+      const response = await fetch(`${API_BASE_URL}/functions/v1/manual-reading`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`
+        },
+        body: JSON.stringify(data)
       });
-      toast({
-        title: "Success",
-        description: "Tender entry submitted successfully",
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to submit tender entry",
-        variant: "destructive",
-      });
+
+      if (response.ok) {
+        toast.success('Manual reading added successfully');
+        resetManual();
+      } else {
+        throw new Error('Failed to add manual reading');
+      }
+    } catch (error) {
+      console.error('Error submitting manual reading:', error);
+      toast.error('Error adding manual reading');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // RENDER
-  return (
-    <div className="w-full max-w-[510px] mx-auto py-6 min-h-[90vh] relative">
-      {/* Top Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-6">
-        <TabsList className="w-full grid grid-cols-4">
-          <TabsTrigger value="ocr">OCR</TabsTrigger>
-          <TabsTrigger value="manual">Manual</TabsTrigger>
-          <TabsTrigger value="tender">Tender</TabsTrigger>
-          <TabsTrigger value="refill">Refill</TabsTrigger>
-        </TabsList>
-        {/* OCR Mode */}
-        <TabsContent value="ocr" className="mt-5">
-          {/* Replace with your OCR upload form, styled flat */}
-          <div className="bg-muted/50 p-6 rounded-2xl border">
-            <h3 className="font-semibold mb-4">Upload Receipt (OCR)</h3>
-            <div className="space-y-3">
-              {/* ...OCR upload fields (could bring from previous code or componentize)... */}
-              <Label htmlFor="ocr-file">Receipt image</Label>
-              <Input id="ocr-file" type="file" accept="image/*,.pdf"/>
-              <Label className="mt-2" htmlFor="ocr-pump">Pump Serial Number</Label>
-              <Input id="ocr-pump" placeholder="e.g., P001" />
-              <Button variant="outline" className="w-full mt-4">Upload &amp; Process</Button>
-            </div>
-          </div>
-        </TabsContent>
-        {/* Manual Mode */}
-        <TabsContent value="manual" className="mt-5">
-          <div className="bg-muted/50 p-6 rounded-2xl border">
-            <h3 className="font-semibold mb-4">Manual Reading</h3>
-            {/* Replace with your manual reading form ... */}
-            <div className="space-y-3">
-              <Label htmlFor="manual-pump">Pump</Label>
-              <Input id="manual-pump" placeholder="Select pump" />
-              <Label htmlFor="manual-nozzle">Nozzle</Label>
-              <Input id="manual-nozzle" placeholder="Select nozzle" />
-              <Label htmlFor="manual-volume">Cumulative Volume (L)</Label>
-              <Input id="manual-volume" type="number" step="0.01" />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="manual-date">Reading Date</Label>
-                  <Input id="manual-date" type="date" />
-                </div>
-                <div>
-                  <Label htmlFor="manual-time">Reading Time</Label>
-                  <Input id="manual-time" type="time" />
-                </div>
-              </div>
-              <Button variant="outline" className="w-full mt-4">Submit Manual Reading</Button>
-            </div>
-          </div>
-        </TabsContent>
-        {/* Tender Mode */}
-        <TabsContent value="tender" className="mt-5">
-          <form
-            onSubmit={handleSubmit(onTenderSubmit)}
-            className="bg-muted/50 p-6 rounded-2xl border"
-            autoComplete="off"
+  const onSubmitTender = async (data: TenderEntryData) => {
+    try {
+      setIsSubmitting(true);
+      
+      // Convert amount string to number
+      const numericAmount = parseFloat(data.amount.replace(/[^\d.]/g, ''));
+      
+      const response = await fetch(`${API_BASE_URL}/functions/v1/tender-entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`
+        },
+        body: JSON.stringify({
+          ...data,
+          amount: numericAmount
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Tender entry added successfully');
+        resetTender();
+      } else {
+        throw new Error('Failed to add tender entry');
+      }
+    } catch (error) {
+      console.error('Error submitting tender:', error);
+      toast.error('Error adding tender entry');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onSubmitRefill = async (data: RefillData) => {
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`${API_BASE_URL}/functions/v1/tank-refills`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        toast.success('Tank refill added successfully');
+        resetRefill();
+      } else {
+        throw new Error('Failed to add tank refill');
+      }
+    } catch (error) {
+      console.error('Error submitting tank refill:', error);
+      toast.error('Error adding tank refill');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const renderManualForm = () => (
+    <form onSubmit={handleSubmitManual(onSubmitManual)} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="manual-station">Station</Label>
+          <Select
+            value={watchManual('station_id')?.toString() || ''}
+            onValueChange={(value) => setManualValue('station_id', parseInt(value))}
           >
-            <h3 className="font-semibold mb-4">Tender Entry</h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="tender-type">Tender Type<span className="text-destructive">*</span></Label>
-                <Controller
-                  control={control}
-                  name="type"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger id="tender-type">
-                        <SelectValue placeholder="Select tender type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tenderTypes.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.type && <span className="block text-xs text-destructive mt-1">{errors.type.message}</span>}
-              </div>
-              <div>
-                <Label htmlFor="tender-amount">Amount (₹)<span className="text-destructive">*</span></Label>
-                <Controller
-                  control={control}
-                  name="amount"
-                  render={({ field }) => (
-                    <CurrencyInput
-                      {...field}
-                      onChange={(e) => {
-                        // Only allow digits and dot
-                        const val = e.target.value.replace(/[^0-9.]/g, "");
-                        setValue("amount", val, { shouldValidate: true });
-                      }}
-                    />
-                  )}
-                />
-                {errors.amount && <span className="block text-xs text-destructive mt-1">{errors.amount.message}</span>}
-                {currencyValue && !errors.amount && (
-                  <span className="block text-xs text-muted-foreground mt-1">INR: {formattedINR}</span>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="tender-date">Entry Date<span className="text-destructive">*</span></Label>
-                <Controller
-                  control={control}
-                  name="date"
-                  render={({ field }) => (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={"w-full justify-start text-left font-normal " + (!field.value && "text-muted-foreground")}
-                          type="button"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                />
-                {errors.date && <span className="block text-xs text-destructive mt-1">{errors.date.message}</span>}
-              </div>
-            </div>
-            {/* Sticky Footer Save Bar */}
-            <div className="h-16"></div> {/* To allow room for sticky bar */}
-            <DataEntryStickyBar isDisabled={isSubmitting} label="Submit Tender Entry" />
-          </form>
-        </TabsContent>
-        {/* Refill Mode (Placeholder for UX parity) */}
-        <TabsContent value="refill" className="mt-5">
-          <div className="bg-muted/50 p-6 rounded-2xl border">
-            <h3 className="font-semibold mb-4">Refill Entry</h3>
-            {/* ... add refill fields as required ... */}
-            <Label>Coming soon...</Label>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+            <SelectTrigger>
+              <SelectValue placeholder="Select station" />
+            </SelectTrigger>
+            <SelectContent>
+              {userStations.map((station) => (
+                <SelectItem key={station.id} value={station.id.toString()}>
+                  {station.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="manual-nozzle">Nozzle ID</Label>
+          <Input
+            id="manual-nozzle"
+            type="number"
+            {...registerManual('nozzle_id', { required: 'Nozzle ID is required', valueAsNumber: true })}
+          />
+          {manualErrors.nozzle_id && (
+            <p className="text-sm text-red-600">{manualErrors.nozzle_id.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="manual-volume">Cumulative Volume</Label>
+          <Input
+            id="manual-volume"
+            type="number"
+            step="0.001"
+            {...registerManual('cumulative_vol', { required: 'Volume is required', valueAsNumber: true })}
+          />
+          {manualErrors.cumulative_vol && (
+            <p className="text-sm text-red-600">{manualErrors.cumulative_vol.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="manual-date">Date</Label>
+          <Input
+            id="manual-date"
+            type="date"
+            {...registerManual('reading_date', { required: 'Date is required' })}
+          />
+          {manualErrors.reading_date && (
+            <p className="text-sm text-red-600">{manualErrors.reading_date.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="manual-time">Time</Label>
+          <Input
+            id="manual-time"
+            type="time"
+            {...registerManual('reading_time', { required: 'Time is required' })}
+          />
+          {manualErrors.reading_time && (
+            <p className="text-sm text-red-600">{manualErrors.reading_time.message}</p>
+          )}
+        </div>
+      </div>
+      <Button disabled={isSubmitting}>
+        {isSubmitting ? 'Submitting...' : 'Add Manual Reading'}
+      </Button>
+    </form>
+  );
+
+  const renderTenderForm = () => (
+    <form onSubmit={handleSubmitTender(onSubmitTender)} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="tender-station">Station</Label>
+          <Select 
+            value={watchTender('station_id')?.toString() || ''} 
+            onValueChange={(value) => setTenderValue('station_id', parseInt(value))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select station" />
+            </SelectTrigger>
+            <SelectContent>
+              {userStations.map((station) => (
+                <SelectItem key={station.id} value={station.id.toString()}>
+                  {station.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tender-date">Date</Label>
+          <Input
+            id="tender-date"
+            type="date"
+            {...registerTender('entry_date', { required: 'Date is required' })}
+          />
+          {tenderErrors.entry_date && (
+            <p className="text-sm text-red-600">{tenderErrors.entry_date.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tender-type">Payment Type</Label>
+          <Select 
+            value={watchTender('type')} 
+            onValueChange={(value) => setTenderValue('type', value as 'cash' | 'card' | 'upi' | 'credit')}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select payment type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="card">Card</SelectItem>
+              <SelectItem value="upi">UPI</SelectItem>
+              <SelectItem value="credit">Credit</SelectItem>
+            </SelectContent>
+          </Select>
+          {tenderErrors.type && (
+            <p className="text-sm text-red-600">{tenderErrors.type.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tender-amount">Amount</Label>
+          <CurrencyInput
+            value={watchTender('amount')}
+            onChange={(value) => setTenderValue('amount', value)}
+            placeholder="₹0.00"
+          />
+          {tenderErrors.amount && (
+            <p className="text-sm text-red-600">{tenderErrors.amount.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="tender-payer">Payer Name</Label>
+          <Input
+            id="tender-payer"
+            placeholder="Enter payer name"
+            {...registerTender('payer', { required: 'Payer name is required' })}
+          />
+          {tenderErrors.payer && (
+            <p className="text-sm text-red-600">{tenderErrors.payer.message}</p>
+          )}
+        </div>
+      </div>
+      <Button disabled={isSubmitting}>
+        {isSubmitting ? 'Submitting...' : 'Add Tender Entry'}
+      </Button>
+    </form>
+  );
+
+  const renderRefillForm = () => (
+    <form onSubmit={handleSubmitRefill(onSubmitRefill)} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="refill-station">Station</Label>
+          <Select
+            value={watchRefill('station_id')?.toString() || ''}
+            onValueChange={(value) => setRefillValue('station_id', parseInt(value))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select station" />
+            </SelectTrigger>
+            <SelectContent>
+              {userStations.map((station) => (
+                <SelectItem key={station.id} value={station.id.toString()}>
+                  {station.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="refill-fuel">Fuel Type</Label>
+          <Select
+            value={watchRefill('fuel_type')}
+            onValueChange={(value) => setRefillValue('fuel_type', value as 'PETROL' | 'DIESEL' | 'CNG' | 'EV')}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select fuel type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PETROL">Petrol</SelectItem>
+              <SelectItem value="DIESEL">Diesel</SelectItem>
+              <SelectItem value="CNG">CNG</SelectItem>
+              <SelectItem value="EV">EV</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="refill-quantity">Quantity (L)</Label>
+          <Input
+            id="refill-quantity"
+            type="number"
+            step="100"
+            {...registerRefill('quantity_l', { required: 'Quantity is required', valueAsNumber: true })}
+          />
+          {refillErrors.quantity_l && (
+            <p className="text-sm text-red-600">{refillErrors.quantity_l.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="refill-date">Filled At</Label>
+          <Input
+            id="refill-date"
+            type="date"
+            {...registerRefill('filled_at', { required: 'Date is required' })}
+          />
+          {refillErrors.filled_at && (
+            <p className="text-sm text-red-600">{refillErrors.filled_at.message}</p>
+          )}
+        </div>
+      </div>
+      <Button disabled={isSubmitting}>
+        {isSubmitting ? 'Submitting...' : 'Add Tank Refill'}
+      </Button>
+    </form>
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Data Entry</CardTitle>
+        <CardDescription>Manually enter data for various operations.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="manual" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="manual">Manual Reading</TabsTrigger>
+            <TabsTrigger value="tender">Tender Entry</TabsTrigger>
+            <TabsTrigger value="refill">Tank Refill</TabsTrigger>
+          </TabsList>
+          <TabsContent value="manual">
+            {renderManualForm()}
+          </TabsContent>
+          <TabsContent value="tender">
+            {renderTenderForm()}
+          </TabsContent>
+          <TabsContent value="refill">
+            {renderRefillForm()}
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
-
-// ...end of Upload.tsx

@@ -1,32 +1,59 @@
 
-import React from "react";
-import { Input } from "@/components/ui/input";
+import React from 'react';
+import { Input } from '@/components/ui/input';
 
-// Simple INR currency formatting using built-in Intl
-const formatINR = (value: string) => {
-  const num = Number(value.replace(/[^0-9.]/g, ''));
-  if (isNaN(num)) return "";
-  return num.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
-};
-
-interface CurrencyInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  value: string,
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+export interface CurrencyInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  disabled?: boolean;
+  name?: string;
+  placeholder?: string;
+  className?: string;
 }
 
 export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ value, onChange, ...rest }, ref) => {
+  ({ value, onChange, onBlur, disabled, name, placeholder = "₹0.00", className, ...props }, ref) => {
+    const formatCurrency = (val: string) => {
+      // Remove all non-digit characters except decimal point
+      const cleanValue = val.replace(/[^\d.]/g, '');
+      
+      // Ensure only one decimal point
+      const parts = cleanValue.split('.');
+      if (parts.length > 2) {
+        return parts[0] + '.' + parts.slice(1).join('');
+      }
+      
+      // Limit to 2 decimal places
+      if (parts[1] && parts[1].length > 2) {
+        return parts[0] + '.' + parts[1].substring(0, 2);
+      }
+      
+      return cleanValue;
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const formatted = formatCurrency(e.target.value);
+      onChange(formatted);
+    };
+
+    const displayValue = value ? `₹${value}` : '';
+
     return (
       <Input
         ref={ref}
-        inputMode="decimal"
-        value={value}
-        onChange={onChange}
-        {...rest}
-        // Show "₹ 0.00" if empty for clarity
-        placeholder="₹ 0.00"
+        type="text"
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={onBlur}
+        disabled={disabled}
+        name={name}
+        placeholder={placeholder}
+        className={className}
+        {...props}
       />
     );
   }
 );
-CurrencyInput.displayName = "CurrencyInput";
+
+CurrencyInput.displayName = 'CurrencyInput';
