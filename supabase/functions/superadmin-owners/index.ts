@@ -8,18 +8,17 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get authorization header
+    // Verify auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -28,10 +27,9 @@ serve(async (req) => {
       );
     }
 
-    // Verify user is superadmin
+    // Check for superadmin role
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     if (userError || !user) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid token' }),
@@ -39,13 +37,12 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is superadmin in our users table
-    const { data: userData, error: roleError } = await supabase
+    // Verify role == superadmin in users table
+    const { data: userData, error: roleError } = await supabaseAdmin
       .from('users')
       .select('role')
       .eq('email', user.email)
       .single();
-
     if (roleError || userData?.role !== 'superadmin') {
       return new Response(
         JSON.stringify({ success: false, error: 'Superadmin access required' }),
@@ -56,41 +53,57 @@ serve(async (req) => {
     if (req.method === 'POST') {
       const { name, email, phone, password, stationName, brand, address } = await req.json();
 
-      // Validate required fields
       if (!name || !email || !password || !stationName || !brand || !address) {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Missing required fields: name, email, password, stationName, brand, address' 
+          JSON.stringify({
+            success: false,
+            error: 'Missing required fields: name, email, password, stationName, brand, address'
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Create owner user
-      const { data: ownerData, error: ownerError } = await supabase
+      // 1. Create user in Auth
+      const { data: authUserResp, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name, phone, role: 'owner' }
+      });
+      if (authErr) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to create Auth user: ${authErr.message || authErr}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const authUser = authUserResp.user;
+
+      // 2. Create user in DB, using Auth UID
+      const { data: ownerData, error: ownerError } = await supabaseAdmin
         .from('users')
         .insert({
-          name,
+          id: authUser.id, // Use Auth UID as PK for your table
           email,
           phone,
-          password, // In production, this should be hashed
+          name,
           role: 'owner',
-          is_active: true
+          is_active: true,
+          auth_uid: authUser.id
         })
         .select()
         .single();
 
       if (ownerError) {
-        console.error('Error creating owner:', ownerError);
+        // Cleanup Auth user on error
+        await supabaseAdmin.auth.admin.deleteUser(authUser.id);
         return new Response(
-          JSON.stringify({ success: false, error: 'Failed to create owner user' }),
+          JSON.stringify({ success: false, error: `Failed to create owner in users table: ${ownerError.message || ownerError}` }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Create station for the owner
-      const { data: stationData, error: stationError } = await supabase
+      // 3. Create station for the owner
+      const { data: stationData, error: stationError } = await supabaseAdmin
         .from('stations')
         .insert({
           name: stationName,
@@ -103,23 +116,23 @@ serve(async (req) => {
         .single();
 
       if (stationError) {
-        console.error('Error creating station:', stationError);
-        // Rollback: delete the created owner
-        await supabase.from('users').delete().eq('id', ownerData.id);
-        
+        // Rollback: delete owner from users and Auth
+        await supabaseAdmin.from('users').delete().eq('id', ownerData.id);
+        await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+
         return new Response(
-          JSON.stringify({ success: false, error: 'Failed to create station' }),
+          JSON.stringify({ success: false, error: `Failed to create station: ${stationError.message || stationError}` }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          data: { 
-            owner: ownerData, 
-            station: stationData 
-          } 
+        JSON.stringify({
+          success: true,
+          data: {
+            owner: ownerData,
+            station: stationData
+          }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -129,11 +142,10 @@ serve(async (req) => {
       JSON.stringify({ success: false, error: 'Method not allowed' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error('Superadmin owners error:', error);
     return new Response(
-      JSON.stringify({ success: false, error: 'Internal server error' }),
+      JSON.stringify({ success: false, error: `Internal server error: ${error && error.message ? error.message : String(error)}` }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
