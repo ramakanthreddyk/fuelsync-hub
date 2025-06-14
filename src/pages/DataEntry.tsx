@@ -17,6 +17,9 @@ import { CurrencyInput } from '@/components/inputs/CurrencyInput';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload as UploadIcon, IndianRupee, Fuel } from 'lucide-react';
 
+import { useStationPumps } from "@/hooks/useStationPumps";
+import { usePumpNozzles } from "@/hooks/usePumpNozzles";
+
 const useUserStations = () => {
   const [userStations, setUserStations] = useState<any[]>([]);
   useEffect(() => {
@@ -50,14 +53,65 @@ interface RefillData {
 
 export default function DataEntry() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const { userStations } = useUserStations();
+  const [selectedStation, setSelectedStation] = useState<number | null>(null);
+  const [selectedPump, setSelectedPump] = useState<number | null>(null);
+
+  // OCR state
+  const [ocrFile, setOcrFile] = useState<File | null>(null);
+  const [ocrPump, setOcrPump] = useState<number | null>(null);
+  const [ocrResult, setOcrResult] = useState<any>(null);
+
+  // Manual states
+  const [manualPump, setManualPump] = useState<number | null>(null);
+  const [manualNozzle, setManualNozzle] = useState<number | null>(null);
+
+  const { isLoading: ocrLoading, uploadImageForOCR } = useReadingManagement();
   const { session } = useAuth();
 
-  // Reading management for OCR upload
-  const { isLoading: ocrLoading, uploadImageForOCR } = useReadingManagement();
-  const [ocrFile, setOcrFile] = useState<File | null>(null);
-  const [ocrPumpSno, setOcrPumpSno] = useState('');
-  const [ocrResult, setOcrResult] = useState<any>(null);
+  // Derived dropdown options
+  const { data: pumps = [] } = useStationPumps(selectedStation || userStations[0]?.id);
+  const { data: ocrNozzles = [] } = usePumpNozzles(ocrPump);
+  const { data: manualNozzles = [] } = usePumpNozzles(manualPump);
+
+  // Handlers
+  const handleOcrFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setOcrFile(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files (JPG, PNG) are allowed!");
+      return;
+    }
+    setOcrFile(file);
+  };
+
+  const handleOcrUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ocrFile || !selectedStation || !ocrPump) {
+      toast.error('Please select station, pump, and image.');
+      return;
+    }
+    setOcrResult(null);
+    toast.info('Processing OCR upload...');
+    // Get selected pump_sno
+    const pumpObj = pumps.find(p => p.id === ocrPump);
+    const pumpSno = pumpObj?.pump_sno;
+    if (!pumpSno) {
+      toast.error("Invalid pump selected");
+      return;
+    }
+    const result = await uploadImageForOCR(ocrFile, pumpSno);
+    if (result && result.success) {
+      setOcrResult(result.data.ocr_preview);
+      toast.success(`OCR processed: ${result.data.readings_inserted} readings`);
+    } else {
+      toast.error('OCR upload failed');
+    }
+  };
 
   // Manual Forms Hookups (as per previous version)
   const {
@@ -119,27 +173,14 @@ export default function DataEntry() {
     }
   }, [userStations, setManualValue, setTenderValue, setRefillValue]);
 
-  // --- OCR Upload ---
-  const handleOcrFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    setOcrFile(file || null);
-  };
-  const handleOcrUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ocrFile || !ocrPumpSno) {
-      toast.error('Please provide an image/PDF and pump serial number');
-      return;
+  useEffect(() => {
+    // sync forms when stations are ready
+    if (userStations.length > 0) {
+      setManualValue('station_id', userStations[0].id);
+      setTenderValue('station_id', userStations[0].id);
+      setRefillValue('station_id', userStations[0].id);
     }
-    setOcrResult(null);
-    toast.info('Processing OCR upload...');
-    const result = await uploadImageForOCR(ocrFile, ocrPumpSno);
-    if (result && result.success) {
-      setOcrResult(result.data.ocr_preview);
-      toast.success(`OCR processed: ${result.data.readings_inserted} readings`);
-    } else {
-      toast.error('OCR upload failed');
-    }
-  };
+  }, [userStations, setManualValue, setTenderValue, setRefillValue]);
 
   // -- Manual entry handlers --
   const onSubmitManual = async (data: ManualEntryData) => {
@@ -215,6 +256,28 @@ export default function DataEntry() {
     }
   };
 
+  // Set default station & reset-dependent dropdowns
+  useEffect(() => {
+    if (userStations.length > 0 && !selectedStation) {
+      setSelectedStation(userStations[0].id);
+    }
+  }, [userStations, selectedStation]);
+
+  // Reset pumps when station changes
+  useEffect(() => {
+    setSelectedPump(null);
+    setOcrPump(null);
+    setManualPump(null);
+    setManualNozzle(null);
+  }, [selectedStation]);
+
+  // OCR pump changes
+  useEffect(() => { setOcrPump(null); }, [selectedPump]);
+  // Manual pump changes
+  useEffect(() => { setManualPump(null); setManualNozzle(null); }, [selectedPump]);
+  // Manual nozzle change
+  useEffect(() => { setManualNozzle(null); }, [manualPump]);
+
   // --- UI Renders ---
   // Layout: Remove Card, maximize width, gentle container with tabs.
   return (
@@ -264,35 +327,59 @@ export default function DataEntry() {
           <TabsContent value="ocr">
             <div className="rounded-xl p-6 mb-6 shadow-sm bg-sky-50 border border-border/30">
               <h3 className="text-fuel-blue text-xl font-semibold mb-4 flex items-center gap-2">
-                <UploadIcon className="w-5 h-5 text-fuel-blue" /> OCR Upload
+                <UploadIcon className="w-5 h-5 text-fuel-blue" /> Image Upload
               </h3>
-              <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+              <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+                {/* Station dropdown */}
                 <div className="space-y-2">
-                  <Label htmlFor="ocr-file">Receipt Image/PDF</Label>
+                  <Label>Station</Label>
+                  <Select
+                    value={selectedStation?.toString() ?? ''}
+                    onValueChange={value => setSelectedStation(Number(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userStations.map(stn =>
+                        <SelectItem key={stn.id} value={stn.id.toString()}>{stn.name}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* Pump dropdown */}
+                <div className="space-y-2">
+                  <Label>Pump</Label>
+                  <Select
+                    value={ocrPump?.toString() ?? ''}
+                    onValueChange={value => setOcrPump(Number(value))}
+                    disabled={!pumps.length}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pump" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pumps.map(p =>
+                        <SelectItem key={p.id} value={p.id.toString()}>
+                          {p.name || p.pump_sno}
+                        </SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* Image file input */}
+                <div className="space-y-2">
+                  <Label>Image (jpg, jpeg, png)</Label>
                   <Input
                     id="ocr-file"
                     type="file"
-                    accept="image/jpeg,image/png,application/pdf"
+                    accept="image/jpeg,image/png"
                     onChange={handleOcrFileChange}
                     required
                     className="file:bg-primary file:text-white"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ocr-pump-sno">Pump Serial No.</Label>
-                  <Input
-                    id="ocr-pump-sno"
-                    value={ocrPumpSno}
-                    onChange={e => setOcrPumpSno(e.target.value)}
-                    placeholder="Enter pump S.No"
-                    required
-                  />
-                </div>
-                <div className="md:col-span-2 mt-2">
-                  <Button
-                    disabled={ocrLoading}
-                    className="w-full text-base py-2"
-                  >
+                <div className="md:col-span-3 mt-2">
+                  <Button disabled={ocrLoading} className="w-full text-base py-2">
                     {ocrLoading ? "Processing..." : "Upload & Run OCR"}
                   </Button>
                 </div>
@@ -314,54 +401,82 @@ export default function DataEntry() {
                 Manual Reading
               </h3>
               <form onSubmit={handleSubmitManual(onSubmitManual)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Station */}
                   <div className="space-y-2">
-                    <Label htmlFor="manual-station">Station</Label>
+                    <Label>Station</Label>
                     <Select
-                      value={watchManual('station_id')?.toString() || ''}
-                      onValueChange={(value) => setManualValue('station_id', parseInt(value))}
+                      value={selectedStation?.toString() ?? ''}
+                      onValueChange={value => setSelectedStation(Number(value))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select station" />
                       </SelectTrigger>
                       <SelectContent>
-                        {userStations.map((station) => (
-                          <SelectItem key={station.id} value={station.id.toString()}>
-                            {station.name}
-                          </SelectItem>
-                        ))}
+                        {userStations.map(stn =>
+                          <SelectItem key={stn.id} value={stn.id.toString()}>{stn.name}</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Pump */}
                   <div className="space-y-2">
-                    <Label htmlFor="manual-nozzle">Nozzle ID</Label>
-                    <Input
-                      id="manual-nozzle"
-                      type="number"
-                      {...registerManual('nozzle_id', { required: 'Nozzle ID is required', valueAsNumber: true })}
-                    />
-                    {manualErrors.nozzle_id && (
-                      <p className="text-sm text-red-600">{manualErrors.nozzle_id.message}</p>
-                    )}
+                    <Label>Pump</Label>
+                    <Select
+                      value={manualPump?.toString() ?? ''}
+                      onValueChange={value => setManualPump(Number(value))}
+                      disabled={!pumps.length}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select pump" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pumps.map(p =>
+                          <SelectItem key={p.id} value={p.id.toString()}>
+                            {p.name || p.pump_sno}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  {/* Nozzle */}
                   <div className="space-y-2">
-                    <Label htmlFor="manual-volume">Cumulative Volume (L)</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-muted-foreground">₹</span>
-                      <Input
-                        id="manual-volume"
-                        type="number"
-                        step="0.001"
-                        className="pl-7"
-                        {...registerManual('cumulative_vol', { required: 'Volume is required', valueAsNumber: true })}
-                      />
-                    </div>
+                    <Label>Nozzle</Label>
+                    <Select
+                      value={manualNozzle?.toString() ?? ''}
+                      onValueChange={value => setManualNozzle(Number(value))}
+                      disabled={!manualNozzles.length}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select nozzle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {manualNozzles.map(nz =>
+                          <SelectItem key={nz.id} value={nz.id.toString()}>
+                            Nozzle {nz.nozzle_number} ({nz.fuel_type})
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* Volume, Date, Time */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label>Cumulative Volume (L)</Label>
+                    <Input
+                      id="manual-volume"
+                      type="number"
+                      step="0.001"
+                      className="pl-7"
+                      {...registerManual('cumulative_vol', { required: 'Volume is required', valueAsNumber: true })}
+                    />
                     {manualErrors.cumulative_vol && (
                       <p className="text-sm text-red-600">{manualErrors.cumulative_vol.message}</p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="manual-date">Date</Label>
+                    <Label>Date</Label>
                     <Input
                       id="manual-date"
                       type="date"
@@ -372,7 +487,7 @@ export default function DataEntry() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="manual-time">Time</Label>
+                    <Label>Time</Label>
                     <Input
                       id="manual-time"
                       type="time"
