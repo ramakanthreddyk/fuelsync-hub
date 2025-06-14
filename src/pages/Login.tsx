@@ -13,36 +13,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [confirmationError, setConfirmationError] = useState(false);
   const { login } = useAuth();
   const { toast } = useToast();
-
-  const confirmUser = async (userEmail: string) => {
-    try {
-      const response = await fetch(
-        `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email: userEmail }),
-        }
-      );
-
-      const result = await response.json();
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to confirm user');
-      }
-
-      return result;
-    } catch (error) {
-      console.error('Error confirming user:', error);
-      throw error;
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +29,6 @@ export default function Login() {
     }
 
     setIsLoading(true);
-    setConfirmationError(false);
     
     try {
       await login(email, password);
@@ -67,65 +38,13 @@ export default function Login() {
       });
     } catch (error: any) {
       console.error('Login error:', error);
-      
-      // Handle specific confirmation error with auto-retry
-      if (error.message?.includes('Email not confirmed') || 
-          error.message?.includes('email_not_confirmed') ||
-          error.message?.includes('signup_disabled')) {
-        
-        setIsConfirming(true);
-        
-        try {
-          // Attempt to confirm the user automatically
-          await confirmUser(email);
-          
-          toast({
-            title: "Account Confirmed",
-            description: "Your account has been confirmed. Retrying login...",
-          });
-          
-          // Wait a moment and retry login
-          setTimeout(async () => {
-            try {
-              await login(email, password);
-              toast({
-                title: "Login Successful",
-                description: "Welcome back!",
-              });
-            } catch (retryError: any) {
-              console.error('Retry login error:', retryError);
-              setConfirmationError(true);
-              toast({
-                title: "Login Failed",
-                description: "Please try again or contact support if this issue persists.",
-                variant: "destructive",
-              });
-            } finally {
-              setIsConfirming(false);
-            }
-          }, 1000);
-          
-        } catch (confirmError: any) {
-          console.error('Confirmation error:', confirmError);
-          setConfirmationError(true);
-          setIsConfirming(false);
-          toast({
-            title: "Account Confirmation Failed",
-            description: "Please contact support to confirm your account.",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: "Login Failed",
-          description: error.message || "Invalid credentials. Please check your email and password.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid credentials. Please check your email and password.",
+        variant: "destructive",
+      });
     } finally {
-      if (!isConfirming) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   };
 
@@ -138,7 +57,6 @@ export default function Login() {
   const fillDemo = (email: string, password: string) => {
     setEmail(email);
     setPassword(password);
-    setConfirmationError(false);
   };
 
   return (
@@ -153,28 +71,6 @@ export default function Login() {
           <h1 className="text-3xl font-bold text-gray-900">FuelSync</h1>
           <p className="text-gray-600">Fuel Station Management System</p>
         </div>
-
-        {confirmationError && (
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              Your account requires email confirmation. Please contact support at{' '}
-              <a href="mailto:support@fuelsync.com" className="underline font-medium">
-                support@fuelsync.com
-              </a>{' '}
-              if you continue to experience this issue.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isConfirming && (
-          <Alert className="border-blue-200 bg-blue-50">
-            <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
-            <AlertDescription className="text-blue-800">
-              Confirming your account and retrying login...
-            </AlertDescription>
-          </Alert>
-        )}
 
         <Card>
           <CardHeader>
@@ -227,15 +123,13 @@ export default function Login() {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={isLoading || isConfirming}
+                disabled={isLoading}
               >
-                {isConfirming ? (
+                {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Confirming Account...
+                    Signing in...
                   </>
-                ) : isLoading ? (
-                  'Signing in...'
                 ) : (
                   'Sign In'
                 )}
@@ -278,10 +172,10 @@ export default function Login() {
           <CardContent className="pt-4">
             <div className="flex items-center space-x-2 text-green-800">
               <CheckCircle className="h-4 w-4" />
-              <span className="text-sm font-medium">Auto-Confirmation Enabled</span>
+              <span className="text-sm font-medium">No Email Confirmation Required</span>
             </div>
             <p className="text-xs text-green-700 mt-1">
-              Demo users are automatically confirmed during login.
+              New users can log in immediately after signing up.
             </p>
           </CardContent>
         </Card>

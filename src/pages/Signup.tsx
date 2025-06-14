@@ -17,45 +17,6 @@ export default function Signup() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Retry-enabled function to call edge function for auto-confirm
-  const confirmUser = async (userEmail: string) => {
-    const maxAttempts = 6; // Total 6 attempts (0s, 1s, 2s, 3s, 4s, 5s)
-    let lastError = null;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const response = await fetch(
-          `https://untzkhbbsowpkmwrxdws.supabase.co/functions/v1/confirm-user`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email: userEmail }),
-          }
-        );
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          lastError = result.error || 'Failed to confirm user';
-          // If error is specifically "User not found in system", retry
-          if (lastError === "User not found in system" && attempt < maxAttempts - 1) {
-            await new Promise(res => setTimeout(res, 1000)); // Wait before retrying
-            continue;
-          }
-          throw new Error(lastError);
-        }
-        return result;
-      } catch (error) {
-        lastError = error.message || error;
-        if (attempt < maxAttempts - 1) {
-          await new Promise(res => setTimeout(res, 1000)); // Wait before retrying
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error(lastError || "Failed to confirm user after retries");
-  };
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -99,26 +60,10 @@ export default function Signup() {
           variant: "destructive"
         });
       } else {
-        let confirmationSucceeded = false;
-        try {
-          // Try to confirm user programmatically for allowed/demo emails with retry
-          await confirmUser(email);
-          confirmationSucceeded = true;
-        } catch {
-          confirmationSucceeded = false;
-        }
-
-        if (confirmationSucceeded) {
-          toast({
-            title: "Account Created & Confirmed!",
-            description: "Your account has been auto-confirmed. You can now log in.",
-          });
-        } else {
-          toast({
-            title: "Account Created Successfully!",
-            description: "Please check your email and click the confirmation link to complete your registration.",
-          });
-        }
+        toast({
+          title: "Account Created!",
+          description: "Your account has been created. You can now log in.",
+        });
 
         setEmail('');
         setPassword('');
@@ -219,11 +164,6 @@ export default function Signup() {
             <div className="mt-4 text-center">
               <span className="text-sm text-gray-600">Already have an account? </span>
               <Link to="/login" className="text-blue-600 hover:underline">Log In</Link>
-            </div>
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-xs text-blue-700">
-                📧 After signing up, you'll receive a confirmation email. Please click the link in the email to activate your account.
-              </p>
             </div>
           </CardContent>
         </Card>
