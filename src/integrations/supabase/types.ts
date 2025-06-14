@@ -421,18 +421,21 @@ export type Database = {
           created_at: string | null
           email: string
           id: string
+          is_active: boolean
         }
         Insert: {
           auth_uid?: string | null
           created_at?: string | null
           email: string
           id?: string
+          is_active?: boolean
         }
         Update: {
           auth_uid?: string | null
           created_at?: string | null
           email?: string
           id?: string
+          is_active?: boolean
         }
         Relationships: []
       }
