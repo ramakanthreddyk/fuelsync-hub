@@ -19,6 +19,8 @@ import { Upload as UploadIcon, IndianRupee, Fuel } from 'lucide-react';
 
 import { useStationPumps } from "@/hooks/useStationPumps";
 import { usePumpNozzles } from "@/hooks/usePumpNozzles";
+import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useIsPremiumStation } from '@/hooks/useIsPremiumStation';
 
 const useUserStations = () => {
   const [userStations, setUserStations] = useState<any[]>([]);
@@ -74,6 +76,10 @@ export default function DataEntry() {
   const { data: pumps = [] } = useStationPumps(selectedStation || userStations[0]?.id);
   const { data: ocrNozzles = [] } = usePumpNozzles(ocrPump);
   const { data: manualNozzles = [] } = usePumpNozzles(manualPump);
+
+  // Use role access to strictly scope stations to the user (owner/employee)
+  const { role, stations: userStations, isOwner } = useRoleAccess();
+  const { data: isPremium, isLoading: planLoading } = useIsPremiumStation(selectedStation);
 
   // Handlers
   const handleOcrFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,8 +284,10 @@ export default function DataEntry() {
   // Manual nozzle change
   useEffect(() => { setManualNozzle(null); }, [manualPump]);
 
-  // --- UI Renders ---
-  // Layout: Remove Card, maximize width, gentle container with tabs.
+  // OCR tab is disabled if not a premium station
+  const ocrTabDisabled = !isPremium && !planLoading;
+
+  // UI Render
   return (
     <div className="flex flex-col items-center bg-gradient-to-tr from-primary/10 via-muted/40 to-secondary/20 min-h-[100vh] py-10 px-2 transition-all duration-500">
       <div className="w-full max-w-4xl animate-fade-in">
@@ -297,103 +305,108 @@ export default function DataEntry() {
             Fast entry & OCR in one place!
           </span>
         </div>
-        <Tabs defaultValue="ocr" className="space-y-6 w-full">
-          {/* Responsive TabsList */}
+        <Tabs defaultValue={ocrTabDisabled ? "manual" : "ocr"} className="space-y-6 w-full">
+          {/* TabsList */}
           <TabsList className="grid grid-cols-4 gap-2 md:gap-4 w-full mx-auto mb-4">
-            {/* Tab 1: OCR */}
-            <TabsTrigger value="ocr" className="flex flex-col items-center gap-1 text-sm font-medium">
+            <TabsTrigger value="ocr" className="flex flex-col items-center gap-1 text-sm font-medium" disabled={ocrTabDisabled}>
               <UploadIcon className="w-5 h-5 text-fuel-blue" />
               <span className="hidden md:inline text-fuel-blue">OCR Upload</span>
             </TabsTrigger>
-            {/* Tab 2: Manual */}
             <TabsTrigger value="manual" className="flex flex-col items-center gap-1 text-sm font-medium">
               <span className="inline-block w-5 h-5 bg-fuel-orange/90 rounded-full flex items-center justify-center text-white text-xs font-bold shadow">
                 M
               </span>
               <span className="hidden md:inline text-fuel-orange">Manual Reading</span>
             </TabsTrigger>
-            {/* Tab 3: Tender */}
             <TabsTrigger value="tender" className="flex flex-col items-center gap-1 text-sm font-medium">
               <IndianRupee className="w-5 h-5 text-green-600" />
               <span className="hidden md:inline text-green-700">Tender Entry</span>
             </TabsTrigger>
-            {/* Tab 4: Refill */}
             <TabsTrigger value="refill" className="flex flex-col items-center gap-1 text-sm font-medium">
               <Fuel className="w-5 h-5 text-yellow-500" />
               <span className="hidden md:inline text-yellow-700">Tank Refill</span>
             </TabsTrigger>
           </TabsList>
-          {/* --- OCR Tab --- */}
+          {/* OCR Tab */}
           <TabsContent value="ocr">
-            <div className="rounded-xl p-6 mb-6 shadow-sm bg-sky-50 border border-border/30">
-              <h3 className="text-fuel-blue text-xl font-semibold mb-4 flex items-center gap-2">
-                <UploadIcon className="w-5 h-5 text-fuel-blue" /> Image Upload
-              </h3>
-              <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-                {/* Station dropdown */}
-                <div className="space-y-2">
-                  <Label>Station</Label>
-                  <Select
-                    value={selectedStation?.toString() ?? ''}
-                    onValueChange={value => setSelectedStation(Number(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select station" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userStations.map(stn =>
-                        <SelectItem key={stn.id} value={stn.id.toString()}>{stn.name}</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+            {ocrTabDisabled ? (
+              <div className="rounded-xl p-6 mb-6 shadow-sm bg-sky-50 border border-border/30 flex flex-col items-center justify-center h-36">
+                <span className="text-fuel-blue font-semibold text-lg mb-2">OCR is available only for premium plan stations.</span>
+                <span className="text-muted-foreground">Upgrade your plan to enable AI image reading and reporting.</span>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-xl p-6 mb-6 shadow-sm bg-sky-50 border border-border/30">
+                  <h3 className="text-fuel-blue text-xl font-semibold mb-4 flex items-center gap-2">
+                    <UploadIcon className="w-5 h-5 text-fuel-blue" /> Image Upload
+                  </h3>
+                  <form onSubmit={handleOcrUpload} className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+                    {/* Station dropdown */}
+                    <div className="space-y-2">
+                      <Label>Station</Label>
+                      <Select
+                        value={selectedStation?.toString() ?? ''}
+                        onValueChange={value => setSelectedStation(Number(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select station" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userStations.map(stn =>
+                            <SelectItem key={stn.id} value={stn.id.toString()}>{stn.name}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Pump dropdown */}
+                    <div className="space-y-2">
+                      <Label>Pump</Label>
+                      <Select
+                        value={ocrPump?.toString() ?? ''}
+                        onValueChange={value => setOcrPump(Number(value))}
+                        disabled={!pumps.length}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select pump" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pumps.map(p =>
+                            <SelectItem key={p.id} value={p.id.toString()}>
+                              {p.name || p.pump_sno}
+                            </SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Image file input */}
+                    <div className="space-y-2">
+                      <Label>Image (jpg, jpeg, png)</Label>
+                      <Input
+                        id="ocr-file"
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        onChange={handleOcrFileChange}
+                        required
+                        className="file:bg-primary file:text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-3 mt-2">
+                      <Button disabled={ocrLoading} className="w-full text-base py-2">
+                        {ocrLoading ? "Processing..." : "Upload & Run OCR"}
+                      </Button>
+                    </div>
+                  </form>
+                  {/* OCR result preview */}
+                  {ocrResult && (
+                    <div className="mt-6 bg-muted/50 p-4 rounded border border-muted-foreground/10">
+                      <h4 className="font-bold mb-2 text-fuel-blue">OCR Preview</h4>
+                      <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(ocrResult, null, 2)}</pre>
+                    </div>
+                  )}
                 </div>
-                {/* Pump dropdown */}
-                <div className="space-y-2">
-                  <Label>Pump</Label>
-                  <Select
-                    value={ocrPump?.toString() ?? ''}
-                    onValueChange={value => setOcrPump(Number(value))}
-                    disabled={!pumps.length}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select pump" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pumps.map(p =>
-                        <SelectItem key={p.id} value={p.id.toString()}>
-                          {p.name || p.pump_sno}
-                        </SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {/* Image file input */}
-                <div className="space-y-2">
-                  <Label>Image (jpg, jpeg, png)</Label>
-                  <Input
-                    id="ocr-file"
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={handleOcrFileChange}
-                    required
-                    className="file:bg-primary file:text-white"
-                  />
-                </div>
-                <div className="md:col-span-3 mt-2">
-                  <Button disabled={ocrLoading} className="w-full text-base py-2">
-                    {ocrLoading ? "Processing..." : "Upload & Run OCR"}
-                  </Button>
-                </div>
-              </form>
-              {/* OCR result preview */}
-              {ocrResult && (
-                <div className="mt-6 bg-muted/50 p-4 rounded border border-muted-foreground/10">
-                  <h4 className="font-bold mb-2 text-fuel-blue">OCR Preview</h4>
-                  <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(ocrResult, null, 2)}</pre>
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </TabsContent>
-          {/* --- Manual Tab --- */}
+          {/* Manual Tab - nozzle dropdown remains unchanged (already using `manualNozzles`) */}
           <TabsContent value="manual">
             <div className="rounded-xl p-6 mb-6 shadow-sm bg-orange-50 border border-border/30">
               <h3 className="text-fuel-orange text-xl font-semibold mb-4 flex items-center gap-2">
