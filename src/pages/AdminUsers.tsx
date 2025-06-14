@@ -36,7 +36,6 @@ export default function AdminUsers() {
     name: '',
     email: '',
     phone: '',
-    password: '',
     role: 'employee' as const,
     station_id: ''
   });
@@ -91,52 +90,27 @@ export default function AdminUsers() {
     },
   });
 
-  // Add user mutation
-  const addUserMutation = useMutation({
+  // Modified Add User Mutation: Now sends invitation, no direct insert
+  const inviteUserMutation = useMutation({
     mutationFn: async (userData: typeof newUser) => {
-      const insertData: any = {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone,
-        password: userData.password,
-        role: userData.role,
-        is_active: true
-      };
-
-      // Only add station_id for employees
-      if (userData.role === 'employee' && userData.station_id) {
-        insertData.station_id = parseInt(userData.station_id);
-      }
-
-      const { data, error } = await supabase
-        .from('users')
-        .insert(insertData)
-        .select()
-        .single();
-
+      // Call Supabase Auth to invite the user
+      const { data, error } = await supabase.auth.admin.inviteUserByEmail(userData.email, {
+        data: { name: userData.name, phone: userData.phone, role: userData.role }
+      });
       if (error) throw error;
+      // Record meta (optional, record will be linked after user registers)
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsAddUserOpen(false);
-      setNewUser({
-        name: '',
-        email: '',
-        phone: '',
-        password: '',
-        role: 'employee',
-        station_id: ''
-      });
-      toast({
-        title: "Success",
-        description: "User created successfully",
-      });
+      setNewUser({ name: '', email: '', phone: '', role: 'employee', station_id: '' });
+      toast({ title: "Invitation sent", description: "User invited. They must finish signup via email for their account to activate." });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to create user",
+        title: "Error Inviting User",
+        description: error.message || "Failed to send invite",
         variant: "destructive",
       });
     },
@@ -172,25 +146,15 @@ export default function AdminUsers() {
   });
 
   const handleAddUser = () => {
-    if (!newUser.name || !newUser.email || !newUser.password) {
+    if (!newUser.name || !newUser.email) {
       toast({
         title: "Missing Information",
-        description: "Please fill in name, email, and password",
+        description: "Please fill in name and email",
         variant: "destructive",
       });
       return;
     }
-
-    if (newUser.role === 'employee' && !newUser.station_id) {
-      toast({
-        title: "Missing Information",
-        description: "Please select a station for the employee",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    addUserMutation.mutate(newUser);
+    inviteUserMutation.mutate(newUser);
   };
 
   const handleToggleStatus = (userId: number, currentStatus: boolean) => {
@@ -228,21 +192,24 @@ export default function AdminUsers() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Manage system users and their permissions</p>
+          <p className="text-muted-foreground">
+            Invite new users by email. They must complete registration using the invite to access the system.<br />
+            Once registered, you can assign them to a station and set their role below.
+          </p>
         </div>
         
         <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              Add User
+              Invite User
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
+              <DialogTitle>Invite New User</DialogTitle>
               <DialogDescription>
-                Create a new user account in the system
+                Sends a registration link to their email; once registered, set their permissions.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -275,16 +242,6 @@ export default function AdminUsers() {
                 />
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                  placeholder="Temporary password"
-                />
-              </div>
-              <div>
                 <Label htmlFor="role">Role</Label>
                 <Select value={newUser.role} onValueChange={(value: any) => setNewUser(prev => ({ ...prev, role: value, station_id: '' }))}>
                   <SelectTrigger>
@@ -314,8 +271,8 @@ export default function AdminUsers() {
                   </Select>
                 </div>
               )}
-              <Button onClick={handleAddUser} disabled={addUserMutation.isPending} className="w-full">
-                {addUserMutation.isPending ? 'Creating...' : 'Create User'}
+              <Button onClick={handleAddUser} disabled={inviteUserMutation.isPending} className="w-full">
+                {inviteUserMutation.isPending ? 'Inviting...' : 'Send Invite'}
               </Button>
             </div>
           </DialogContent>
