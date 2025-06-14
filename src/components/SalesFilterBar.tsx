@@ -5,9 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectItem, SelectTrigger, SelectValue, SelectContent } from "@/components/ui/select";
-import { Filter } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectContent
+} from "@/components/ui/select";
+import { SlidersHorizontal, Fuel, Filter, Droplet, Zap } from "lucide-react";
 
 interface SalesFilterBarProps {
   dateRange: { start: Date | null; end: Date | null };
@@ -34,32 +40,38 @@ export function SalesFilterBar({
   onNozzleIdChange,
   pumps,
   nozzles,
-  isMobile,
+  isMobile = false,
 }: SalesFilterBarProps) {
-  // Always use "all" as the value for "All..." items; never ""
-  // Ensure that we never render SelectItem value="" by accident
-
-  // Patch controlled value logic: if incoming prop is "", switch to "all" (for productType, pump, nozzle).
-  // And onValueChange, translate "all" back to "" (or however your logic expects).
+  // The "all" handling is still required for select defaults
   const productTypeValue = productType === "" ? "all" : productType;
+  const pumpValue = pumpId === "" ? "all" : pumpId;
+  const nozzleValue = nozzleId === "" ? "all" : nozzleId;
 
   return (
-    <div className={`flex flex-wrap gap-2 rounded-lg shadow-sm bg-background px-2 py-2 md:flex-nowrap w-full justify-between items-center ${isMobile ? "flex-col space-y-2" : ""}`}>
-      <div className="flex flex-wrap gap-2 items-center">
-        <Filter className="w-4 h-4 text-muted-foreground" />
-        {/* Date Range Picker */}
+    <div
+      className={
+        "w-full flex items-center gap-2 px-2 py-3 rounded-lg bg-background/80 shadow-sm border border-border/30" +
+        (isMobile ? " flex-col space-y-2" : " flex-row")
+      }
+    >
+      {/* Filter Icon and Date Range */}
+      <div className="flex items-center gap-2 min-w-[170px]">
+        <Badge variant="secondary" className="px-2 py-1 flex items-center gap-1 shadow-sm">
+          <SlidersHorizontal size={16} className="text-muted-foreground" />
+          <span className="font-semibold tracking-tight text-xs">Filters</span>
+        </Badge>
         <Popover>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
-              className="min-w-[180px] justify-start text-left"
+              variant="ghost"
+              className="h-8 min-w-[148px] px-3 py-1 text-left flex-shrink-0 truncate border border-muted-foreground/10"
             >
               {dateRange.start && dateRange.end
                 ? `${format(dateRange.start, "dd MMM yyyy")} - ${format(dateRange.end, "dd MMM")}`
                 : "Select date range"}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-0">
+          <PopoverContent align="start" className="w-auto p-0 z-50 bg-background">
             <Calendar
               mode="range"
               selected={{
@@ -72,69 +84,103 @@ export function SalesFilterBar({
                   end: range?.to ?? null,
                 });
               }}
-              className="p-3 pointer-events-auto"
+              className="p-3"
               initialFocus
             />
           </PopoverContent>
         </Popover>
-        {/* Product Type */}
-        <div className="flex flex-col items-start min-w-[120px]">
-          <Select
-            value={productTypeValue}
-            onValueChange={val => onProductTypeChange(val === "all" ? "" : val)}
-          >
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Fuel type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="Petrol">Petrol</SelectItem>
-              <SelectItem value="Diesel">Diesel</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground mt-1">
-            Filter sales by fuel type (e.g., Petrol, Diesel).
-          </span>
-        </div>
-        {/* Pump */}
-        <div className="flex flex-col items-start min-w-[120px]">
-          <Select value={pumpId} onValueChange={onPumpIdChange}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Pump" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {pumps.filter(pump => pump && pump.id != null && pump.id !== "").map((pump) => (
-                <SelectItem key={pump.id} value={String(pump.id)}>
-                  {pump.name || `Pump ${pump.pump_sno}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground mt-1">
-            Filter sales by a specific pump.
-          </span>
-        </div>
-        {/* Nozzle */}
-        <div className="flex flex-col items-start min-w-[120px]">
-          <Select value={nozzleId} onValueChange={onNozzleIdChange}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Nozzle" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {nozzles.filter(nozzle => nozzle && nozzle.id != null && nozzle.id !== "").map((nozzle) => (
-                <SelectItem key={nozzle.id} value={String(nozzle.id)}>
-                  #{nozzle.nozzle_number} ({nozzle.fuel_type})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground mt-1">
-            Filter sales by a specific nozzle on a pump.
-          </span>
-        </div>
       </div>
+      {/* Fuel Type Badge/Dropdown */}
+      <Select
+        value={productTypeValue}
+        onValueChange={val => onProductTypeChange(val === "all" ? "" : val)}
+      >
+        <SelectTrigger
+          className={
+            "w-auto h-8 bg-muted-foreground/10 hover:bg-muted-foreground/20 rounded-full px-3 min-w-[90px] flex items-center group transition-shadow outline-none border-none shadow-none"
+          }
+        >
+          <Fuel size={15} className="mr-1 text-fuel-orange" />
+          <SelectValue
+            placeholder="Fuel"
+            className="truncate"
+          >
+            <span className="truncate text-xs font-medium">
+              {productTypeValue === "all" ? "All Fuels" : productTypeValue}
+            </span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Fuels</SelectItem>
+          <SelectItem value="Petrol">Petrol</SelectItem>
+          <SelectItem value="Diesel">Diesel</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Pump Badge/Dropdown */}
+      <Select
+        value={pumpValue}
+        onValueChange={val => onPumpIdChange(val === "all" ? "" : val)}
+      >
+        <SelectTrigger
+          className={
+            "w-auto h-8 bg-muted-foreground/10 hover:bg-muted-foreground/20 rounded-full px-3 min-w-[85px] flex items-center group transition-shadow outline-none border-none shadow-none"
+          }
+        >
+          <Droplet size={15} className="mr-1 text-blue-600" />
+          <SelectValue placeholder="Pump" className="truncate">
+            <span className="truncate text-xs font-medium">
+              {pumpValue === "all"
+                ? "All Pumps"
+                : pumps.find(p => p.id?.toString() === pumpValue)?.name?.slice(0, 14) || `Pump ${pumpValue}`}
+            </span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Pumps</SelectItem>
+          {pumps
+            .filter(pump => pump && pump.id != null && pump.id !== "")
+            .map((pump) => (
+              <SelectItem key={pump.id} value={String(pump.id)}>
+                {pump.name || `Pump ${pump.pump_sno}`}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+
+      {/* Nozzle Badge/Dropdown */}
+      <Select
+        value={nozzleValue}
+        onValueChange={val => onNozzleIdChange(val === "all" ? "" : val)}
+      >
+        <SelectTrigger
+          className={
+            "w-auto h-8 bg-muted-foreground/10 hover:bg-muted-foreground/20 rounded-full px-3 min-w-[100px] flex items-center group transition-shadow outline-none border-none shadow-none"
+          }
+        >
+          <Zap size={13} className="mr-1 text-orange-600" />
+          <SelectValue placeholder="Nozzle" className="truncate">
+            <span className="truncate text-xs font-medium">
+              {nozzleValue === "all"
+                ? "All Nozzles"
+                : nozzles.find(n => n.id?.toString() === nozzleValue)
+                  ? `#${nozzles.find(n => n.id?.toString() === nozzleValue)?.nozzle_number} (${nozzles.find(n => n.id?.toString() === nozzleValue)?.fuel_type})`
+                  : nozzleValue}
+            </span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Nozzles</SelectItem>
+          {nozzles
+            .filter(nozzle => nozzle && nozzle.id != null && nozzle.id !== "")
+            .map((nozzle) => (
+              <SelectItem key={nozzle.id} value={String(nozzle.id)}>
+                #{nozzle.nozzle_number} ({nozzle.fuel_type})
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
+
