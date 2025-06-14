@@ -422,6 +422,10 @@ export type Database = {
           email: string
           id: string
           is_active: boolean
+          name: string | null
+          phone: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string | null
         }
         Insert: {
           auth_uid?: string | null
@@ -429,6 +433,10 @@ export type Database = {
           email: string
           id?: string
           is_active?: boolean
+          name?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
         }
         Update: {
           auth_uid?: string | null
@@ -436,6 +444,10 @@ export type Database = {
           email?: string
           id?: string
           is_active?: boolean
+          name?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
         }
         Relationships: []
       }
