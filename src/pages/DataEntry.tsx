@@ -235,24 +235,29 @@ export default function DataEntry() {
           </span>
         </div>
         <Tabs defaultValue="ocr" className="space-y-6 w-full">
+          {/* Responsive TabsList */}
           <TabsList className="grid grid-cols-4 gap-2 md:gap-4 w-full mx-auto mb-4">
+            {/* Tab 1: OCR */}
             <TabsTrigger value="ocr" className="flex flex-col items-center gap-1 text-sm font-medium">
               <UploadIcon className="w-5 h-5 text-fuel-blue" />
-              <span className="text-fuel-blue">OCR Upload</span>
+              <span className="hidden md:inline text-fuel-blue">OCR Upload</span>
             </TabsTrigger>
+            {/* Tab 2: Manual */}
             <TabsTrigger value="manual" className="flex flex-col items-center gap-1 text-sm font-medium">
               <span className="inline-block w-5 h-5 bg-fuel-orange/90 rounded-full flex items-center justify-center text-white text-xs font-bold shadow">
                 M
               </span>
-              <span className="text-fuel-orange">Manual Reading</span>
+              <span className="hidden md:inline text-fuel-orange">Manual Reading</span>
             </TabsTrigger>
+            {/* Tab 3: Tender */}
             <TabsTrigger value="tender" className="flex flex-col items-center gap-1 text-sm font-medium">
               <IndianRupee className="w-5 h-5 text-green-600" />
-              <span className="text-green-700">Tender Entry</span>
+              <span className="hidden md:inline text-green-700">Tender Entry</span>
             </TabsTrigger>
+            {/* Tab 4: Refill */}
             <TabsTrigger value="refill" className="flex flex-col items-center gap-1 text-sm font-medium">
               <Fuel className="w-5 h-5 text-yellow-500" />
-              <span className="text-yellow-700">Tank Refill</span>
+              <span className="hidden md:inline text-yellow-700">Tank Refill</span>
             </TabsTrigger>
           </TabsList>
           {/* --- OCR Tab --- */}
