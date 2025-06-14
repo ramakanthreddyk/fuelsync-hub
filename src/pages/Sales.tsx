@@ -193,7 +193,8 @@ export default function Sales() {
     try {
       await createManualEntry.mutateAsync({
         station_id: parseInt(manualEntry.station_id),
-        nozzle_id: parseInt(manualEntry.nozzle_id),
+        // FIX: Always pass nozzle_id as number
+        nozzle_id: typeof manualEntry.nozzle_id === "string" ? parseInt(manualEntry.nozzle_id, 10) : manualEntry.nozzle_id,
         cumulative_volume: parseFloat(manualEntry.cumulative_volume),
         user_id: user?.id || 0
       });
